@@ -1,0 +1,56 @@
+/* Container for the whole section */
+.product-display {
+  padding: 2rem;
+
+  text-align: center;
+}
+
+.product-display h2 {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: var(--text-color);
+}
+
+/* Container for product cards */
+.product-display-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+}
+
+/* Responsive tweaks */
+@media (max-width: 1024px) {
+  .product-display {
+    padding: 1.5rem;
+  }
+
+  .product-display h2 {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .product-display-list {
+    gap: 1.5rem;
+  }
+
+  .product-display h2 {
+    font-size: 1.6rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-display {
+    padding: 1rem;
+  }
+
+  .product-display h2 {
+    font-size: 1.4rem;
+  }
+
+  .product-display-list {
+    flex-direction: column;
+    align-items: center;
+  }
+}

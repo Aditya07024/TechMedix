@@ -1,0 +1,145 @@
+.box {
+  margin: 2% auto;
+  min-height: 260px;
+  width: 80%;
+  border-radius: 14px;
+  background-color: var(--search-bg);
+  color: var(--text-color);
+  box-shadow: 0 4px 24px #00000010;
+  padding: 10px;
+}
+
+.box h3 {
+  padding: 10px 20px;
+  font-size: 2.2rem;
+  color: var(--text-color);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.search-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 0;
+}
+
+.search-inputs {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-by-medicine,
+.search-by-salt {
+  width: 100%;
+  max-width: 600px;
+  height: 55px;
+  background-color: var(--input-bg);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px #0000000a;
+}
+
+.search-by-medicine input,
+.search-by-salt input {
+  width: 90%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 1.1rem;
+  color: var(--text-color);
+  padding: 0 20px;
+}
+
+.search-by-medicine:hover,
+.search-by-salt:hover {
+  background-color: #d0c3c3;
+  transform: translateY(-2px);
+}
+
+.search-box p {
+  color: #666;
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 8px 0;
+}
+
+.search-btn {
+  padding: 14px 48px;
+  border: none;
+  background-color: var(--button-bg);
+  color: white;
+  border-radius: 50px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(242, 151, 31, 0.2);
+  margin-top: 10px;
+}
+
+.search-btn:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(242, 151, 31, 0.3);
+}
+
+@media (max-width: 768px) {
+  .box {
+    width: 90%;
+    min-height: auto;
+    padding: 15px;
+  }
+
+  .box h3 {
+    font-size: 1.8rem;
+    padding: 15px 0;
+  }
+
+  .search-box {
+    gap: 16px;
+    padding: 15px 0;
+  }
+
+  .search-by-medicine,
+  .search-by-salt {
+    height: 50px;
+  }
+
+  .search-btn {
+    width: 100%;
+    max-width: 600px;
+    padding: 12px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .box {
+    width: 95%;
+    padding: 10px;
+  }
+
+  .box h3 {
+    font-size: 1.4rem;
+    padding: 10px 0;
+  }
+
+  .search-by-medicine input,
+  .search-by-salt input {
+    font-size: 1rem;
+  }
+
+  .search-btn {
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+}

@@ -1,0 +1,9 @@
+.search-div{
+    display: flex;
+    justify-content: center;
+    h1{
+        font-size: 55px;
+        font-weight: 750;
+        color: #A03434;
+    }
+}
