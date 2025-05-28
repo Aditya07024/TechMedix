@@ -101,7 +101,7 @@
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.2rem;
 }
 
 .nav-icon-container {
@@ -114,6 +114,11 @@
   background-color: var(--input-bg);
   cursor: pointer;
   transition: all 0.3s ease;
+  position: relative;
+}
+
+.img-btn {
+  object-fit: cover;
 }
 
 .nav-icon-container:hover {
@@ -123,8 +128,8 @@
 }
 
 .nav-icon {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   transition: all 0.3s ease;
 }
@@ -134,20 +139,52 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 1.5rem;
-  padding: 8px;
+  font-size: 1.2rem;
+  padding: 0;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
   color: var(--text-color);
 }
 
 .theme-toggle:hover {
   background-color: var(--input-bg);
+}
+
+/* Style for buttons inside icon container */
+.nav-icon-container button {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+/* Add medicine button specific styles */
+.add-medicine button {
+  background-color: var(--button-bg);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 20px;
+  width: auto;
+  height: auto;
+  white-space: nowrap;
+}
+
+.add-medicine button:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
 }
 
 /* Responsive Design */
@@ -179,17 +216,22 @@
   }
 
   .navbar-right {
-    gap: 1.2rem;
+    gap: 1rem;
   }
 
   .nav-icon-container {
-    width: 35px;
-    height: 35px;
+    width: 36px;
+    height: 36px;
   }
 
   .nav-icon {
     width: 20px;
     height: 20px;
+  }
+
+  .add-medicine button {
+    font-size: 0.8rem;
+    padding: 6px 12px;
   }
 }
 
@@ -203,7 +245,7 @@
   }
 
   .navbar-right {
-    gap: 1rem;
+    gap: 0.8rem;
   }
 
   .nav-icon-container {
@@ -214,5 +256,10 @@
   .nav-icon {
     width: 18px;
     height: 18px;
+  }
+
+  .add-medicine button {
+    padding: 4px 10px;
+    font-size: 0.75rem;
   }
 }

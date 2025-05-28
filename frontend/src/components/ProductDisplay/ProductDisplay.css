@@ -1,14 +1,29 @@
 /* Container for the whole section */
 .product-display {
   padding: 2rem;
-
   text-align: center;
 }
 
 .product-display h2 {
-  font-size: 2rem;
-  margin-bottom: 2rem;
+  font-size: 2.5rem;
+  margin-bottom: 2.5rem;
   color: var(--text-color);
+  position: relative;
+  display: inline-block;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.product-display h2::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 3px;
+  background: linear-gradient(to right, var(--button-bg), var(--button-hover));
+  border-radius: 2px;
 }
 
 /* Container for product cards */
@@ -26,7 +41,7 @@
   }
 
   .product-display h2 {
-    font-size: 1.8rem;
+    font-size: 2.2rem;
   }
 }
 
@@ -36,17 +51,29 @@
   }
 
   .product-display h2 {
-    font-size: 1.6rem;
+    font-size: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .product-display h2::after {
+    width: 60px;
   }
 }
 
 @media (max-width: 480px) {
   .product-display {
     padding: 1rem;
+    
   }
 
   .product-display h2 {
-    font-size: 1.4rem;
+    font-size: 1.8rem;
+    margin-bottom: 1.8rem;
+  }
+
+  .product-display h2::after {
+    width: 50px;
+    height: 2px;
   }
 
   .product-display-list {

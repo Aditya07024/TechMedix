@@ -1,6 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap");
 
 :root {
+  --max-width: 1200px;
+  --container-padding: 2rem;
+  --border-radius: 12px;
+
+  /* Existing variables */
   --background-color: #d0e1e0a9;
   --text-color: #000000;
   --navbar-bg: #ffffff;
@@ -33,9 +38,9 @@
 }
 
 * {
-  padding: 0;
   margin: 0;
-  box-sizing: borderbox;
+  padding: 0;
+  box-sizing: border-box;
   font-family: outfit;
   scroll-behavior: smooth;
 }
@@ -80,7 +85,7 @@ a {
 
 .app {
   @media (max-width: 768px) {
-    background-color: #0056b3;
+    background-color: #d0e1e0a9;
   }
 }
 
@@ -168,4 +173,43 @@ a {
   background-color: var(--navbar-bg);
 }
 
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
+body {
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+}
+
+/* Responsive Typography */
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+
+  :root {
+    --container-padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 12px;
+  }
+}

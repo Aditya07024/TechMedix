@@ -7,10 +7,11 @@ import BuyProductsHeading from '../../components/BuyProductsHeading/BuyProductsH
 import Faq from '../../components/FAQ/Faq'
 import Footer from '../../components/Footer/Footer'
 import ProductDisplay from '../../components/ProductDisplay/ProductDisplay'
+import './Home.css'
 
 const Home = () => {
   return (
-    <div>
+    <div className="all-div">
         <Header />
         <SearchText/>
         <SearchBar />

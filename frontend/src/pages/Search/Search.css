@@ -1,4 +1,41 @@
 .search-page {
+  padding: var(--container-padding);
+}
+
+.search-section {
+  margin-bottom: 2rem;
+}
+
+.search-inputs-container {
+  flex-direction: row;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .search-inputs-container {
+    flex-direction: column;
+  }
+
+  .search-divider {
+    display: none;
+  }
+
+  .search-submit {
+    width: 100%;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-left {
+    max-height: 300px;
+  }
+}
+
+/* Existing styles below */
+
+.search-page {
   padding: 2rem;
   min-height: 80vh;
   background-color: var(--background-color);
@@ -58,12 +95,12 @@
   min-width: 0;
   width: 100px;
   position: relative;
-  margin-right: 30px;
+  /* margin-right: 30px; */
 }
 
 .search-input-group input {
   width: 100%;
-  padding: 1.2rem 1.5rem;
+  padding: 1.2rem 1rem;
   border: 2px solid var(--input-bg);
   border-radius: 15px;
   font-size: 1.1rem;
@@ -77,7 +114,7 @@
   outline: none;
   border-color: var(--button-bg);
   box-shadow: 0 0 0 3px rgba(242, 151, 31, 0.2),
-    inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  inset 0 2px 4px rgba(0, 0, 0, 0.05);
   transform: translateY(-2px);
 }
 
@@ -92,7 +129,7 @@
   padding: 0 1rem;
   font-size: 1.2rem;
   position: relative;
-  margin-left: 30px;
+  /* margin-left: 30px; */
 }
 
 .search-divider::before {
@@ -231,18 +268,18 @@
   max-height: 700px;
   overflow-y: auto;
   .all-medicine {
-    p{
-        margin-bottom: 5px;;
-        padding: 10px;
-        border: 1px solid rgb(0, 0, 0);
-        box-shadow: 2px 2px 5px rgb(255, 85, 0);
-        border-radius: 5px;
-        -webkit-border-radius: 5px;
-        -moz-border-radius: 5px;
-        -ms-border-radius: 5px;
-        -o-border-radius: 5px;
-}
+    p {
+      margin-bottom: 5px;
+      padding: 10px;
+      border: 1px solid rgb(0, 0, 0);
+      box-shadow: 2px 2px 5px rgb(255, 85, 0);
+      border-radius: 5px;
+      -webkit-border-radius: 5px;
+      -moz-border-radius: 5px;
+      -ms-border-radius: 5px;
+      -o-border-radius: 5px;
     }
+  }
 }
 
 .grid-right {
@@ -301,6 +338,9 @@
     width: 100%;
     max-width: 300px;
     padding: 1rem 2rem;
+  }
+  .search-input-group {
+    width: 100%;
   }
 }
 
