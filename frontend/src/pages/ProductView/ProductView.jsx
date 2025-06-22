@@ -1,13 +1,19 @@
 import React, { useContext } from 'react'
 import './ProductView.css'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { StoreContext } from '../../context/StoreContext'
 import { assets } from '../../assets/assets'
+import Button from '@mui/material/Button'
 
 const ProductView = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const { addToWish, removeFromWish, wishItems } = useContext(StoreContext)
-  const product = location.state.product
+  const product = location.state?.product
+
+  if (!product) {
+    return <p>Product not found.</p>
+  }
 
   const isInWishlist = wishItems[product._id]
 
@@ -19,6 +25,10 @@ const ProductView = () => {
     }
   }
 
+  const handleEditClick = () => {
+    navigate(`/medicines/${product._id}`, { state: { product } })
+  }
+
   return (
     <div className="product-view">
       <div className="product-view-container">
@@ -27,7 +37,7 @@ const ProductView = () => {
             <img src={product.image} alt={product.name} />
           </div>
         </div>
-        
+
         <div className="product-view-right">
           <h1>{product.name}</h1>
           <div className="product-view-rating">
@@ -44,21 +54,22 @@ const ProductView = () => {
           <div className="product-view-info">
             <h3>Product Information</h3>
             <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Maxime mollitia,
-            molestiae quas vel sint commodi repudiandae consequuntur voluptatum laborum
-            numquam blanditiis harum quisquam.</p>
+              molestiae quas vel sint commodi repudiandae consequuntur voluptatum laborum
+              numquam blanditiis harum quisquam.</p>
           </div>
           <div className="product-view-actions">
             <button className="add-to-cart">Add to Cart</button>
-            <button 
+            <button
               className={`wishlist-btn ${isInWishlist ? 'in-wishlist' : ''}`}
               onClick={handleWishlistClick}
             >
-              <img 
-                src={isInWishlist ? assets.remove_icon_red : assets.wish} 
-                alt="wishlist" 
+              <img
+                src={isInWishlist ? assets.remove_icon_red : assets.wish}
+                alt="wishlist"
               />
               {isInWishlist ? 'Remove from Wishlist' : 'Add to Wishlist'}
             </button>
+            <Button onClick={handleEditClick} variant="outlined">Edit</Button>
           </div>
         </div>
       </div>

@@ -172,7 +172,7 @@ button:hover {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 2rem;
 }
 
 .other-login-methods-icons img {
@@ -189,6 +189,23 @@ button:hover {
 
 .other-login-methods-icons img:hover {
   transform: scale(1.1);
+}
+
+@media (max-width: 1040px) {
+  .pop .pop-left {
+    display: none;
+  }
+
+  .pop .pop-right {
+    width: 90%;
+    max-width: 400px;
+    height: auto;
+    border-radius: 20px;
+  }
+
+  .login-popup-title h2 {
+    font-size: 1.5rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -213,6 +230,9 @@ button:hover {
     width: 95%;
     padding: 1.5rem;
   }
+  .pop .pop-left{
+    display: none;
+  }
 
   .login-popup-inputs input {
     padding: 10px 14px;
@@ -229,4 +249,26 @@ button:hover {
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.other-login-methods-icons button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  transition: all 0.3s ease;
+}
+
+.other-login-methods-icons button:hover {
+  background-color: var(--input-bg);
+  transform: translateY(-10px);
+}
+
+.error-message {
+  color: #dc3545;
+  background: #ffe6e6;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
 }

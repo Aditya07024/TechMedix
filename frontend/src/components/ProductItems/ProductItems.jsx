@@ -34,7 +34,7 @@ const ProductItems = ({ id, name, image, price, description, category }) => {
   };
 
   return (
-    <div className="product-item" >
+    <div className="product-item">
       <div className="product-image" onClick={handleProductClick}>
         <img src={image} alt={name} />
       </div>

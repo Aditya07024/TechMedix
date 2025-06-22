@@ -14,6 +14,7 @@ import image1 from "./image.png";
 import image2 from "./image2.png";
 import image3 from "./image3.png";
 import cross_icon from "./cross_icon.png";
+import chatgpt from "./chatgpt.png";
 
 // Social media icons
 import linkedin from "./linkedin.png";
@@ -43,6 +44,7 @@ import wish from "./wish.png";
 
 export const assets = {
   // Icons
+  chatgpt,
   cross_icon,
   buscopan_forte_tab,
   nutren_diabetes_vanilla,
