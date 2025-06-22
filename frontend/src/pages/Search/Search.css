@@ -2,6 +2,22 @@
   padding: var(--container-padding);
 }
 
+.div-up{
+  display: flex;
+  gap: 2%;
+}
+.ai-div{
+  display: flex;
+  flex-direction: column;
+  width: 25%;
+  h1{
+    font-size: 200%
+  }button{
+    margin-top: 10%;
+  }
+}
+
+
 .search-section {
   margin-bottom: 2rem;
 }
@@ -167,23 +183,34 @@
 }
 
 /* Add these new styles */
-.medicine-item {
+.error-message {
+  color: #dc3545;
+  background: #ffe6e6;
   padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.medicine-item {
+  padding: 1.5rem;
   border-radius: 12px;
-  background: var(--card-bg);
+  background: var(--background-color);
   margin-bottom: 1rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  border: 2px solid transparent;
 }
 
 .medicine-item.selected {
-  background: var(--button-bg);
-  transform: translateX(10px);
+  border-color: var(--button-bg);
+  background: var(--card-bg);
+  transform: translateX(5px);
 }
 
 .medicine-item:hover {
-  transform: translateX(10px);
-  background: var(--input-bg);
+  transform: translateX(5px);
+  background: var(--background-color);
 }
 
 .medicine-content {
@@ -253,12 +280,31 @@
   margin-bottom: 1rem;
 }
 
+.no-product-selected {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background: var(--card-bg);
+  border-radius: 12px;
+  text-align: center;
+}
+
 /* Update existing grid styles */
 .results-grid {
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 2rem;
   margin-top: 2rem;
+}
+
+.grid-left {
+  background-color: var(--card-bg);
+  border-radius: 15px;
+  padding: 1.5rem;
+  max-height: 700px;
+  overflow-y: auto;
 }
 
 .grid-left {
@@ -283,9 +329,42 @@
 }
 
 .grid-right {
-  background-color: rgb(133, 158, 168);
+  background-color: var(--card-bg);
   border-radius: 15px;
   padding: 1.5rem;
+}
+
+.product-view-info {
+  margin-top: 2rem;
+}
+
+.product-view-info h3 {
+  color: var(--text-color);
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.info-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--card-shadow);
+}
+
+.info-section:last-child {
+  border-bottom: none;
+}
+
+.info-section h4 {
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.info-section p {
+  color: var(--text-color);
+  opacity: 0.8;
+  line-height: 1.6;
+  margin: 0;
 }
 
 @keyframes fadeIn {
@@ -352,4 +431,9 @@
   .grid-left {
     max-height: 400px;
   }
+}
+
+
+.editanddeletebutton button{
+  margin-left: 10px;
 }

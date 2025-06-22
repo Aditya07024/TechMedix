@@ -3,13 +3,24 @@ import "./Navbar.css";
 import { assets } from "../../assets/assets";
 import { Link } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
+import Button from '@mui/material/Button';
+import Aipop from "../../components/AiPop/Aipop";
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ setShowLogin }) => {
+  const [askAi, setAskAi] = useState(false);
   const [menu, setMenu] = useState("home");
   const { isDarkMode, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    navigate('/new');
+  };
 
   return (
     <div className="navbar">
+            {askAi && <Aipop setShowAiPop={setAskAi} />}
+
       <Link to="/">
         <img src={assets.logo} alt="" className="logo" />
       </Link>
@@ -22,13 +33,12 @@ const Navbar = ({ setShowLogin }) => {
         >
           home
         </Link>
-        <a
-          href="#search-for-medicine"
+        <Link to="/search"
           onClick={() => setMenu("search-for-medicine")}
-          className={menu === "search-for-medicine" ? "active" : ""}
-        >
-          Search For Medicine
-        </a>
+          className={menu === "search-for-medicine" ? "active" : ""}>
+            Search for medicine
+        </Link>
+        
         <a
           href="#buy-products"
           onClick={() => setMenu("buy-products")}
@@ -53,7 +63,12 @@ const Navbar = ({ setShowLogin }) => {
       </ul>
       <div className="navbar-right">
         <div className="add-medicine">
-          <button>Add Medicine</button>
+          <button onClick={handleClick}>Add Medicine</button>
+        </div>
+        <div className="ai-div">
+          <Button className="ai-button" onClick={() => setAskAi(true)}>Ask to ChatGpt
+              <img className="chatgpt" src={assets.chatgpt} alt="" />
+            </Button>
         </div>
         <div className="nav-icon-container">
           <button onClick={toggleTheme} className="theme-toggle">
