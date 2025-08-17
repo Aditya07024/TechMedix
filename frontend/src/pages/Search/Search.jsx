@@ -38,8 +38,8 @@ const Search = () => {
     setError(null);
 
     try {
-      const response = await axios.get(`/api/medicines/search`, {
-        params: {
+const response = await axios.get(`/api/medicines/search`,{
+          params: {
           medicine: medicine || "",
           solution: solution || "",
         },

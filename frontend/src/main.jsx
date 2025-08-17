@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import StoreProvider from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import axios from 'axios';
+
 axios.defaults.baseURL = 'http://localhost:8080';
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -14,7 +15,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <StoreProvider>
         <ThemeProvider>
-          <App />
+          <App/>
         </ThemeProvider>
       </StoreProvider>
     </BrowserRouter>

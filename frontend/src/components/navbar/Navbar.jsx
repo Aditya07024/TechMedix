@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Navbar.css";
 import { assets } from "../../assets/assets";
 import { Link } from "react-router-dom";
@@ -6,15 +6,40 @@ import { useTheme } from "../../context/ThemeContext";
 import Button from '@mui/material/Button';
 import Aipop from "../../components/AiPop/Aipop";
 import { useNavigate } from 'react-router-dom';
-
-const Navbar = ({ setShowLogin }) => {
+const Navbar = ({setShowLogin}) => {
   const [askAi, setAskAi] = useState(false);
   const [menu, setMenu] = useState("home");
   const { isDarkMode, toggleTheme } = useTheme();
+    const [ifLogin, setIfLogin] = useState(false);
   const navigate = useNavigate();
+  useEffect(() => {
+    fetch('http://localhost:8080/auth/status', {
+      method: 'GET',
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(data => {
+        setIfLogin(data.ifLogin);
+      })
+      .catch(err => {
+        setIfLogin(false);
+      });
+  }, []);
 
   const handleClick = () => {
     navigate('/new');
+  };
+    const logout = async () => {
+    try {
+      await fetch('http://localhost:8080/auth/logout', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      setIfLogin(false);
+      navigate('/');
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
   };
 
   return (
@@ -27,7 +52,7 @@ const Navbar = ({ setShowLogin }) => {
 
       <ul className="navbar-menu">
         <Link
-          to="/"
+          to="/home"
           onClick={() => setMenu("home")}
           className={menu === "home" ? "active" : ""}
         >
@@ -62,9 +87,11 @@ const Navbar = ({ setShowLogin }) => {
         </a>
       </ul>
       <div className="navbar-right">
-        <div className="add-medicine">
-          <button onClick={handleClick}>Add Medicine</button>
-        </div>
+        {ifLogin && (
+          <div className="add-medicine">
+            <button onClick={handleClick}>Add Medicine</button>
+          </div>
+        )}
         <div className="ai-div">
           <Button className="ai-button" onClick={() => setAskAi(true)}>Ask to ChatGpt
               <img className="chatgpt" src={assets.chatgpt} alt="" />
@@ -80,11 +107,19 @@ const Navbar = ({ setShowLogin }) => {
             <img src={assets.wishlist} alt="Wishlist" className="nav-icon" />
           </Link>
         </div>
+        {!ifLogin && (
         <div className="nav-icon-container">
           <button className="nav-btn" onClick={() => setShowLogin(true)}>
             <img src={assets.account_icon} alt="Account" className="nav-icon" />
           </button>
-        </div>
+        </div>)}
+        {ifLogin && (
+        <div className="nav-icon-container">
+          <button className="nav-btn red" onClick={logout}>
+                        <img src={assets.logout_icon} alt="Account" className="nav-icon" />
+
+          </button>
+        </div>)}
       </div>
     </div>
   );
