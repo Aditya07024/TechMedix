@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -9,7 +10,7 @@ function Test() {
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
-        const response = await fetch("http://localhost:8080/medicines");
+        const response = await fetch(`${API_URL}/medicines`);
         if (!response.ok) {
           throw new Error('Failed to fetch medicines');
         }

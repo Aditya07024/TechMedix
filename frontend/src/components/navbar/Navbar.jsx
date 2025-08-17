@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useState, useEffect } from "react";
 import "./Navbar.css";
 import { assets } from "../../assets/assets";
@@ -13,7 +14,7 @@ const Navbar = ({setShowLogin}) => {
     const [ifLogin, setIfLogin] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
-    fetch('http://localhost:8080/auth/status', {
+    fetch(`${API_URL}/auth/status`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -31,7 +32,7 @@ const Navbar = ({setShowLogin}) => {
   };
     const logout = async () => {
     try {
-      await fetch('http://localhost:8080/auth/logout', {
+      await fetch(`${API_URL}/auth/logout`, {
         method: 'GET',
         credentials: 'include',
       });
