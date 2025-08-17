@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -23,7 +24,7 @@ export default function EditMedicine() {
   useEffect(() => {
     async function fetchMedicine() {
       try {
-        const res = await axios.get(`http://localhost:8080/medicines/${id}`);
+        const res = await axios.get(`${API_URL}/medicines/${id}`);
         console.log(res.data)
         setFormData(res.data);
       } catch (err) {
@@ -46,7 +47,7 @@ export default function EditMedicine() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:8080/medicines/${id}`, formData);
+      await axios.put(`${API_URL}/medicines/${id}`, formData);
       alert('Medicine updated successfully!');
       navigate(`/medicines/${id}`);
     } catch (err) {

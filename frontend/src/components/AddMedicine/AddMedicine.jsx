@@ -1,4 +1,4 @@
-// src/pages/AddMedicine.jsx
+const API_URL = import.meta.env.VITE_API_URL;
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -26,7 +26,7 @@ export default function AddMedicine() {
     e.preventDefault();
 
     try {
-      await axios.post('http://localhost:8080/new', formData);
+      await axios.post(`${API_URL}/new`, formData);
       setFormData({
         name: '',
         price: '',

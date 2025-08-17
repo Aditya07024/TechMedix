@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useState, useEffect, useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./Search.css";
@@ -82,7 +83,7 @@ const response = await axios.get(`/api/medicines/search`,{
   if (!confirmDelete) return;
 
   try {
-    await axios.delete(`http://localhost:8080/medicines/${selectedProductData._id}`);
+    await axios.delete(`${API_URL}/medicines/${selectedProductData._id}`);
     alert("Medicine deleted successfully");
     // Remove deleted item from the search results
     setSearchResults(prev => prev.filter(med => med._id !== selectedProductData._id));

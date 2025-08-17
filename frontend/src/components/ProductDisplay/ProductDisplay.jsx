@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useContext } from 'react'
 import ProductItems from '../ProductItems/ProductItems';
 import { StoreContext } from '../../context/StoreContext';

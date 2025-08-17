@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -11,7 +12,7 @@ function Show() {
         const fetchMedicine = async () => {
             try {
                 setLoading(true);
-                const response = await fetch(`http://localhost:8080/medicines/${id}`);
+                const response = await fetch(`${API_URL}/medicines/${id}`);
                 if (!response.ok) {
                     throw new Error('Medicine not found');
                 }

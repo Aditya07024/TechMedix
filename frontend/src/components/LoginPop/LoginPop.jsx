@@ -1,3 +1,4 @@
+const API_URL = import.meta.env.VITE_API_URL;
 import React, { useState } from 'react';
 import './LoginPop.css';
 import { assets } from '../../assets/assets';
@@ -15,7 +16,7 @@ const LoginPop = () => {
   const googleLogin = useGoogleLogin({
     onSuccess: async (response) => {
       try {
-        const res = await axios.post('http://localhost:8080/auth/google', {
+        const res = await axios.post(`${API_URL}/auth/google`, {
           code: response.access_token
         }, { withCredentials: true });
         
@@ -43,19 +44,19 @@ const LoginPop = () => {
       let res;
       if (currState === "Sign Up") {
         res = await axios.post(
-          "http://localhost:8080/auth/signup",
+          `${API_URL}/auth/signup`,
           { name, email, password },
           { withCredentials: true }
         );
         // After signup, auto-login
         res = await axios.post(
-          "http://localhost:8080/auth/login",
+          `${API_URL}/auth/login`,
           { email, password },
           { withCredentials: true }
         );
       } else {
         res = await axios.post(
-          "http://localhost:8080/auth/login",
+          `${API_URL}/auth/login`,
           { email, password },
           { withCredentials: true }
         );
@@ -63,7 +64,7 @@ const LoginPop = () => {
       if (res.data && res.data.user) {
         localStorage.setItem('user', JSON.stringify(res.data.user));
         setIsOpen(false);
-        window.location.href = "/";
+        window.location.href = "/home";
       }
     } catch (err) {
       console.error("Error:", err);
