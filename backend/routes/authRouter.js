@@ -4,6 +4,8 @@ import bcrypt from "bcrypt";
 import User from "../models/users.js";
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
+import dotenv from "dotenv";
+dotenv.config();
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -12,7 +14,7 @@ let ifLogin = false;
 // Google OAuth login
 router.post("/google", async (req, res) => {
   app.use(cors({
-  origin: "http://localhost:5173", // frontend URL
+  origin: process.env.FRONTEND_URL, // frontend URL
   credentials: true               // allow cookies
 }));
   try {
