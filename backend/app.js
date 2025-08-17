@@ -7,9 +7,11 @@ import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
 import authRouter from "./routes/authRouter.js";
+// import  authenticate  from "./middleware/auth.js";
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL;
+
 
 app.use(
   cors({
@@ -20,9 +22,8 @@ app.use(
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
-const MONGO_URL = "mongodb://127.0.0.1:27017/techmedix";
 async function main() {
-  await mongoose.connect(MONGO_URL);
+  await mongoose.connect(process.env.MONGO_URL);
 }
 main()
   .then(() => {
@@ -38,7 +39,7 @@ app.get("/", (req, res) => {
 
 app.get("/medicines", async (req, res) => {
   const allMedicines = await Medicine.find();
-  res.json(allMedicines); // send JSON to frontend
+  res.json(allMedicines);
 });
 
 //new medicine route
@@ -78,7 +79,7 @@ app.delete("/medicines/:id", async (req, res) => {
   }
 });
 
-
+// update route
 app.put("/medicines/:id", async (req, res) => {
   try {
     const updated = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
@@ -103,31 +104,60 @@ app.get("/api/medicines/search", async (req, res) => {
       similarMedicines = [];
 
     if (medicine) {
-      // Search by medicine name and include all fields
+      // Search by medicine name or salt and include all fields
       medicineData = await Medicine.findOne({
-        name: { $regex: medicine, $options: "i" },
+        $or: [
+          { name: { $regex: `^${medicine}$`, $options: "i" } },
+          { salt: { $regex: medicine, $options: "i" } }
+        ]
       }).select(
         "name price salt info benefits sideeffects usage working safetyadvice image"
       );
 
       if (medicineData) {
         salt = medicineData.salt;
-        // Find similar medicines with same salt
+        // Find similar medicines with same salt excluding the found medicine
         similarMedicines = await Medicine.find({
           salt: salt,
-          _id: { $ne: medicineData._id },
-        }).select(
-          "name price salt info benefits sideeffects usage working safetyadvice image"
-        );
+          _id: { $ne: medicineData._id }
+        })
+          .select(
+            "name price salt info benefits sideeffects usage working safetyadvice image"
+          )
+          .sort({ name: 1 })
+          .limit(10);
+      } else {
+        // If no exact medicineData found, do a broader search on both name and salt fields
+        similarMedicines = await Medicine.find({
+          $or: [
+            { name: { $regex: medicine, $options: "i" } },
+            { salt: { $regex: medicine, $options: "i" } }
+          ]
+        })
+          .select(
+            "name price salt info benefits sideeffects usage working safetyadvice image"
+          )
+          .sort({ name: 1 })
+          .limit(10);
+        if (similarMedicines.length > 0) {
+          salt = similarMedicines[0].salt;
+        }
       }
     } else if (solution) {
       // Search by salt/solution
       similarMedicines = await Medicine.find({
         salt: { $regex: solution, $options: "i" },
-      }).select(
-        "name price salt info benefits sideeffects usage working safetyadvice image"
-      );
+      })
+        .select(
+          "name price salt info benefits sideeffects usage working safetyadvice image"
+        )
+        .sort({ name: 1 })
+        .limit(10);
       salt = solution;
+    }
+
+    if (!medicineData && similarMedicines.length === 0) {
+      return res.status(404).json({ message: "No medicines found matching your query." });
     }
 
     console.log("Search Results:", {
@@ -144,7 +174,7 @@ app.get("/api/medicines/search", async (req, res) => {
 
 app.get("/api/medicines/:id", async (req, res) => {
   try {
-    const medicine = await Medicine.findById(id);
+    const medicine = await Medicine.findById(req.params.id);
     if (!medicine) {
       return res.status(404).json({ message: "Medicine not found" });
     }
@@ -159,7 +189,7 @@ app.get("/allmedicines", async (req, res) => {
   res.send(await Medicine.find());
 });
 
-app.get("/testw", (req, res) => {
+app.get("/test", (req, res) => {
   let sampleMedicine = new Medicine({
     name: "Warfarin Soodiumm",
     price: 100,
@@ -184,14 +214,6 @@ app.get("/testw", (req, res) => {
     });
 });
 
-app.get("/api/test-db", async (req, res) => {
-  try {
-    const count = await Medicine.countDocuments();
-    res.json({ message: `Database connected. Found ${count} medicines.` });
-  } catch (error) {
-    res.status(500).json({ error: "Database connection failed" });
-  }
-});
 
 app.post("/aipop", async (req, res) => {
   const { prompt } = req.body;

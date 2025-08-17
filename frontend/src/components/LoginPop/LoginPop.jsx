@@ -3,22 +3,26 @@ import './LoginPop.css';
 import { assets } from '../../assets/assets';
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from 'axios';
-
-const LoginPop = ({ setShowLogin }) => {
+import setShowLogin from "../navbar/Navbar"
+const LoginPop = () => {
   const [currState, setCurrState] = useState("Sign Up");
   const [error, setError] = useState(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isOpen, setIsOpen] = useState(true);
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (response) => {
       try {
         const res = await axios.post('http://localhost:8080/auth/google', {
           code: response.access_token
-        });
+        }, { withCredentials: true });
         
-        // Handle successful login
         console.log("Google login successful:", res.data);
         localStorage.setItem('user', JSON.stringify(res.data.user));
-        setShowLogin(false);
+        setIsOpen(false);
+        window.location.href = "/";
         
       } catch (err) {
         console.error("Google login failed:", err);
@@ -31,6 +35,44 @@ const LoginPop = ({ setShowLogin }) => {
     flow: 'implicit'
   });
 
+  // Handles both signup and login
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      let res;
+      if (currState === "Sign Up") {
+        res = await axios.post(
+          "http://localhost:8080/auth/signup",
+          { name, email, password },
+          { withCredentials: true }
+        );
+        // After signup, auto-login
+        res = await axios.post(
+          "http://localhost:8080/auth/login",
+          { email, password },
+          { withCredentials: true }
+        );
+      } else {
+        res = await axios.post(
+          "http://localhost:8080/auth/login",
+          { email, password },
+          { withCredentials: true }
+        );
+      }
+      if (res.data && res.data.user) {
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        setIsOpen(false);
+        window.location.href = "/";
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      setError(err.response?.data?.error || "Authentication failed");
+    }
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="pop">
         
@@ -40,12 +82,12 @@ const LoginPop = ({ setShowLogin }) => {
       </div>
       <div className="pop-right">
         <div className='login-pop'>
-          <form className="login-popup-container" onSubmit={(e) => e.preventDefault()}>
+          <form className="login-popup-container" onSubmit={handleSubmit}>
             <div className="login-popup-title">
               <h2>{currState}</h2>
               <div className="cross-img">
                 <img 
-                    onClick={() => setShowLogin(false)}
+                    onClick={() => setIsOpen(false)}
                   src={assets.cross_icon} 
                   alt="close"
                 />
@@ -56,10 +98,28 @@ const LoginPop = ({ setShowLogin }) => {
             
             <div className="login-popup-inputs">
               {currState === "Sign Up" && (
-                <input type="text" placeholder='Enter your Name' required/>
+                <input
+                  type="text"
+                  placeholder="Enter your Name"
+                  required
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                />
               )}
-              <input type="email" placeholder='Enter your email' required />
-              <input type="password" placeholder='Enter your password' required />
+              <input
+                type="email"
+                placeholder="Enter your email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Enter your password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
             </div>
 
             <button type="submit">
