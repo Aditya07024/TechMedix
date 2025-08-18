@@ -1,0 +1,47 @@
+.hero-section {
+  position: relative; /* Needed for absolute positioning of text */
+  width: 100%;
+  height: 100vh; /* Full screen height */
+  overflow: hidden;
+}
+
+.hero-section video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Cover the container nicely */
+}
+
+.hero-text {
+  position: absolute; /* Place over the video */
+  top: 50%;           /* Center vertically */
+  left: 50%;          /* Center horizontally */
+  transform: translate(-50%, -50%); /* Perfect centering */
+  text-align: center;
+  color: rgb(98, 10, 10);
+  width: 100%;
+
+}
+
+.hero-text h1 {
+  font-size: 550%;
+  margin-bottom: 10px;
+  font-family: "Changa", sans-serif;
+  font-optical-sizing: auto;
+  /* font-weight: <weight>; */
+  font-style: normal;
+}
+
+.hero-text p {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
+.hero-text button {
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  background: #007bff;
+  border: none;
+  color: white;
+  border-radius: 5px;
+}

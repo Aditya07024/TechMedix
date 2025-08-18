@@ -11,7 +11,7 @@ const notfound = () => {
         <Link to="/home">← Back</Link>
       </div>
       <div className="video-section">
-        <video autoPlay loop muted playsInline style={{ maxWidth: "500px" }}>
+        <video autoPlay loop muted playsInline style={{ maxWidth: "700px" }}>
           <source src="../src/assets/not-found.mp4" type="video/mp4" />
           Your browser does not support the video tag.
         </video>
