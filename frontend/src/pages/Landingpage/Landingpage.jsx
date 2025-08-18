@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom';
-import "./landingpage.css"
+import "./Landingpage.css"
 // import landingvideo from '../../assets/landingvideo'
 const Landingpage = () => {
     const navigate = useNavigate();
