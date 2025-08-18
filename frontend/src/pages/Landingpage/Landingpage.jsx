@@ -1,6 +1,8 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom';
 import "./Landingpage.css"
+import landingVideo from '../../assets/landingvideo.mp4';
+
 // import landingvideo from '../../assets/landingvideo'
 const Landingpage = () => {
     const navigate = useNavigate();
@@ -11,7 +13,7 @@ const Landingpage = () => {
         <>
             <div className='hero-section'>
   <video autoPlay loop muted playsInline>
-    <source src="../src/assets/landingvideo.mp4" type="video/mp4" />
+  <source src={landingVideo} type="video/mp4" />
   </video>
   <div className="hero-text">
     <h1>Welcome to TechMedix</h1>
