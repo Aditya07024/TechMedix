@@ -1,7 +1,6 @@
 .navbar {
-  width: 100vw;
-  min-width: 100%;
-  padding: 1rem 2%;
+  width: 105%;
+  padding: 5px 1%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -20,7 +19,8 @@
   width: 150px;
   height: 50px;
   transition: transform 0.3s ease;
-  margin-right: 40px;
+  border-radius: 10px;
+  /* margin-right: 40px; */
 }
 
 .app {
@@ -36,11 +36,21 @@
 }
 
 .navbar-menu {
+  background-color: rgba(227, 185, 16, 0.3);
+    border: 1.5px solid black;
+
+  border-radius: 20px;
   display: flex;
   list-style: none;
   gap: 2rem;
   margin: 0;
-  padding: 0;
+  padding-left: 2%;
+  padding-right: 2%;
+  padding-bottom: 9px;
+  padding-top: 5px;
+  width: fit-content;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .navbar-menu a {
@@ -99,6 +109,7 @@
 }
 
 .navbar-right {
+  /* margin-left: 10%; */
   display: flex;
   align-items: center;
   gap: 1.2rem;
@@ -264,7 +275,10 @@
   }
 }
 .ai-div {
+  /* border: 2px dashed black; */
+  padding-bottom: 10px;
   margin-right: 20px;
+  padding-left: 2%;
   .ai-button {
     margin-right: 50px;
     width: 100%;
