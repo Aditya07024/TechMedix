@@ -49,12 +49,10 @@ const Search = () => {
     setError(null);
 
     try {
-const response = await axios.get(`/api/medicines/search`,{
-          params: {
-          medicine: medicine || "",
-          solution: solution || "",
-        },
-      });
+const response = await axios.get(`${API_URL}/api/medicines/search`, {
+  params: { medicine: medicine || "", solution: solution || "" },
+  withCredentials: true,
+});
 
       const { medicineData, similarMedicines } = response.data;
       const saltName =
