@@ -18,9 +18,10 @@ export default function EditMedicine() {
     usage: '',
     working: '',
     safetyadvice: '',
+    link:'',
+    image:''
   });
 
-  // Fetch existing medicine data on mount
   useEffect(() => {
     async function fetchMedicine() {
       try {
@@ -49,7 +50,7 @@ export default function EditMedicine() {
     try {
       await axios.put(`${API_URL}/medicines/${id}`, formData);
       alert('Medicine updated successfully!');
-      navigate(`/medicines/${id}`);
+      navigate(`/home`);
     } catch (err) {
   console.log("Update error:", err.response?.data || err.message);
   alert('Failed to update medicine.');
@@ -99,6 +100,14 @@ export default function EditMedicine() {
         <div>
           <label>Safety Advice: </label>
           <textarea name="safetyadvice" value={formData.safetyadvice} onChange={handleChange}></textarea>
+        </div>
+        <div>
+          <label>Purchase URL: </label>
+          <textarea name="link" value={formData.link} onChange={handleChange}></textarea>
+        </div>
+        <div>
+          <label>Image URL: </label>
+          <textarea name="image" value={formData.image} onChange={handleChange}></textarea>
         </div>
         <button type="submit">Update Medicine</button>
       </form>

@@ -20,12 +20,22 @@ const Search = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const product = location.state?.product;
+  const [ifLogin, setIfLogin] = useState(false);
 
   useEffect(() => {
     if (medicine || solution) {
       handleSearch();
     }
-    // eslint-disable-next-line
+    const checkLogin = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/auth/status`, { withCredentials: true });
+      setIfLogin(res.data.ifLogin);  // update state
+    } catch (err) {
+      setIfLogin(false); // fallback
+    }
+  };
+
+  checkLogin();
   }, []);
 
   const handleSearch = async (e) => {
@@ -200,6 +210,7 @@ const response = await axios.get(`/api/medicines/search`,{
                     <div className="product-view-category">
                       <span>Salt:</span> {solution}
                     </div>
+                    {ifLogin && (
                     <div className="editanddeletebutton">
                       <Button onClick={handleEditClick} variant="outlined">
                       Edit Medicine
@@ -207,6 +218,14 @@ const response = await axios.get(`/api/medicines/search`,{
                     <Button onClick={handleDeleteClick} variant="outlined" color="error">
   Delete Medicine
 </Button>
+                    </div>
+                    )}<div className="product-view-price">
+                      
+                      <a href={selectedProductData.link} target="_blank" rel="noopener noreferrer">
+                        <button className="buy-button">
+      Buy Now
+    </button>
+                      </a>
                     </div>
                     <div className="product-view-info">
                       <h3>Product Information</h3>

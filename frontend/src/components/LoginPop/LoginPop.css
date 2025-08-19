@@ -19,12 +19,20 @@
   border-radius: 20px 0 0 20px;
   background: linear-gradient(135deg, #70cfac 0%, #2ab280 100%);
   color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+  /* display: flex; */
+  /* flex-direction: column; */
+  /* justify-content: center; */
+  /* align-items: center; */
+  /* padding: 2rem; */
+  box-shadow: -25px 0 55px rgb(0, 0, 0);
+  background-color: #311e14d0;
+  background-image: linear-gradient(
+    52deg,
+    rgb(17, 9, 4) 40px,
+    transparent
+  );
+  background-size: 60px 60px;
+  background-position: -5px -5px;
 }
 
 .pop .pop-left h1 {
@@ -73,7 +81,6 @@
 }
 
 .cross-img {
-
   opacity: 0.6;
   transition: opacity 0.2s;
 }
@@ -83,7 +90,7 @@
 }
 
 .login-popup-inputs {
-    width: 95%;
+  width: 95%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -101,7 +108,7 @@
 }
 
 .login-popup-inputs input:focus {
-  outline:#2ab280;
+  outline: #2ab280;
   border-color: #70cfac;
 }
 
@@ -184,7 +191,7 @@ button:hover {
   cursor: pointer;
   transition: transform 0.2s;
   background-color: white;
-  object-fit: cover;
+  object-fit: fit;
 }
 
 .other-login-methods-icons img:hover {
@@ -230,7 +237,7 @@ button:hover {
     width: 95%;
     padding: 1.5rem;
   }
-  .pop .pop-left{
+  .pop .pop-left {
     display: none;
   }
 
@@ -243,8 +250,7 @@ button:hover {
   }
 }
 
-
-.login-popup-container span{
+.login-popup-container span {
   color: green;
   font-size: 1.1rem;
   font-weight: 600;
@@ -271,4 +277,87 @@ button:hover {
   border-radius: 4px;
   margin-bottom: 15px;
   font-size: 0.9rem;
+}
+
+/* From Uiverse.io by Praashoo7 */
+.card {
+  width: 100%;
+  height: 100%;
+  /* background: #61623bd3; */
+  transition: 1s ease-in-out;
+  clip-path: polygon(
+    30px 0%,
+    100% 0,
+    100% calc(100% - 30px),
+    calc(100% - 30px) 100%,
+    0 100%,
+    0% 30px
+  );
+  display: flex;
+  flex-direction: column;
+}
+
+.card span {
+  font-weight: bold;
+  color: rgb(255, 255, 255);
+  text-align: center;
+  display: block;
+  font-size: 2em;
+}
+
+.card .info {
+  font-weight: 400;
+  color: white;
+  display: block;
+  text-align: center;
+  font-size: 0.86em;
+  margin: 1em;
+}
+
+.card .img{
+  height: 4.5em;
+  background: white;
+  border-radius: 15px;
+  margin: auto;
+  img{
+  height: 100%;
+  border-radius: 10px;
+  }
+}
+
+.card .share {
+  margin-top: 1em;
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  
+}
+
+.card a {
+  color: white;
+  transition: 0.4s ease-in-out;
+}
+
+.card a:hover {
+  color: red;
+}
+
+.card button {
+  padding: 0.8em 1.7em;
+  display: block;
+  margin: auto;
+  border-radius: 25px;
+  border: none;
+  font-weight: bold;
+  background: #dfd2d2;
+  color: rgb(0, 0, 0);
+  transition: 0.4s ease-in-out;
+  width: 80%;
+  border: 3px solid rgb(0, 221, 255);
+}
+
+.card button:hover {
+  background: rgb(105, 20, 20);
+  color: white;
+  cursor: pointer;
 }

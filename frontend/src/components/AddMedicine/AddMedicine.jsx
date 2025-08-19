@@ -13,6 +13,8 @@ export default function AddMedicine() {
     salt: '',
     benefits: '',
     sideeffects: '',
+    link:'',
+    image:''
   });
 
   const handleChange = (e) => {
@@ -37,6 +39,8 @@ export default function AddMedicine() {
         sideeffects: '',
         usage:'',
         safetyadvice:'',
+        link:'',
+        image:''
       });
     navigate("/");
     } catch (err) {
@@ -84,6 +88,14 @@ export default function AddMedicine() {
         <div>
           <label>Safety Advice: </label>
           <textarea name="safetyadvice" value={formData.safetyadvice} onChange={handleChange}></textarea>
+        </div>
+        <div>
+          <label>Purchase URL: </label>
+          <textarea name="link" value={formData.link} onChange={handleChange}></textarea>
+        </div>
+        <div>
+          <label>image URL: </label>
+          <textarea name="image" value={formData.image} onChange={handleChange}></textarea>
         </div>
         <button type="submit">Add Medicine</button>
       </form>
