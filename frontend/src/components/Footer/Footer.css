@@ -25,6 +25,8 @@
 .footer-logo {
     width: 220px;
     margin-bottom: 18px;
+    border-radius: 10px;
+    border: 2px solid black;
 }
 
 .footer-tagline {

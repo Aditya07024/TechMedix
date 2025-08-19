@@ -437,3 +437,16 @@
 .editanddeletebutton button{
   margin-left: 10px;
 }
+
+.buy-button {
+  display: block;
+  width: 100%;
+  background-color: #fff;
+  padding: 10px 20px;
+  text-transform: uppercase;
+  color: #000;
+  outline: 0;
+  border: 0;
+  border-radius: 10px;
+  border: 2px solid black;
+}

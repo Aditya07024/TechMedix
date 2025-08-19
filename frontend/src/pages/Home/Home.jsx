@@ -9,6 +9,7 @@ import Footer from '../../components/Footer/Footer'
 import ProductDisplay from '../../components/ProductDisplay/ProductDisplay'
 import './Home.css'
 
+
 const Home = () => {
   return (
     <div className="all-div">

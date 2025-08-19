@@ -1,5 +1,4 @@
 export const medicineData = [
-  // ...existing csv data converted to array of objects...
 ];
 
 export const getMedicineByName = (name) => {
