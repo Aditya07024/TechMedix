@@ -1,0 +1,50 @@
+.report-generator-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    min-height: 60vh;
+}
+
+.upload-section {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.report-generator-button {
+    background-color: #4CAF50; /* Green */
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.report-generator-button:hover {
+    background-color: #45a049;
+}
+
+.ai-report-section {
+    margin-top: 30px;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 80%;
+    background-color: #f9f9f9;
+}
+
+.ai-report-section h2 {
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.ai-report-section p {
+    color: #666;
+    line-height: 1.6;
+}

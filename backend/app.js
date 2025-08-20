@@ -22,8 +22,22 @@ app.use(
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
+// Add multer for file uploads
+import multer from 'multer';
+import Report from './models/report.js'; // We'll create this model next
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, './uploads'); // Directory to store uploaded files
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+const upload = multer({ storage: storage });
+
 async function main() {
-  await mongoose.connect(process.env.MONGO_URL);
+  await mongoose.connect("mongodb+srv://adityakumar07024:adityakumar07024@cluster0.1a1j7eo.mongodb.net/");
 }
 main()
   .then(() => {
@@ -249,6 +263,60 @@ app.post("/aipop", async (req, res) => {
       error.response ? error.response.data : error.message
     );
     res.status(500).json({ error: "AI service error" });
+  }
+});
+
+// New route for report uploads
+app.post('/api/upload-report', upload.single('report'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded.' });
+  }
+
+  const reportPath = req.file.path;
+  const userId = req.body.userId || 'anonymous'; // Assuming you have user authentication
+
+  // Placeholder for AI API integration
+  let aiGeneratedReport = "";
+  try {
+    // In a real application, you would send the file content to an AI API here.
+    // For demonstration, we'll mock a response.
+    // const aiResponse = await axios.post('YOUR_AI_API_ENDPOINT', { file: reportPath });
+    // aiGeneratedReport = aiResponse.data.reportContent;
+
+    // Mock AI response
+    aiGeneratedReport = `AI analysis of ${req.file.originalname}:
+    - Suggestion 1: Consult a specialist for further evaluation.
+    - Precaution 1: Avoid self-medication.
+    - This report is for informational purposes only and not a substitute for professional medical advice.`;
+
+    const newReport = new Report({
+      userId,
+      filePath: reportPath,
+      fileName: req.file.originalname,
+      fileType: req.file.mimetype,
+      aiReport: aiGeneratedReport,
+    });
+    await newReport.save();
+
+    res.status(200).json({ message: 'Report uploaded and processed successfully', aiReport: aiGeneratedReport, reportId: newReport._id });
+
+  } catch (error) {
+    console.error('Error processing report:', error);
+    res.status(500).json({ error: 'Failed to process report' });
+  }
+});
+
+// New route to fetch a single report
+app.get('/api/reports/:id', async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+    res.json(report);
+  } catch (error) {
+    console.error('Error fetching report:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
