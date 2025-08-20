@@ -11,6 +11,7 @@ import AddMedicine from "./components/AddMedicine/AddMedicine";
 import EditMedicine from "./components/EditMedicine/EditMedicine";
 import Notfound from "./pages/Notfound/notfound";
 import Landingpage from "./pages/Landingpage/Landingpage";
+import ReportGenerator from "./pages/ReportGenerator/ReportGenerator";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -38,6 +39,7 @@ const App = () => {
           <Route path="/search" element={<Search />} />
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
+          <Route path="/report-generator" element={<ReportGenerator />} />
           <Route path="*" element={<Notfound />} />
         </Routes>
       </div>
