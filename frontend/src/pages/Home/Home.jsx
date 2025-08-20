@@ -16,6 +16,7 @@ const Home = () => {
         <Header />
         <SearchText/>
         <SearchBar />
+        <button className="report-generator-button" onClick={() => window.location.href='/report-generator'}>Report Generator</button>
         <BuyProductsHeading/>
         <BuyProducts/>
         <ProductDisplay/>
