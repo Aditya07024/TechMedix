@@ -47,6 +47,10 @@ const medicineSchema = new mongoose.Schema({
         ? "https://img1.exportersindia.com/product_images/bc-full/2022/1/1169423/warfarin-sodium-tablets-1642579071-6164622.jpeg"
         : v,
   },
+  link:{
+    type:String,
+    required:true,
+  }
 });
 
 const Medicine = mongoose.model("Medicine", medicineSchema);
