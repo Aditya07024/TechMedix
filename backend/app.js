@@ -124,7 +124,7 @@ app.get("/api/medicines/search", async (req, res) => {
           { salt: { $regex: medicine, $options: "i" } }
         ]
       }).select(
-        "name price salt info benefits sideeffects usage working safetyadvice image"
+        "name price salt info benefits sideeffects usage working safetyadvice image link"
       );
 
       if (medicineData) {
@@ -135,7 +135,7 @@ app.get("/api/medicines/search", async (req, res) => {
           _id: { $ne: medicineData._id }
         })
           .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image"
+            "name price salt info benefits sideeffects usage working safetyadvice image link"
           )
           .sort({ name: 1 })
           .limit(10);
@@ -148,7 +148,7 @@ app.get("/api/medicines/search", async (req, res) => {
           ]
         })
           .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image"
+            "name price salt info benefits sideeffects usage working safetyadvice image link"
           )
           .sort({ name: 1 })
           .limit(10);
@@ -162,7 +162,7 @@ app.get("/api/medicines/search", async (req, res) => {
         salt: { $regex: solution, $options: "i" },
       })
         .select(
-          "name price salt info benefits sideeffects usage working safetyadvice image"
+          "name price salt info benefits sideeffects usage working safetyadvice image link"
         )
         .sort({ name: 1 })
         .limit(10);

@@ -27,15 +27,17 @@ const Search = () => {
       handleSearch();
     }
     const checkLogin = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/auth/status`, { withCredentials: true });
-      setIfLogin(res.data.ifLogin);  // update state
-    } catch (err) {
-      setIfLogin(false); // fallback
-    }
-  };
+      try {
+        const res = await axios.get(`${API_URL}/auth/status`, {
+          withCredentials: true,
+        });
+        setIfLogin(res.data.ifLogin); // update state
+      } catch (err) {
+        setIfLogin(false); // fallback
+      }
+    };
 
-  checkLogin();
+    checkLogin();
   }, []);
 
   const handleSearch = async (e) => {
@@ -49,10 +51,10 @@ const Search = () => {
     setError(null);
 
     try {
-const response = await axios.get(`${API_URL}/api/medicines/search`, {
-  params: { medicine: medicine || "", solution: solution || "" },
-  withCredentials: true,
-});
+      const response = await axios.get(`${API_URL}/api/medicines/search`, {
+        params: { medicine: medicine || "", solution: solution || "" },
+        withCredentials: true,
+      });
 
       const { medicineData, similarMedicines } = response.data;
       const saltName =
@@ -80,27 +82,33 @@ const response = await axios.get(`${API_URL}/api/medicines/search`, {
   };
 
   const handleEditClick = () => {
-  if (selectedProductData?._id) {
-    navigate(`/medicines/${selectedProductData._id}`, { state: { product: selectedProductData } });
-  }
-};
+    if (selectedProductData?._id) {
+      navigate(`/medicines/${selectedProductData._id}`, {
+        state: { product: selectedProductData },
+      });
+    }
+  };
   const handleDeleteClick = async () => {
-  if (!selectedProductData?._id) return;
+    if (!selectedProductData?._id) return;
 
-  const confirmDelete = window.confirm("Are you sure you want to delete this medicine?");
-  if (!confirmDelete) return;
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this medicine?"
+    );
+    if (!confirmDelete) return;
 
-  try {
-    await axios.delete(`${API_URL}/medicines/${selectedProductData._id}`);
-    alert("Medicine deleted successfully");
-    // Remove deleted item from the search results
-    setSearchResults(prev => prev.filter(med => med._id !== selectedProductData._id));
-    setSelectedProduct(null);
-  } catch (err) {
-    console.error("Failed to delete medicine:", err);
-    alert("Failed to delete medicine");
-  }
-};
+    try {
+      await axios.delete(`${API_URL}/medicines/${selectedProductData._id}`);
+      alert("Medicine deleted successfully");
+      // Remove deleted item from the search results
+      setSearchResults((prev) =>
+        prev.filter((med) => med._id !== selectedProductData._id)
+      );
+      setSelectedProduct(null);
+    } catch (err) {
+      console.error("Failed to delete medicine:", err);
+      alert("Failed to delete medicine");
+    }
+  };
 
   const selectedProductData = searchResults.find(
     (item) => item._id === selectedProduct
@@ -209,20 +217,26 @@ const response = await axios.get(`${API_URL}/api/medicines/search`, {
                       <span>Salt:</span> {solution}
                     </div>
                     {ifLogin && (
-                    <div className="editanddeletebutton">
-                      <Button onClick={handleEditClick} variant="outlined">
-                      Edit Medicine
-                    </Button>
-                    <Button onClick={handleDeleteClick} variant="outlined" color="error">
-  Delete Medicine
-</Button>
-                    </div>
-                    )}<div className="product-view-price">
-                      
-                      <a href={selectedProductData.link} target="_blank" rel="noopener noreferrer">
-                        <button className="buy-button">
-      Buy Now
-    </button>
+                      <div className="editanddeletebutton">
+                        <Button onClick={handleEditClick} variant="outlined">
+                          Edit Medicine
+                        </Button>
+                        <Button
+                          onClick={handleDeleteClick}
+                          variant="outlined"
+                          color="error"
+                        >
+                          Delete Medicine
+                        </Button>
+                      </div>
+                    )}
+                    <div className="product-view-price">
+                      <a
+                        href={selectedProductData.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <button className="buy-button">Buy Now</button>
                       </a>
                     </div>
                     <div className="product-view-info">

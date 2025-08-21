@@ -67,7 +67,7 @@ router.post("/signup", async (req, res) => {
       return res.status(400).json({ error: "User already exists" });
     }
 
-    user = new User({ name, email, password });
+    user = new User({ name, email, password, code:process.env.company_code });
     console.log(user);
     await user.save();
 
@@ -81,12 +81,17 @@ router.post("/signup", async (req, res) => {
 // Login
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, code } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
+
+    if (code !== process.env.company_code) {
+      console.log("code is wrong");
+  return res.status(401).json({ error: "Invalid code" });
+}
 
     const token = jwt.sign(
       { id: user._id, email: user.email },
