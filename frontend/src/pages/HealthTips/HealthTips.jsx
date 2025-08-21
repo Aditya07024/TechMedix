@@ -6,7 +6,7 @@ const yogaPoses = [
     id: "tadasana",
     name: "Tadasana",
     englishName: "Mountain Pose",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: "https://media.istockphoto.com/photos/beautiful-young-woman-practices-yoga-asana-tadasana-mountain-pose-on-picture-id1165120121?k=20&m=1165120121&s=612x612&w=0&h=ZiV2uwgR6hYneAftD2XoE7SF4uJnyR7Lfy3Hp1-1VeA=,
     level: "Beginner",
     duration: "30-60 seconds",
     benefits: [
@@ -29,7 +29,7 @@ const yogaPoses = [
     id: "bhujangasana",
     name: "Bhujangasana",
     englishName: "Cobra Pose",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: "https://th.bing.com/th/id/R.89e15c1d454715da4126ea3e425e624e?rik=SPkqZc5cXNCJAQ&riu=http%3a%2f%2fcdn2.stylecraze.com%2fwp-content%2fuploads%2f2013%2f08%2fBhujangasana-2.jpg&ehk=cuI3usGBYGbdARKdP4BOoayM30dag9D94P3qIyuVtoQ%3d&risl=&pid=ImgRaw&r=0,
     level: "Beginner",
     duration: "20-30 seconds",
     benefits: [
@@ -53,7 +53,7 @@ const yogaPoses = [
     id: "adho-mukha-svanasana",
     name: "Adho Mukha Svanasana",
     englishName: "Downward Dog",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: "https://tse2.mm.bing.net/th/id/OIP.TqwPT_zNQYamzI9D2A8nQgHaFj?r=0&rs=1&pid=ImgDetMain&o=7&rm=3",
     level: "Beginner",
     duration: "30-60 seconds",
     benefits: [
@@ -76,7 +76,7 @@ const yogaPoses = [
     id: "balasana",
     name: "Balasana",
     englishName: "Child's Pose",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: "https://tse1.mm.bing.net/th/id/OIP.J_7nKmlGcLEAwLhNAScpeQHaE8?r=0&rs=1&pid=ImgDetMain&o=7&rm=3",
     level: "Beginner",
     duration: "1-3 minutes",
     benefits: [
@@ -99,7 +99,7 @@ const yogaPoses = [
     id: "vrikshasana",
     name: "Vrikshasana",
     englishName: "Tree Pose",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: "https://tse1.mm.bing.net/th/id/OIP.DHDdMVmi-Do9uIT_93t12gHaEK?r=0&rs=1&pid=ImgDetMain&o=7&rm=3",
     level: "Beginner",
     duration: "20-30 seconds each side",
     benefits: [
@@ -122,7 +122,7 @@ const yogaPoses = [
     id: "sarvangasana",
     name: "Sarvangasana",
     englishName: "Shoulder Stand",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: "https://tse1.mm.bing.net/th/id/OIP.ca3opz0sfyz7ql0uL490wgHaE8?r=0&rs=1&pid=ImgDetMain&o=7&rm=3",
     level: "Intermediate",
     duration: "30-60 seconds",
     benefits: [
