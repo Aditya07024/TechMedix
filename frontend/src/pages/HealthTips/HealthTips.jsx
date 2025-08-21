@@ -6,7 +6,7 @@ const yogaPoses = [
     id: "tadasana",
     name: "Tadasana",
     englishName: "Mountain Pose",
-    image: "https://media.istockphoto.com/photos/beautiful-young-woman-practices-yoga-asana-tadasana-mountain-pose-on-picture-id1165120121?k=20&m=1165120121&s=612x612&w=0&h=ZiV2uwgR6hYneAftD2XoE7SF4uJnyR7Lfy3Hp1-1VeA=,
+    image: "https://media.istockphoto.com/photos/beautiful-young-woman-practices-yoga-asana-tadasana-mountain-pose-on-picture-id1165120121?k=20&m=1165120121&s=612x612&w=0&h=ZiV2uwgR6hYneAftD2XoE7SF4uJnyR7Lfy3Hp1-1VeA=",
     level: "Beginner",
     duration: "30-60 seconds",
     benefits: [
@@ -29,7 +29,7 @@ const yogaPoses = [
     id: "bhujangasana",
     name: "Bhujangasana",
     englishName: "Cobra Pose",
-    image: "https://th.bing.com/th/id/R.89e15c1d454715da4126ea3e425e624e?rik=SPkqZc5cXNCJAQ&riu=http%3a%2f%2fcdn2.stylecraze.com%2fwp-content%2fuploads%2f2013%2f08%2fBhujangasana-2.jpg&ehk=cuI3usGBYGbdARKdP4BOoayM30dag9D94P3qIyuVtoQ%3d&risl=&pid=ImgRaw&r=0,
+    image: "https://th.bing.com/th/id/R.89e15c1d454715da4126ea3e425e624e?rik=SPkqZc5cXNCJAQ&riu=http%3a%2f%2fcdn2.stylecraze.com%2fwp-content%2fuploads%2f2013%2f08%2fBhujangasana-2.jpg&ehk=cuI3usGBYGbdARKdP4BOoayM30dag9D94P3qIyuVtoQ%3d&risl=&pid=ImgRaw&r=0",
     level: "Beginner",
     duration: "20-30 seconds",
     benefits: [
