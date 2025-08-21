@@ -11,6 +11,8 @@ import AddMedicine from "./components/AddMedicine/AddMedicine";
 import EditMedicine from "./components/EditMedicine/EditMedicine";
 import Notfound from "./pages/Notfound/notfound";
 import Landingpage from "./pages/Landingpage/Landingpage";
+import MedicineReminder from "./components/MedicineReminder/MedicineReminder";
+import HealthTips from "./pages/HealthTips/HealthTips";
 import ReportGenerator from "./pages/ReportGenerator/ReportGenerator";
 
 const App = () => {
@@ -36,6 +38,9 @@ const App = () => {
           <Route path="/home" element={<Home />} />
           <Route path="/wishlist" element={<WishList />} />
           <Route path="/view" element={<ProductView />} />
+          <Route path="/reminders" element={<MedicineReminder />} />
+          <Route path="/health-tips" element={<HealthTips />} />
+
           <Route path="/search" element={<Search />} />
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
