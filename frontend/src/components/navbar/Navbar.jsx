@@ -64,7 +64,13 @@ const Navbar = ({setShowLogin}) => {
           className={menu === "search-for-medicine" ? "active" : ""}>
             Search for medicine
         </Link>
-        
+        <Link
+          to="/reminders"
+          onClick={() => setMenu("reminders")}
+          className={menu === "reminders" ? "active" : ""}
+        >
+          💊 Reminders
+        </Link>
         <a
           href="#buy-products"
           onClick={() => setMenu("buy-products")}
@@ -72,13 +78,13 @@ const Navbar = ({setShowLogin}) => {
         >
           Buy Products
         </a>
-        <a
-          href="#health-tips"
+        <Link
+          to="/health-tips"
           onClick={() => setMenu("health-tips")}
           className={menu === "health-tips" ? "active" : ""}
         >
           Health Tips
-        </a>
+        </Link>
         <a
           href="#Faq"
           onClick={() => setMenu("Faq")}

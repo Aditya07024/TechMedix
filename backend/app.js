@@ -35,9 +35,8 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
-
 async function main() {
-  await mongoose.connect("mongodb+srv://adityakumar07024:adityakumar07024@cluster0.1a1j7eo.mongodb.net/");
+  await mongoose.connect(process.env.MONGO_URL);
 }
 main()
   .then(() => {
@@ -125,7 +124,7 @@ app.get("/api/medicines/search", async (req, res) => {
           { salt: { $regex: medicine, $options: "i" } }
         ]
       }).select(
-        "name price salt info benefits sideeffects usage working safetyadvice image link"
+        "name price salt info benefits sideeffects usage working safetyadvice image"
       );
 
       if (medicineData) {
@@ -136,7 +135,7 @@ app.get("/api/medicines/search", async (req, res) => {
           _id: { $ne: medicineData._id }
         })
           .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image link"
+            "name price salt info benefits sideeffects usage working safetyadvice image"
           )
           .sort({ name: 1 })
           .limit(10);
@@ -149,7 +148,7 @@ app.get("/api/medicines/search", async (req, res) => {
           ]
         })
           .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image link"
+            "name price salt info benefits sideeffects usage working safetyadvice image"
           )
           .sort({ name: 1 })
           .limit(10);
@@ -163,7 +162,7 @@ app.get("/api/medicines/search", async (req, res) => {
         salt: { $regex: solution, $options: "i" },
       })
         .select(
-          "name price salt info benefits sideeffects usage working safetyadvice image link"
+          "name price salt info benefits sideeffects usage working safetyadvice image"
         )
         .sort({ name: 1 })
         .limit(10);
@@ -265,7 +264,6 @@ app.post("/aipop", async (req, res) => {
     res.status(500).json({ error: "AI service error" });
   }
 });
-
 // New route for report uploads
 app.post('/api/upload-report', upload.single('report'), async (req, res) => {
   if (!req.file) {
@@ -305,7 +303,6 @@ app.post('/api/upload-report', upload.single('report'), async (req, res) => {
     res.status(500).json({ error: 'Failed to process report' });
   }
 });
-
 // New route to fetch a single report
 app.get('/api/reports/:id', async (req, res) => {
   try {
@@ -319,7 +316,6 @@ app.get('/api/reports/:id', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
 app.use("/auth", authRouter);
 
 app.listen(8080, () => {

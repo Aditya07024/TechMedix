@@ -1,0 +1,214 @@
+import React from "react";
+
+export default function WellnessPage() {
+  return (
+    <div className="bg-slate-50 min-h-screen text-gray-800 font-sans">
+      {/* Top Navigation */}
+      <nav className="flex flex-col sm:flex-row justify-around items-center p-4 bg-gray-900 text-white shadow-lg sticky top-0 z-10">
+        <a
+          href="#yoga-tips"
+          className="p-2 sm:p-4 hover:text-orange-400 transition-colors duration-200"
+        >
+          Yoga Tips
+        </a>
+        <a
+          href="#fitness"
+          className="p-2 sm:p-4 hover:text-orange-400 transition-colors duration-200"
+        >
+          Fitness
+        </a>
+        <a
+          href="#nutrition"
+          className="p-2 sm:p-4 hover:text-orange-400 transition-colors duration-200"
+        >
+          Nutrition
+        </a>
+        <a
+          href="#mental-health"
+          className="p-2 sm:p-4 hover:text-orange-400 transition-colors duration-200"
+        >
+          Mental Health
+        </a>
+      </nav>
+
+      <main className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Yoga Section */}
+        <section
+          id="yoga-tips"
+          className="bg-orange-50 p-6 sm:p-10 rounded-3xl shadow-xl mt-8"
+        >
+          <div className="text-center">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-orange-900 leading-tight">
+              The Mind-Body Connection: New Ways to Find Your Calm
+            </h1>
+            <h3 className="text-lg sm:text-xl italic mt-2 text-gray-700">
+              "Yoga is the cessation of the fluctuations of the mind..."
+            </h3>
+            <p className="mt-4 text-gray-600 leading-relaxed">
+              Yoga is a practice that unites the mind and body through a
+              combination of physical postures, controlled breathing, and
+              meditation...
+              <a
+                href="https://www.yogajournal.com/"
+                className="text-orange-500 hover:text-orange-700 underline ml-1"
+              >
+                What is Yoga?
+              </a>
+            </p>
+          </div>
+
+          <ul className="mt-8 space-y-2 list-disc list-inside text-gray-700 text-lg">
+            <li>Proper Exercise (Asanas)</li>
+            <li>Positive Thinking & Meditation</li>
+            <li>Proper Breathing (Pranayama)</li>
+            <li>Proper Relaxation (Savasana)</li>
+          </ul>
+
+          <div className="mt-8 space-y-6">
+            {/* Tadasana */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-xl bg-white shadow-sm">
+              <div className="flex-1">
+                <h4 className="text-xl font-semibold text-gray-800">
+                  Tadasana (Mountain Pose)
+                </h4>
+              </div>
+              <div className="flex-shrink-0 w-full md:w-1/3 mt-4 md:mt-0">
+                <img
+                  src="https://yogajala.com/wp-content/uploads/2022/05/Mountain-Pose-Tadasana-1536x1024.jpg"
+                  alt="Tadasana (Mountain Pose)"
+                  className="w-full h-auto rounded-xl shadow-lg object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Downward Dog */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-xl bg-white shadow-sm">
+              <div className="flex-1">
+                <h4 className="text-xl font-semibold text-gray-800">
+                  Adho Mukha Svanasana (Downward-Facing Dog)
+                </h4>
+              </div>
+              <div className="flex-shrink-0 w-full md:w-1/3 mt-4 md:mt-0">
+                <img
+                  src="https://www.ekhartyoga.com/media/images/articles/content/Downward-Facing-Dog-Adho-Mukha-Svanasana.jpg"
+                  alt="Adho Mukha Svanasana (Downward-Facing Dog)"
+                  className="w-full h-auto rounded-xl shadow-lg object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Cobra */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-xl bg-white shadow-sm">
+              <div className="flex-1">
+                <h4 className="text-xl font-semibold text-gray-800">
+                  Bhujangasana (Cobra Pose)
+                </h4>
+              </div>
+              <div className="flex-shrink-0 w-full md:w-1/3 mt-4 md:mt-0">
+                <img
+                  src="https://cdn.prod.openfit.com/uploads/2020/03/23150716/cobra-yoga-pose-1.jpg"
+                  alt="Bhujangasana (Cobra Pose)"
+                  className="w-full h-auto rounded-xl shadow-lg object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Tree */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-xl bg-white shadow-sm">
+              <div className="flex-1">
+                <h4 className="text-xl font-semibold text-gray-800">
+                  Vrikshasana (Tree Pose)
+                </h4>
+              </div>
+              <div className="flex-shrink-0 w-full md:w-1/3 mt-4 md:mt-0">
+                <img
+                  src="https://www.yogajournal.com/wp-content/uploads/2021/09/tree-pose.jpg"
+                  alt="Vrikshasana (Tree Pose)"
+                  className="w-full h-auto rounded-xl shadow-lg object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Bridge */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-xl bg-white shadow-sm">
+              <div className="flex-1">
+                <h4 className="text-xl font-semibold text-gray-800">
+                  Setu Bandhasana (Bridge Pose)
+                </h4>
+              </div>
+              <div className="flex-shrink-0 w-full md:w-1/3 mt-4 md:mt-0">
+                <img
+                  src="https://www.ekhartyoga.com/media/images/articles/content/Bridge-Pose-Setu-Bandhasana.jpg"
+                  alt="Setu Bandhasana (Bridge Pose)"
+                  className="w-full h-auto rounded-xl shadow-lg object-cover"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Fitness Section */}
+        <section
+          id="fitness"
+          className="bg-white p-6 sm:p-10 rounded-3xl shadow-xl mt-8"
+        >
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 text-center leading-tight">
+            "Fitness is not about being better than someone else. It’s about
+            being better than you used to be."
+          </h1>
+          <p className="mt-4 text-gray-600 leading-relaxed text-center">
+            <b>
+              Fitness is the relentless pursuit of becoming stronger, faster,
+              and more resilient—physically and mentally.
+            </b>
+            It’s not about perfection. It’s about progress...
+          </p>
+        </section>
+
+        {/* Nutrition Section */}
+        <section
+          id="nutrition"
+          className="bg-orange-50 p-6 sm:p-10 rounded-3xl shadow-xl mt-8"
+        >
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-orange-900 text-center leading-tight">
+            Fuel Your Body, Fuel Your Life.
+          </h1>
+          <p className="mt-4 text-gray-600 leading-relaxed text-center">
+            <b>Nutrition is the cornerstone of wellness.</b> It’s not about
+            restriction or following fads...
+          </p>
+        </section>
+
+        {/* Mental Health Section */}
+        <section
+          id="mental-health"
+          className="bg-white p-6 sm:p-10 rounded-3xl shadow-xl mt-8"
+        >
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 text-center leading-tight">
+            Mindfulness and Resilience: Tools for Inner Peace.
+          </h1>
+          <p className="mt-4 text-gray-600 leading-relaxed text-center">
+            <b>Your mental health is just as important as your physical health.</b>{" "}
+            It’s about building emotional resilience...
+          </p>
+        </section>
+      </main>
+
+      {/* Bottom Chat Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 p-4 shadow-xl flex items-center justify-center space-x-2 z-20">
+        <input
+          type="text"
+          placeholder="Ask a health-related question..."
+          className="flex-1 max-w-sm px-4 py-2 rounded-full border border-gray-700 bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200"
+          disabled
+        />
+        <button
+          className="p-3 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all duration-200"
+          disabled
+        >
+          <span className="material-symbols-outlined">send</span>
+        </button>
+      </nav>
+    </div>
+  );
+}

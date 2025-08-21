@@ -1,0 +1,195 @@
+.health-tips {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero {
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+  border-radius: 16px;
+  padding: 28px;
+  color: #0f172a;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 0 0 12px 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.hero p {
+  margin: 0;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.poses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.pose-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.pose-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  border-color: #667eea;
+}
+
+.pose-image-container {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+}
+
+.pose-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.pose-card:hover .pose-image {
+  transform: scale(1.05);
+}
+
+.pose-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.pose-card:hover .pose-overlay {
+  opacity: 1;
+}
+
+.view-details {
+  color: white;
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-align: center;
+  padding: 12px 20px;
+  background: rgba(102, 126, 234, 0.9);
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+}
+
+.pose-info {
+  padding: 20px;
+}
+
+.pose-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.english-name {
+  margin: 0 0 12px 0;
+  color: #64748b;
+  font-style: italic;
+  font-size: 1rem;
+}
+
+.pose-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.level-badge {
+  padding: 6px 12px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.duration-badge {
+  padding: 6px 12px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.safety-note {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 32px;
+}
+
+.safety-note h3 {
+  margin: 0 0 12px 0;
+  color: #92400e;
+  font-size: 1.2rem;
+}
+
+.safety-note ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #92400e;
+}
+
+.safety-note li {
+  margin: 6px 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .health-tips {
+    padding: 16px;
+  }
+  
+  .hero {
+    padding: 20px;
+  }
+  
+  .hero h1 {
+    font-size: 1.6rem;
+  }
+  
+  .poses-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  
+  .pose-image-container {
+    height: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .poses-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .pose-badges {
+    justify-content: center;
+  }
+}
