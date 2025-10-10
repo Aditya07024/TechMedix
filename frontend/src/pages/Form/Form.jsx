@@ -274,7 +274,7 @@ export const Form = () => {
                   name={field.name}
                   placeholder={field.label}
                   type="text"
-                  required
+
                   value={formData[field.name]}
                   onChange={handleChange}
                   className="input"
