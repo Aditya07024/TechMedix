@@ -14,7 +14,8 @@ import Landingpage from "./pages/Landingpage/Landingpage";
 import MedicineReminder from "./components/MedicineReminder/MedicineReminder";
 import HealthTips from "./pages/HealthTips/HealthTips";
 import ReportGenerator from "./pages/ReportGenerator/ReportGenerator";
-
+import { Dashboard } from "./pages/Dashboard/Dashboard";
+import { Form } from "./pages/Form/Form";
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const location = useLocation();
@@ -40,12 +41,13 @@ const App = () => {
           <Route path="/view" element={<ProductView />} />
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
-
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search" element={<Search />} />
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
           <Route path="/report-generator" element={<ReportGenerator />} />
           <Route path="*" element={<Notfound />} />
+          <Route path="/form" element={<Form />} />
         </Routes>
       </div>
     </>

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const medicineSchema = new mongoose.Schema({
   name: {
@@ -17,7 +17,7 @@ const medicineSchema = new mongoose.Schema({
     min: 0,
   },
   info: {
-    type:String,
+    type: String,
   },
   benefits: {
     type: String,
@@ -27,8 +27,8 @@ const medicineSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  usage:{
-    type:String,
+  usage: {
+    type: String,
   },
   working: {
     type: String,
@@ -47,11 +47,11 @@ const medicineSchema = new mongoose.Schema({
         ? "https://img1.exportersindia.com/product_images/bc-full/2022/1/1169423/warfarin-sodium-tablets-1642579071-6164622.jpeg"
         : v,
   },
-  link:{
-    type:String,
-    required:true,
-  }
+  link: {
+    type: String,
+    required: true,
+  },
 });
 
 const Medicine = mongoose.model("Medicine", medicineSchema);
-module.exports = Medicine;
+export default Medicine;

@@ -8,10 +8,11 @@ dotenv.config();
 import cors from "cors";
 import authRouter from "./routes/authRouter.js";
 // import  authenticate  from "./middleware/auth.js";
+import QRCode from "qrcode";
+
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL;
-
 
 app.use(
   cors({
@@ -23,12 +24,14 @@ app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
 // Add multer for file uploads
-import multer from 'multer';
-import Report from './models/report.js'; // We'll create this model next
+import multer from "multer";
+import Report from "./models/report.js"; // We'll create this model next
+import PatientData from "./models/patientdata.js"; // New import for PatientData
+import Patient from "./models/patient.js"; // New import for Patient
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, './uploads'); // Directory to store uploaded files
+    cb(null, "./uploads"); // Directory to store uploaded files
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -121,8 +124,8 @@ app.get("/api/medicines/search", async (req, res) => {
       medicineData = await Medicine.findOne({
         $or: [
           { name: { $regex: `^${medicine}$`, $options: "i" } },
-          { salt: { $regex: medicine, $options: "i" } }
-        ]
+          { salt: { $regex: medicine, $options: "i" } },
+        ],
       }).select(
         "name price salt info benefits sideeffects usage working safetyadvice image link"
       );
@@ -132,7 +135,7 @@ app.get("/api/medicines/search", async (req, res) => {
         // Find similar medicines with same salt excluding the found medicine
         similarMedicines = await Medicine.find({
           salt: salt,
-          _id: { $ne: medicineData._id }
+          _id: { $ne: medicineData._id },
         })
           .select(
             "name price salt info benefits sideeffects usage working safetyadvice image link"
@@ -144,8 +147,8 @@ app.get("/api/medicines/search", async (req, res) => {
         similarMedicines = await Medicine.find({
           $or: [
             { name: { $regex: medicine, $options: "i" } },
-            { salt: { $regex: medicine, $options: "i" } }
-          ]
+            { salt: { $regex: medicine, $options: "i" } },
+          ],
         })
           .select(
             "name price salt info benefits sideeffects usage working safetyadvice image link"
@@ -170,7 +173,9 @@ app.get("/api/medicines/search", async (req, res) => {
     }
 
     if (!medicineData && similarMedicines.length === 0) {
-      return res.status(404).json({ message: "No medicines found matching your query." });
+      return res
+        .status(404)
+        .json({ message: "No medicines found matching your query." });
     }
 
     console.log("Search Results:", {
@@ -227,7 +232,6 @@ app.get("/test", (req, res) => {
     });
 });
 
-
 app.post("/aipop", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) {
@@ -265,13 +269,13 @@ app.post("/aipop", async (req, res) => {
   }
 });
 // New route for report uploads
-app.post('/api/upload-report', upload.single('report'), async (req, res) => {
+app.post("/api/upload-report", upload.single("report"), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded.' });
+    return res.status(400).json({ message: "No file uploaded." });
   }
 
   const reportPath = req.file.path;
-  const userId = req.body.userId || 'anonymous'; // Assuming you have user authentication
+  const userId = req.body.userId || "anonymous"; // Assuming you have user authentication
 
   // Placeholder for AI API integration
   let aiGeneratedReport = "";
@@ -296,28 +300,201 @@ app.post('/api/upload-report', upload.single('report'), async (req, res) => {
     });
     await newReport.save();
 
-    res.status(200).json({ message: 'Report uploaded and processed successfully', aiReport: aiGeneratedReport, reportId: newReport._id });
-
+    res.status(200).json({
+      message: "Report uploaded and processed successfully",
+      aiReport: aiGeneratedReport,
+      reportId: newReport._id,
+    });
   } catch (error) {
-    console.error('Error processing report:', error);
-    res.status(500).json({ error: 'Failed to process report' });
+    console.error("Error processing report:", error);
+    res.status(500).json({ error: "Failed to process report" });
   }
 });
 // New route to fetch a single report
-app.get('/api/reports/:id', async (req, res) => {
+app.get("/api/reports/:id", async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
     if (!report) {
-      return res.status(404).json({ message: 'Report not found' });
+      return res.status(404).json({ message: "Report not found" });
     }
     res.json(report);
   } catch (error) {
-    console.error('Error fetching report:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Error fetching report:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
+
+// Route to save EHR data and get AI insights
+app.post("/api/patientdata", async (req, res) => {
+  try {
+    const { patientId, email, symptoms, ehr, medicines, prescription } =
+      req.body;
+
+    const newPatientData = new PatientData({
+      patientId,
+      email,
+      symptoms,
+      ehr,
+      medicines,
+      prescription,
+    });
+
+    // Call ML model for disease prediction
+    try {
+      console.log("Sending symptoms to ML model:", symptoms);
+      const mlResponse = await retryAxios(
+        "http://localhost:5001/predict-disease",
+        { symptoms },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: 5000,
+        }
+      );
+      console.log("ML model response:", mlResponse.data);
+      const { predicted_disease, confidence, related_symptoms } =
+        mlResponse.data; // Destructure related_symptoms
+      newPatientData.predictedDisease = predicted_disease;
+      newPatientData.confidence = confidence;
+      newPatientData.relatedSymptoms = related_symptoms; // Save related symptoms
+    } catch (mlError) {
+      console.error("Error calling ML model API:", mlError.message);
+      console.error(
+        "ML model API response:",
+        mlError.response?.data || "No response data"
+      );
+      console.error(
+        "ML model API status:",
+        mlError.response?.status || "No status"
+      );
+      console.error("Full error:", mlError);
+      newPatientData.predictedDisease = "ML Prediction Failed";
+      newPatientData.confidence = 0;
+    }
+
+    // Call ChatGPT API for insights
+    const prompt = `Generate health insights and recommendations based on the following patient EHR data and predicted disease. Be concise and act as a medical assistant, providing actionable advice in bullet points:
+    Predicted Disease: ${newPatientData.predictedDisease}
+    Symptoms: ${JSON.stringify(symptoms)}
+    EHR: ${JSON.stringify(ehr)}
+    Medicines: ${JSON.stringify(medicines)}
+    Prescription: ${JSON.stringify(prescription)}`;
+
+    const aiResponse = await axios.post(
+      `${baseUrl}/chat/completions`,
+      {
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful medical assistant. Give insights and recommendations in bullet points.",
+          },
+          { role: "user", content: prompt },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const aiInsights = aiResponse.data.choices[0].message.content;
+
+    // Update the saved patient data with AI insights
+    newPatientData.aiInsights = aiInsights;
+    await newPatientData.save();
+
+    res.status(201).json({
+      message: "EHR data saved and insights generated successfully",
+      patientData: newPatientData,
+    });
+  } catch (error) {
+    console.error("Error saving EHR data or generating AI insights:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to save EHR data or generate AI insights" });
+  }
+});
+
+// Route to fetch EHR history for a patient
+app.get("/api/patientdata/:patientId", async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const patientEHRHistory = await PatientData.find({ patientId }).sort({
+      timestamp: -1,
+    });
+    res.status(200).json(patientEHRHistory);
+  } catch (error) {
+    console.error("Error fetching patient EHR history:", error);
+    res.status(500).json({ error: "Failed to fetch patient EHR history" });
+  }
+});
+
+// Route to fetch patient information by ID
+app.get("/api/patient/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const patient = await Patient.findById(id).select("-password"); // Exclude password
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+    res.status(200).json(patient);
+  } catch (error) {
+    console.error("Error fetching patient information:", error);
+    res.status(500).json({ error: "Failed to fetch patient information" });
+  }
+});
+app.post("/api/patient/:id/qr", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Fetch patient and latest EHR
+    const patient = await Patient.findById(id);
+    const latestEHR = await PatientData.find({ patientId: id })
+      .sort({ timestamp: -1 })
+      .limit(1);
+
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    const dataToEncode = {
+      id: patient._id,
+      name: patient.name,
+      age: patient.age,
+      gender: patient.gender,
+      bloodType: patient.bloodGroup || null,
+      latestEHR: latestEHR[0]?.ehr || null,
+    };
+
+    // Convert to QR code Data URL
+    const qrDataUrl = await QRCode.toDataURL(JSON.stringify(dataToEncode), {
+      width: 300,
+      margin: 2,
+    });
+
+    res.json({ qr: qrDataUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate QR code" });
+  }
+});
+
 app.use("/auth", authRouter);
 
 app.listen(8080, () => {
   console.log("Server is running on port 8080");
 });
+
+// Add this function near the top of the file
+const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await axios.post(url, data, config);
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
+};

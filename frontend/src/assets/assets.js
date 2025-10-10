@@ -15,6 +15,9 @@ import image2 from "./image2.png";
 import image3 from "./image3.png";
 import cross_icon from "./cross_icon.png";
 import chatgpt from "./chatgpt.png";
+import female_avatar from "./female_avatar.jpg"
+import male_avatar from "./male_avatar.jpg"
+
 
 // Social media icons
 import linkedin from "./linkedin.png";
@@ -43,6 +46,8 @@ import musashi_100_whey_vanilla from "./musashi_100_whey_vanilla.png";
 import wish from "./wish.png";
 
 export const assets = {
+  male_avatar,
+  female_avatar,
   // Icons
   chatgpt,
   cross_icon,
