@@ -1,0 +1,14 @@
+{
+  "ignore": [
+    "ml_models/**/*",
+    "uploads/**/*",
+    "node_modules/**/*",
+    ".git/**/*"
+  ],
+  "watch": [
+    "app.js",
+    "routes/**/*.js",
+    "models/**/*.js"
+  ],
+  "ext": "js,json"
+}
