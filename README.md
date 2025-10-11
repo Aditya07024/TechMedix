@@ -1,5 +1,12 @@
 <div align="left" style="position: relative;">
 <img src="frontend/public/Screenshot_2025-05-21_at_9.08.34_PM-removebg-preview.png" align="right" width="30%" style="margin-top: 20px;">
+
+<!-- ⚠️ Bug Notice -->
+<div style="width: 80%; border: 1px solid #f00; padding: 10px; margin-bottom: 20px;">
+  <strong>⚠️ Note:</strong> There is a known bug on the login/signup page. We are working on fixing it. 
+  Please be aware that login/signup may not function correctly in some cases.
+</div>
+
 <h1>TECHMEDIX</h1>
 <p align="left">
 	<em><code>❯ TechMedix is a smart healthcare web platform that simplifies how people compare, review, and purchase medicines. With a focus on affordability, safety, and clarity, TechMedix empowers users to make informed decisions about their health through real-time comparisons, genuine user feedback, and seamless purchasing options—all in one place.</code></em>
