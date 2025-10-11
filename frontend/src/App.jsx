@@ -18,6 +18,10 @@ import { Dashboard } from "./pages/Dashboard/Dashboard";
 import { Form } from "./pages/Form/Form";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
+import DoctorLogin from "./pages/DoctorLogin/DoctorLogin"; // Import DoctorLogin
+import DoctorSignup from "./pages/DoctorSignup/DoctorSignup"; // Import DoctorSignup
+import DoctorDashboard from "./pages/DoctorDashboard/DoctorDashboard"; // Import DoctorDashboard
+import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions"; // Import TermsAndConditions
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -58,6 +62,23 @@ const App = () => {
           <Route path="/report-generator" element={<ReportGenerator />} />
           <Route path="*" element={<Notfound />} />
           <Route path="/form" element={<Form />} />
+          <Route path="/doctor/login" element={<DoctorLogin />} />{" "}
+          {/* Doctor Login Route */}
+          <Route path="/doctor/signup" element={<DoctorSignup />} />{" "}
+          {/* Doctor Signup Route */}
+          <Route
+            path="/terms-and-conditions"
+            element={<TermsAndConditions />}
+          />{" "}
+          {/* Terms and Conditions Route */}
+          <Route
+            path="/doctor/dashboard"
+            element={
+              <ProtectedRoute requiredRole="doctor">
+                <DoctorDashboard />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </div>
     </AuthProvider>

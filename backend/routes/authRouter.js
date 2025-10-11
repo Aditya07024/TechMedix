@@ -20,8 +20,6 @@ router.post("/google", async (req, res) => {
     })
   );
   try {
-    
-
     const { email, name, picture } = ticket.getPayload();
 
     // Placeholder for checking if user exists in database
@@ -38,7 +36,7 @@ router.post("/google", async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax", // Changed from "strict" to "lax"
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
@@ -105,9 +103,8 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id, email: user.email, role: "patient" }, // Add role to token
       process.env.TOKEN_SECRET,
       { expiresIn: "1d" }
     );
@@ -115,7 +112,7 @@ router.post("/login", async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax", // Changed from "strict" to "lax"
       maxAge: 24 * 60 * 60 * 1000,
     });
     ifLogin = true;

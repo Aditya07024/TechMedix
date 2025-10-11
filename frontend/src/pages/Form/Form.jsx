@@ -274,11 +274,7 @@ export const Form = () => {
                   name={field.name}
                   placeholder={field.label}
                   type="text"
-<<<<<<< HEAD
 
-=======
-                  
->>>>>>> e059d9d (final commit)
                   value={formData[field.name]}
                   onChange={handleChange}
                   className="input"

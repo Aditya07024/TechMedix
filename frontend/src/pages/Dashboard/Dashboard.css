@@ -27,12 +27,12 @@
   margin: 0 auto 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.top-right{
+.top-right {
   display: flex;
   flex-direction: row;
   gap: 50px;
 }
-/* From Uiverse.io by ilkhoeri */ 
+/* From Uiverse.io by ilkhoeri */
 .dropdown {
   border: 1px solid #c1c2c5;
   border-radius: 12px;
@@ -104,7 +104,6 @@
   transition-delay: 0ms;
 }
 
-
 .trigger:before,
 .trigger::after {
   position: relative;
@@ -168,7 +167,7 @@
 .webkit-scrollbar:hover::-webkit-scrollbar-thumb {
   background: #c1c2c5;
 }
-.button-div{
+.button-div {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -180,8 +179,10 @@
   height: 100%;
   object-fit: cover;
 }
-.status{
-  position: top;
+.status {
+  width: 100%; /* Ensure status bar takes full width */
+  text-align: left; /* Align text to left */
+  margin-top: 0; /* Remove any top margin that might be centering it */
 }
 .Documents-btn {
   display: flex;
@@ -248,8 +249,8 @@
 
 .dashboard-tile {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start; /* Align items to the start (top) */
+  justify-content: flex-start; /* Align content to the start (left) */
   border: 1px solid #d1d5db; /* light gray border */
   border-radius: 12px;
   background: #ffffff;
@@ -257,6 +258,53 @@
   padding: 6px;
   font-size: 1.125rem;
   color: #111827;
+}
+
+.dashboard-tile.left {
+  background-color: var(--card-background-color);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-small);
+  display: flex; /* Make it a flex container */
+  flex-direction: column; /* Stack children vertically */
+  align-items: flex-start; /* Align items to the start (top) */
+}
+
+.delete-record-button {
+  background-color: #dc3545; /* Red color for danger action */
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 20px; /* Space from other elements */
+  transition: background-color 0.3s ease;
+}
+
+.delete-record-button:hover {
+  background-color: #c82333;
+}
+
+.ehr-record p {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.delete-ehr-record-button {
+  background-color: #dc3545; /* Red color for danger action */
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-top: 10px;
+  transition: background-color 0.3s ease;
+}
+
+.delete-ehr-record-button:hover {
+  background-color: #c82333;
 }
 
 @media (max-width: 640px) {
@@ -720,7 +768,7 @@
   padding: 16px;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .qr-image img {

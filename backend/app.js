@@ -6,13 +6,17 @@ import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
+import cookieParser from "cookie-parser"; // Import cookie-parser
 import authRouter from "./routes/authRouter.js";
 // import  authenticate  from "./middleware/auth.js";
 import QRCode from "qrcode";
-
+import doctorAuthRouter from "./routes/doctorAuthRouter.js"; // Import doctor auth router
+import { authenticate, authorizeRoles } from "./middleware/auth.js"; // Import authenticate and authorizeRoles
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL;
+
+console.log("Backend CORS origin set to:", process.env.FRONTEND_URL);
 
 app.use(
   cors({
@@ -22,11 +26,12 @@ app.use(
 );
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+app.use(cookieParser()); // Use cookie-parser middleware
 
 // Add multer for file uploads
 import multer from "multer";
 import Report from "./models/report.js"; // We'll create this model next
-import PatientData from "./models/patientdata.js"; // New import for PatientData
+import PatientData from "./models/patientData.js"; // New import for PatientData
 import Patient from "./models/patient.js"; // New import for Patient
 
 const storage = multer.diskStorage({
@@ -447,6 +452,158 @@ app.get("/api/patient/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch patient information" });
   }
 });
+
+// New route to generate QR code for a patient
+app.get(
+  "/api/patient/:id/generate-qr",
+  authenticate,
+  authorizeRoles("patient", "doctor"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const patient = await Patient.findById(id);
+
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      // Ensure the authenticated user is either the patient themselves or a doctor
+      if (req.user.role === "patient" && req.user.id !== id) {
+        return res.status(403).json({
+          message:
+            "Unauthorized: You can only generate QR for your own record.",
+        });
+      }
+
+      // Data to be encoded in the QR code (e.g., patient ID, unique code)
+      const qrData = JSON.stringify({
+        patientId: patient._id,
+        uniqueCode: patient.uniqueCode,
+        // Add any other non-sensitive data you want to include in the QR code
+      });
+
+      const qrCodeImage = await QRCode.toDataURL(qrData);
+
+      res.status(200).json({ qrCode: qrCodeImage });
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      res.status(500).json({ error: "Failed to generate QR code" });
+    }
+  }
+);
+
+// New route for doctors to access patient data via unique code
+app.get(
+  "/api/doctor/patient-data/:uniqueCode",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const { uniqueCode } = req.params;
+      const patient = await Patient.findOne({ uniqueCode }).select("-password"); // Exclude password
+
+      if (!patient) {
+        return res
+          .status(404)
+          .json({ message: "Patient not found with this code." });
+      }
+
+      // Optionally, fetch latest EHR data for the patient as well
+      const patientEHRHistory = await PatientData.find({
+        patientId: patient._id,
+      }).sort({
+        timestamp: -1,
+      });
+
+      res.status(200).json({ patient, ehrHistory: patientEHRHistory });
+    } catch (error) {
+      console.error("Error fetching patient data for doctor:", error);
+      res.status(500).json({ error: "Failed to retrieve patient data." });
+    }
+  }
+);
+
+// New route for patients to delete their own record
+app.delete(
+  "/api/patient/:id",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Ensure the authenticated user is deleting their own record
+      if (req.user.id !== id) {
+        return res.status(403).json({
+          message: "Unauthorized: You can only delete your own record.",
+        });
+      }
+
+      const deletedPatient = await Patient.findByIdAndDelete(id);
+
+      if (!deletedPatient) {
+        return res.status(404).json({ message: "Patient not found." });
+      }
+
+      // Optionally, delete associated EHR data as well
+      await PatientData.deleteMany({ patientId: id });
+
+      res.status(200).json({
+        message: "Patient record and associated data deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting patient record:", error);
+      res.status(500).json({ error: "Failed to delete patient record." });
+    }
+  }
+);
+
+// New route for patients to delete a specific patient data record
+app.delete(
+  "/api/patientdata/:id",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const { id } = req.params; // This is the PatientData record ID
+      console.log(`Attempting to delete PatientData record with ID: ${id}`);
+
+      const patientDataRecord = await PatientData.findById(id);
+
+      if (!patientDataRecord) {
+        console.log(`Patient data record with ID ${id} not found.`);
+        return res
+          .status(404)
+          .json({ message: "Patient data record not found." });
+      }
+      console.log(
+        `Found PatientData record. PatientData.patientId: ${patientDataRecord.patientId.toString()}`
+      );
+      console.log(`Authenticated user ID: ${req.user.id}`);
+
+      // Ensure the authenticated user is the owner of this patient data record
+      if (req.user.id !== patientDataRecord.patientId.toString()) {
+        console.log("Authorization failed: User ID mismatch.");
+        return res.status(403).json({
+          message:
+            "Unauthorized: You can only delete your own patient data records.",
+        });
+      }
+      console.log("Authorization successful. Deleting record...");
+
+      await PatientData.findByIdAndDelete(id);
+
+      console.log(`Patient data record with ID ${id} deleted successfully.`);
+      res
+        .status(200)
+        .json({ message: "Patient data record deleted successfully." });
+    } catch (error) {
+      console.error("Error deleting patient data record:", error);
+      res.status(500).json({ error: "Failed to delete patient data record." });
+    }
+  }
+);
+
 app.post("/api/patient/:id/qr", async (req, res) => {
   const { id } = req.params;
 
@@ -482,6 +639,7 @@ app.post("/api/patient/:id/qr", async (req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
 app.listen(8080, () => {
   console.log("Server is running on port 8080");

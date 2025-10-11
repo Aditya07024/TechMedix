@@ -6,6 +6,7 @@ const patientDataSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
+    index: true, // Add index for patientId
   },
 
   email: { type: String, required: true },

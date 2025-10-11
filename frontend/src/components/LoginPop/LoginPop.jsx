@@ -4,16 +4,16 @@ import "./LoginPop.css";
 import { assets } from "../../assets/assets";
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from "axios";
-import setShowLogin from "../navbar/Navbar";
-import { useAuth } from '../../context/AuthContext';
-import { authApi } from '../../api';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from "../../context/AuthContext";
+import { authApi } from "../../api";
+import { useLocation, useNavigate } from "react-router-dom";
 
-const LoginPop = () => {
+const LoginPop = ({ setShowLogin }) => {
+  // Accept setShowLogin as a prop
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = location.state?.from?.pathname || '/dashboard';
+  const redirectTo = location.state?.from?.pathname || "/dashboard";
   const [currState, setCurrState] = useState("Sign Up");
   const [error, setError] = useState(null);
   const [name, setName] = useState("");
@@ -22,7 +22,7 @@ const LoginPop = () => {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [phone, setPhone] = useState("");
-  
+
   const [bloodGroup, setBloodGroup] = useState("");
   const [medicalHistory, setMedicalHistory] = useState("");
   const [isOpen, setIsOpen] = useState(true);
@@ -55,14 +55,23 @@ const LoginPop = () => {
     try {
       let res;
       if (currState === "Sign Up") {
-        res = await authApi.signup({ name, email, password, age, gender, phone, bloodGroup, medicalHistory });
+        res = await authApi.signup({
+          name,
+          email,
+          password,
+          age,
+          gender,
+          phone,
+          bloodGroup,
+          medicalHistory,
+        });
         if (res.data) {
-    alert("Signup successful! Please login with your email, password");
-    setCurrState("Login"); // switch to login screen
-  }
+          alert("Signup successful! Please login with your email, password");
+          setCurrState("Login"); // switch to login screen
+        }
         // Do not auto-login after signup; require explicit login
       } else {
-        res = await authApi.login({ email, password});
+        res = await authApi.login({ email, password });
       }
       if (res.data && res.data.user) {
         localStorage.setItem("user", JSON.stringify(res.data.user));
@@ -144,7 +153,7 @@ const LoginPop = () => {
               <h2>{currState}</h2>
               <div className="cross-img">
                 <img
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => setShowLogin(false)} // Use the prop to close
                   src={assets.cross_icon}
                   alt="close"
                 />
@@ -164,41 +173,44 @@ const LoginPop = () => {
                 />
               )}
               {currState === "Sign Up" && (
-                <input
-                  type="number"
-                  placeholder="Enter your Age"
-                  required
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                />
+                <div className="divide-row">
+                  <input
+                    type="number"
+                    placeholder="Enter your Age"
+                    required
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Enter your Gender"
+                    required
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                  />
+                </div>
               )}
-              {currState === "Sign Up" && (
-                <input
-                  type="text"
-                  placeholder="Enter your Gender"
-                  required
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                />
-              )}
-              {currState === "Sign Up" && (
-                <input
-                  type="text"
-                  placeholder="Enter your Phone Number"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              )}
-              {currState === "Sign Up" && (
-                <input
-                  type="text"
-                  placeholder="Enter your Blood Group"
-                  required
-                  value={bloodGroup}
-                  onChange={(e) => setBloodGroup(e.target.value)}
-                />
-              )}
+              <div className="divide-row">
+                {currState === "Sign Up" && (
+                  <input
+                    type="text"
+                    placeholder="Enter your Phone Number"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                )}
+                {currState === "Sign Up" && (
+                  <input
+                    type="text"
+                    placeholder="Enter your Blood Group"
+                    required
+                    value={bloodGroup}
+                    onChange={(e) => setBloodGroup(e.target.value)}
+                  />
+                )}
+              </div>
+
               {currState === "Sign Up" && (
                 <input
                   type="text"
@@ -207,21 +219,22 @@ const LoginPop = () => {
                   onChange={(e) => setMedicalHistory(e.target.value)}
                 />
               )}
-              <input
-                type="email"
-                placeholder="Enter your email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <input
-                type="password"
-                placeholder="Enter your password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              
+              <div className="divide-row">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  type="password"
+                  placeholder="Enter your password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
             </div>
 
             <button type="submit">
@@ -231,7 +244,21 @@ const LoginPop = () => {
             <div className="login-popup-condition">
               <input type="checkbox" required />
               <p>
-                By continuing, I agree to the terms of use & privacy policy.
+                By continuing, I agree to the{" "}
+                <span
+                  onClick={() => navigate("/terms-and-conditions")}
+                  className="terms-link"
+                >
+                  terms of use
+                </span>{" "}
+                &{" "}
+                <span
+                  onClick={() => navigate("/terms-and-conditions")}
+                  className="terms-link"
+                >
+                  privacy policy
+                </span>
+                .
               </p>
             </div>
 

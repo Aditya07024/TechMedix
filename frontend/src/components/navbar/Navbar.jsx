@@ -7,40 +7,32 @@ import { useTheme } from "../../context/ThemeContext";
 import Button from "@mui/material/Button";
 import Aipop from "../../components/AiPop/Aipop";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // Import useAuth hook
+
 const Navbar = ({ setShowLogin }) => {
   const [askAi, setAskAi] = useState(false);
   const [menu, setMenu] = useState("home");
   const { isDarkMode, toggleTheme } = useTheme();
-  const [ifLogin, setIfLogin] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth(); // Use useAuth hook for user and logout
   const navigate = useNavigate();
-  useEffect(() => {
-    fetch(`${API_URL}/auth/status`, {
-      method: "GET",
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setIfLogin(data.ifLogin);
-      })
-      .catch((err) => {
-        setIfLogin(false);
-      });
-  }, []);
+
+  // Remove the useEffect for auth status as it's now handled by AuthContext
+  // useEffect(() => {
+  //   fetch(`${API_URL}/auth/status`, {
+  //     method: "GET",
+  //     credentials: "include",
+  //   })
+  //     .then((res) => res.json())
+  //     .then((data) => {
+  //       setIfLogin(data.ifLogin);
+  //     })
+  //     .catch((err) => {
+  //       setIfLogin(false);
+  //     });
+  // }, []);
 
   const handleClick = () => {
     navigate("/new");
-  };
-  const logout = async () => {
-    try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: "GET",
-        credentials: "include",
-      });
-      setIfLogin(false);
-      navigate("/");
-    } catch (error) {
-      console.error("Logout failed", error);
-    }
   };
 
   return (
@@ -52,13 +44,24 @@ const Navbar = ({ setShowLogin }) => {
       </Link>
 
       <ul className="navbar-menu">
-        <Link
-          to="/dashboard"
-          onClick={() => setMenu("dashboard")}
-          className={menu === "dashboard" ? "active" : ""}
-        >
-          Dashboard
-        </Link>
+        {isAuthenticated && user?.role === "patient" && (
+          <Link
+            to="/dashboard"
+            onClick={() => setMenu("dashboard")}
+            className={menu === "dashboard" ? "active" : ""}
+          >
+            Patient Dashboard
+          </Link>
+        )}
+        {isAuthenticated && user?.role === "doctor" && (
+          <Link
+            to="/doctor/dashboard"
+            onClick={() => setMenu("doctor-dashboard")}
+            className={menu === "doctor-dashboard" ? "active" : ""}
+          >
+            Doctor Dashboard
+          </Link>
+        )}
         <Link
           to="/search"
           onClick={() => setMenu("search-for-medicine")}
@@ -104,7 +107,6 @@ const Navbar = ({ setShowLogin }) => {
         <div className="ai-div">
           <Button className="ai-button" onClick={() => setAskAi(true)}>
             Ask to AI Doctor
-            
           </Button>
         </div>
         <div>
@@ -138,7 +140,7 @@ const Navbar = ({ setShowLogin }) => {
             <img src={assets.wishlist} alt="Wishlist" className="nav-icon" />
           </Link>
         </div>
-        {!ifLogin && (
+        {!isAuthenticated && (
           <div className="nav-icon-container">
             <button className="nav-btn" onClick={() => setShowLogin(true)}>
               <img
@@ -149,7 +151,7 @@ const Navbar = ({ setShowLogin }) => {
             </button>
           </div>
         )}
-        {ifLogin && (
+        {isAuthenticated && (
           <div className="nav-icon-container">
             <button className="nav-btn red" onClick={logout}>
               <img
