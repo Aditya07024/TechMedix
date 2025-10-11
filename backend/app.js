@@ -12,11 +12,11 @@ import authRouter from "./routes/authRouter.js";
 import QRCode from "qrcode";
 import doctorAuthRouter from "./routes/doctorAuthRouter.js"; // Import doctor auth router
 import { authenticate, authorizeRoles } from "./middleware/auth.js"; // Import authenticate and authorizeRoles
+import _ from "lodash"; // Import lodash for deep comparison
+import ExcelJS from "exceljs"; // Import exceljs
 
 const apiKey = process.env.API_KEY;
-const baseUrl = process.env.BASE_URL;
-
-console.log("Backend CORS origin set to:", process.env.FRONTEND_URL);
+const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
 
 app.use(
   cors({
@@ -475,16 +475,37 @@ app.get(
         });
       }
 
+      // Ensure uniqueCode exists
+      if (!patient.uniqueCode) {
+        patient.uniqueCode = Math.random()
+          .toString(36)
+          .substring(2, 10)
+          .toUpperCase();
+        await patient.save();
+      }
+
       // Data to be encoded in the QR code (e.g., patient ID, unique code)
+      const patientHistoryUrl = `${baseUrl}/api/public/patient-history/${patient.uniqueCode}`;
       const qrData = JSON.stringify({
         patientId: patient._id,
         uniqueCode: patient.uniqueCode,
-        // Add any other non-sensitive data you want to include in the QR code
+        accessUrl: patientHistoryUrl,
+      });
+      console.log("QR Code data:", qrData);
+
+      const qrCodeImage = await QRCode.toDataURL(qrData.toString(), {
+        width: 200,
+        margin: 2,
+        errorCorrectionLevel: "L",
       });
 
-      const qrCodeImage = await QRCode.toDataURL(qrData);
-
-      res.status(200).json({ qrCode: qrCodeImage });
+      res
+        .status(200)
+        .json({
+          qr: qrCodeImage,
+          uniqueCode: patient.uniqueCode,
+          accessUrl: patientHistoryUrl,
+        });
     } catch (error) {
       console.error("Error generating QR code:", error);
       res.status(500).json({ error: "Failed to generate QR code" });
@@ -500,9 +521,16 @@ app.get(
   async (req, res) => {
     try {
       const { uniqueCode } = req.params;
-      const patient = await Patient.findOne({ uniqueCode }).select("-password"); // Exclude password
+      console.log(
+        "Doctor dashboard received uniqueCode for search:",
+        uniqueCode
+      );
+      // Temporarily simplify query for direct debugging
+      const patient = await Patient.findOne({ uniqueCode: uniqueCode });
+      console.log("Result of Patient.findOne query:", patient);
 
       if (!patient) {
+        console.log("Patient not found in DB with uniqueCode:", uniqueCode);
         return res
           .status(404)
           .json({ message: "Patient not found with this code." });
@@ -604,37 +632,124 @@ app.delete(
   }
 );
 
-app.post("/api/patient/:id/qr", async (req, res) => {
+// Helper function to clean patient data based on the provided rules
+const cleanPatientData = (data) => {
+  // Rule 5: No Duplicates or Noise – Remove repeated, corrupted, or irrelevant data.
+  // This example focuses on removing duplicates based on content.
+  const uniqueData = _.uniqWith(data, _.isEqual);
+
+  // Future improvements could include:
+  // - Schema validation to remove corrupted data
+  // - Filtering irrelevant fields if necessary (though current schema seems appropriate)
+  // - More sophisticated duplicate detection if just content comparison is not enough
+  //   (e.g., considering a timestamp window for "similar" entries)
+
+  // Rule 1: No Bias – Data should represent all groups equally.
+  // Rule 2: Balanced Samples – Each class or category should have enough and similar data points.
+  // Rule 3: Accurate Labels – Ensure all data is correctly labeled.
+  // Rule 4: Diverse Sources – Collect data from varied and reliable sources.
+  // Rule 6: Transparency – Document how and where the data was collected.
+  // Rule 7: Privacy Protection – Follow GDPR/HIPAA or similar standards; don’t include personal info without consent.
+  // These rules are primarily for data collection and model training,
+  // and are assumed to be handled at earlier stages or require broader system changes.
+  // For the purpose of displaying/exporting a single user's history,
+  // we ensure we're not introducing new biases or exposing unnecessary PII.
+
+  return uniqueData;
+};
+
+// New route for exporting patient data to Excel
+app.get("/api/patient/:id/excel", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Fetch patient and latest EHR
+    // Fetch patient and all EHR history
     const patient = await Patient.findById(id);
-    const latestEHR = await PatientData.find({ patientId: id })
-      .sort({ timestamp: -1 })
-      .limit(1);
 
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    const dataToEncode = {
-      id: patient._id,
-      name: patient.name,
-      age: patient.age,
-      gender: patient.gender,
-      bloodType: patient.bloodGroup || null,
-      latestEHR: latestEHR[0]?.ehr || null,
-    };
+    const allPatientEHRHistory = await PatientData.find({ patientId: id }).sort(
+      { timestamp: -1 }
+    );
 
-    // Convert to QR code Data URL
-    const qrDataUrl = await QRCode.toDataURL(JSON.stringify(dataToEncode), {
-      width: 300,
-      margin: 2,
+    // Clean the patient data
+    const cleanedEHRHistory = cleanPatientData(allPatientEHRHistory);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Patient History");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Record ID", key: "_id", width: 30 },
+      { header: "Timestamp", key: "timestamp", width: 20 },
+      { header: "Predicted Disease", key: "predictedDisease", width: 30 },
+      { header: "Confidence", key: "confidence", width: 15 },
+      { header: "AI Insights", key: "aiInsights", width: 50 },
+      { header: "Symptoms", key: "symptoms", width: 50 },
+      {
+        header: "EHR - Blood Pressure (Systolic)",
+        key: "bpSystolic",
+        width: 25,
+      },
+      {
+        header: "EHR - Blood Pressure (Diastolic)",
+        key: "bpDiastolic",
+        width: 25,
+      },
+      { header: "EHR - Heart Rate", key: "heartRate", width: 20 },
+      { header: "EHR - Glucose", key: "glucose", width: 15 },
+      { header: "EHR - Cholesterol", key: "cholesterol", width: 20 },
+      { header: "EHR - Temperature", key: "temperature", width: 20 },
+      { header: "EHR - SpO2", key: "spo2", width: 15 },
+      { header: "EHR - BMI", key: "bmi", width: 15 },
+      { header: "EHR - Weight", key: "weight", width: 15 },
+      { header: "EHR - Sleep", key: "sleep", width: 15 },
+      { header: "EHR - Steps", key: "steps", width: 15 },
+      { header: "Medicines", key: "medicines", width: 50 },
+      { header: "Prescriptions", key: "prescription", width: 50 },
+    ];
+
+    // Add rows from cleaned data
+    cleanedEHRHistory.forEach((record) => {
+      worksheet.addRow({
+        _id: record._id,
+        timestamp: record.timestamp,
+        predictedDisease: record.predictedDisease,
+        confidence: record.confidence,
+        aiInsights: record.aiInsights,
+        symptoms: JSON.stringify(record.symptoms),
+        bpSystolic: record.ehr?.bloodPressure?.systolic,
+        bpDiastolic: record.ehr?.bloodPressure?.diastolic,
+        heartRate: record.ehr?.heartRate,
+        glucose: record.ehr?.glucose,
+        cholesterol: record.ehr?.cholesterol,
+        temperature: record.ehr?.temperature,
+        spo2: record.ehr?.spo2,
+        bmi: record.ehr?.bmi,
+        weight: record.ehr?.weight,
+        sleep: record.ehr?.sleep,
+        steps: record.ehr?.steps,
+        medicines: record.medicines.map((med) => med.name).join(", "),
+        prescription: record.prescription
+          .map((pres) => pres.medicine)
+          .join(", "),
+      });
     });
 
-    res.json({ qr: qrDataUrl });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=patient_history_${patient._id}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to generate QR code" });
+    console.error("Error generating Excel file:", err);
+    res.status(500).json({ error: "Failed to generate Excel file." });
   }
 });
 
@@ -656,3 +771,49 @@ const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
     }
   }
 };
+
+// New route for public access to patient data via unique code (for QR code)
+app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
+  try {
+    const { uniqueCode } = req.params;
+    const patient = await Patient.findOne({ uniqueCode: uniqueCode });
+
+    if (!patient) {
+      return res
+        .status(404)
+        .json({ message: "Patient not found with this code." });
+    }
+
+    const allPatientEHRHistory = await PatientData.find({
+      patientId: patient._id,
+    }).sort({
+      timestamp: -1,
+    });
+
+    const cleanedEHRHistory = cleanPatientData(allPatientEHRHistory);
+
+    const patientPublicData = {
+      name: patient.name,
+      age: patient.age,
+      gender: patient.gender,
+      bloodGroup: patient.bloodGroup || null,
+      medicalHistory: patient.medicalHistory || null,
+      ehrHistory: cleanedEHRHistory.map((record) => ({
+        symptoms: record.symptoms,
+        ehr: record.ehr,
+        medicines: record.medicines,
+        prescription: record.prescription,
+        timestamp: record.timestamp,
+        aiInsights: record.aiInsights,
+        predictedDisease: record.predictedDisease,
+        confidence: record.confidence,
+        relatedSymptoms: record.relatedSymptoms,
+      })),
+    };
+
+    res.status(200).json(patientPublicData);
+  } catch (error) {
+    console.error("Error fetching public patient data:", error);
+    res.status(500).json({ error: "Failed to retrieve public patient data." });
+  }
+});

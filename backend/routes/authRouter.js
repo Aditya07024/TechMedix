@@ -68,7 +68,7 @@ router.post("/signup", async (req, res) => {
     } = req.body; // Added new fields
     let user = await Patient.findOne({ email }); // Changed from User to Patient
     if (user) {
-      console.log("user already exists");
+      console.log("User already exists with email:", email);
       return res.status(400).json({ error: "User already exists" });
     }
 
@@ -83,8 +83,9 @@ router.post("/signup", async (req, res) => {
       bloodGroup,
       medicalHistory,
     }); // Changed from User to Patient and added new fields
-    console.log(user);
+    console.log("New patient object before save:", user); // Log patient object before save
     await user.save();
+    console.log("New patient object after save:", user); // Log patient object after save (should have uniqueCode)
 
     res.json({ message: "Patient registered successfully" });
   } catch (error) {
