@@ -1,5 +1,11 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { authApi } from '../api';
+import {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+} from "react";
+import { authApi } from "../api";
 
 const AuthContext = createContext(null);
 
@@ -11,6 +17,7 @@ export const AuthProvider = ({ children }) => {
   const login = (userData) => {
     setIsAuthenticated(true);
     setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData)); // Store user data in localStorage
   };
 
   const logout = async () => {
@@ -27,7 +34,7 @@ export const AuthProvider = ({ children }) => {
       const loggedIn = Boolean(res?.data?.ifLogin);
       setIsAuthenticated(loggedIn);
       if (loggedIn) {
-        const stored = localStorage.getItem('user');
+        const stored = localStorage.getItem("user");
         if (stored) setUser(JSON.parse(stored));
       } else {
         setUser(null);
@@ -45,7 +52,16 @@ export const AuthProvider = ({ children }) => {
   }, [refreshAuthStatus]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, loading, refreshAuthStatus }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        login,
+        logout,
+        loading,
+        refreshAuthStatus,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
