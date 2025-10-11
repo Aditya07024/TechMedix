@@ -71,6 +71,7 @@ export const Dashboard = () => {
     fetchData();
   }, [API_URL]);
 
+  // 📱 Generate QR code (protected route)
   const generateQR = async (patientId) => {
     try {
       const res = await axios.post(`${API_URL}/api/patient/${patientId}/qr`, {}, { 
@@ -83,31 +84,30 @@ export const Dashboard = () => {
     }
   };
 
+  // 📊 Build chart data for a given metric
   const getChartDataForMetric = (metricName) => {
-    const labels = ehrHistory
+    const sorted = ehrHistory
       .slice()
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      .map((record) => new Date(record.timestamp).toLocaleDateString());
-    
-    const data = ehrHistory
-      .slice()
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      .map((record) => {
-        if (metricName.includes(".")) {
-          const [parent, child] = metricName.split(".");
-          return record.ehr?.[parent]?.[child];
-        }
-        return record.ehr?.[metricName];
-      });
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const labels = sorted.map((record) => new Date(record.timestamp).toLocaleDateString());
+
+    const data = sorted.map((record) => {
+      if (metricName.includes('.')) {
+        const [parent, child] = metricName.split('.');
+        return record.ehr?.[parent]?.[child];
+      }
+      return record.ehr?.[metricName];
+    });
 
     return {
       labels,
       datasets: [
         {
-          label: metricName.replace(/_/g, " ").toUpperCase(),
-          data: data,
-          borderColor: "rgb(53, 162, 235)",
-          backgroundColor: "rgba(53, 162, 235, 0.5)",
+          label: metricName.replace(/_/g, ' ').toUpperCase(),
+          data,
+          borderColor: 'rgb(53, 162, 235)',
+          backgroundColor: 'rgba(53, 162, 235, 0.5)',
         },
       ],
     };
@@ -124,6 +124,54 @@ export const Dashboard = () => {
           : "Health Metric Trend",
       },
     },
+  };
+
+  // 🧮 Compute a simple health status score (0-100) from latest metrics
+  const computeHealthScore = (metrics) => {
+    if (!metrics) return 0;
+    let score = 0;
+    let count = 0;
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    // Heart rate (resting) ideal ~60-100 bpm
+    if (typeof metrics.heartRate === 'number') {
+      const hr = metrics.heartRate;
+      let s = 100;
+      if (hr < 50) s = clamp(50 + (hr / 50) * 50, 0, 100);
+      else if (hr > 110) s = clamp(100 - ((hr - 110) / 60) * 60, 0, 100);
+      score += s; count++;
+    }
+
+    // Blood pressure systolic ideal ~90-120
+    if (metrics.bloodPressure && typeof metrics.bloodPressure.systolic === 'number') {
+      const sys = metrics.bloodPressure.systolic;
+      let s = 100;
+      if (sys < 90) s = clamp(50 + (sys / 90) * 50, 0, 100);
+      else if (sys > 140) s = clamp(100 - ((sys - 140) / 60) * 60, 0, 100);
+      score += s; count++;
+    }
+
+    // Blood pressure diastolic ideal ~60-80
+    if (metrics.bloodPressure && typeof metrics.bloodPressure.diastolic === 'number') {
+      const dia = metrics.bloodPressure.diastolic;
+      let s = 100;
+      if (dia < 60) s = clamp(50 + (dia / 60) * 50, 0, 100);
+      else if (dia > 90) s = clamp(100 - ((dia - 90) / 40) * 60, 0, 100);
+      score += s; count++;
+    }
+
+    // Blood sugar (fasting) ideal ~70-100
+    if (typeof metrics.bloodSugar === 'number') {
+      const bs = metrics.bloodSugar;
+      let s = 100;
+      if (bs < 70) s = clamp(50 + (bs / 70) * 50, 0, 100);
+      else if (bs > 126) s = clamp(100 - ((bs - 126) / 100) * 60, 0, 100);
+      score += s; count++;
+    }
+
+    if (count === 0) return 0;
+    return Math.round(score / count);
   };
 
   if (loading) return <p>Loading EHR history...</p>;
@@ -195,143 +243,58 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        {/* 🤖 ML Prediction (Top-Right) */}
-        <div className="dashboard-tile right">
-          <h3>Latest Insights</h3>
-          {latestRecord ? (
-            <div className="space-y-4">
-              {latestRecord.predictedDisease && (
-                <div className="ml-prediction">
-                  <h4>ML Predicted Disease:</h4>
-                  <p>
-                    {latestRecord.predictedDisease} (Confidence:{" "}
-                    {(latestRecord.confidence * 100).toFixed(2)}%)
-                  </p>
-                </div>
-              )}
-              {latestRecord.relatedSymptoms &&
-                latestRecord.relatedSymptoms.length > 0 && (
-                  <div className="related-symptoms">
-                    <h4>Related Symptoms:</h4>
-                    <ul>
-                      {latestRecord.relatedSymptoms.map((symptom, i) => (
-                        <li key={i}>{symptom.replace(/_/g, " ")}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              {latestRecord.aiInsights && (
-                <div className="ai-insights">
-                  <h4>AI Insights:</h4>
-                  <p>{latestRecord.aiInsights}</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p>No recent record to display insights.</p>
-          )}
+        {/* 📊 Recent Data & Hover-to-Chart (Top-Right) */}
+        <div className="dashboard-tile top-right">
           
-          <Link to="/form" className="add-new-data-button">
+          <div><h3>Recent Patient Data</h3>
+          
+
+          {Object.keys(latestMetrics).length > 0 ? (
+            <ul className="metric-list">
+              {Object.entries(latestMetrics).map(([k, v]) =>
+                k !== 'bloodPressure' ? (
+                  <li
+                    key={k}
+                    onMouseEnter={() => setHoveredMetric(k)}
+                    onMouseLeave={() => setHoveredMetric(null)}
+                  >
+                    <strong>{k}</strong>: {String(v)}
+                  </li>
+                ) : (
+                  <li
+                    key={k}
+                    onMouseEnter={() => setHoveredMetric('bloodPressure.systolic')}
+                    onMouseLeave={() => setHoveredMetric(null)}
+                  >
+                    <strong>Blood Pressure</strong>: {latestMetrics.bloodPressure?.systolic}/{latestMetrics.bloodPressure?.diastolic} mmHg
+                  </li>
+                )
+              )}
+            </ul>
+          ) : (
+            <p>No metrics available</p>
+          )}</div>
+<div className="button-div"><Link to="/form" className="add-new-data-button" style={{ marginTop: 16 }}>
             <button className="Documents-btn">
-              <span className="folderContainer">
-                <svg
-                  className="fileBack"
-                  width="146"
-                  height="113"
-                  viewBox="0 0 146 113"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M0 4C0 1.79086 1.79086 0 4 0H50.3802C51.8285 0 53.2056 0.627965 54.1553 1.72142L64.3303 13.4371C65.2799 14.5306 66.657 15.1585 68.1053 15.1585H141.509C143.718 15.1585 145.509 16.9494 145.509 19.1585V109C145.509 111.209 143.718 113 141.509 113H3.99999C1.79085 113 0 111.209 0 109V4Z"
-                    fill="url(#paint0_linear_117_4)"
-                  ></path>
-                  <defs>
-                    <linearGradient
-                      id="paint0_linear_117_4"
-                      x1="0"
-                      y1="0"
-                      x2="72.93"
-                      y2="95.4804"
-                      gradientUnits="userSpaceOnUse"
-                    >
-                      <stop stopColor="#8F88C2"></stop>
-                      <stop offset="1" stopColor="#5C52A2"></stop>
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <svg
-                  className="filePage"
-                  width="88"
-                  height="99"
-                  viewBox="0 0 88 99"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect width="88" height="99" fill="url(#paint0_linear_117_6)"></rect>
-                  <defs>
-                    <linearGradient
-                      id="paint0_linear_117_6"
-                      x1="0"
-                      y1="0"
-                      x2="81"
-                      y2="160.5"
-                      gradientUnits="userSpaceOnUse"
-                    >
-                      <stop stopColor="white"></stop>
-                      <stop offset="1" stopColor="#686868"></stop>
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <svg
-                  className="fileFront"
-                  width="160"
-                  height="79"
-                  viewBox="0 0 160 79"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M0.29306 12.2478C0.133905 9.38186 2.41499 6.97059 5.28537 6.97059H30.419H58.1902C59.5751 6.97059 60.9288 6.55982 62.0802 5.79025L68.977 1.18034C70.1283 0.410771 71.482 0 72.8669 0H77H155.462C157.87 0 159.733 2.1129 159.43 4.50232L150.443 75.5023C150.19 77.5013 148.489 79 146.474 79H7.78403C5.66106 79 3.9079 77.3415 3.79019 75.2218L0.29306 12.2478Z"
-                    fill="url(#paint0_linear_117_5)"
-                  ></path>
-                  <defs>
-                    <linearGradient
-                      id="paint0_linear_117_5"
-                      x1="38.7619"
-                      y1="8.71323"
-                      x2="66.9106"
-                      y2="82.8317"
-                      gradientUnits="userSpaceOnUse"
-                    >
-                      <stop stopColor="#C3BBFF"></stop>
-                      <stop offset="1" stopColor="#51469A"></stop>
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </span>
               <p className="text">Add new Data</p>
             </button>
           </Link>
 
           <div className="qr-section">
-            <button
-              className="qr-button"
-              onClick={() => generateQR(user.id)}
-            >
+            <button className="qr-button" onClick={() => generateQR(user.id)}>
               Generate QR
             </button>
-
             {qrData && (
               <div className="qr-image">
                 <img src={qrData} alt="Patient QR Code" />
                 <p className="qr-text">Scan to open profile</p>
               </div>
             )}
-          </div>
+          </div></div>
+          
         </div>
 
-        {/* 📊 Recent EHR + Chart (Bottom-Left) */}
+        {/* 📊 Health Status or Chart (Bottom-Left) */}
         <div className="dashboard-tile left">
           <div className="chart-section">
             {hoveredMetric ? (
@@ -342,36 +305,28 @@ export const Dashboard = () => {
                 />
               </div>
             ) : (
-              <div>
-                <h4>Recent Metrics</h4>
-                {Object.keys(latestMetrics).length > 0 ? (
-                  <ul className="metric-list">
-                    {Object.entries(latestMetrics).map(([k, v]) =>
-                      k !== "bloodPressure" ? (
-                        <li
-                          key={k}
-                          onMouseEnter={() => setHoveredMetric(k)}
-                          onMouseLeave={() => setHoveredMetric(null)}
-                        >
-                          <strong>{k}</strong>: {String(v)}
-                        </li>
-                      ) : (
-                        <li
-                          key={k}
-                          onMouseEnter={() =>
-                            setHoveredMetric("bloodPressure.systolic")
-                          }
-                          onMouseLeave={() => setHoveredMetric(null)}
-                        >
-                          <strong>Blood Pressure</strong>:{" "}
-                          {latestMetrics.bloodPressure?.systolic}/
-                          {latestMetrics.bloodPressure?.diastolic} mmHg
-                        </li>
-                      )
-                    )}
-                  </ul>
+              <div className="status">
+                <h4>Health Status</h4>
+                {latestRecord ? (
+                  (() => {
+                    const score = computeHealthScore(latestMetrics);
+                    return (
+                      <div style={{ width: '100%', background: '#eee', borderRadius: 8, height: 16 }}>
+                        <div
+                          style={{
+                            width: `${score}%`,
+                            background: score > 70 ? '#22c55e' : score > 40 ? '#f59e0b' : '#ef4444',
+                            height: '100%',
+                            borderRadius: 8,
+                            transition: 'width 300ms ease-in-out',
+                          }}
+                          aria-label={`Health score ${score}`}
+                        />
+                      </div>
+                    );
+                  })()
                 ) : (
-                  <p>No metrics available</p>
+                  <p>No recent record available.</p>
                 )}
               </div>
             )}
@@ -379,61 +334,144 @@ export const Dashboard = () => {
         </div>
 
         {/* 📚 Previous Records (Bottom-Right) */}
-        <div className="dashboard-tile right">
-          <h3>Your Records</h3>
-          {ehrHistory && ehrHistory.length > 0 ? (
-            <div className="records-dropdown">
-              <label htmlFor="record-select">Select record:</label>
-              <select
-                id="record-select"
-                onChange={(e) => {
-                  const selectedId = e.target.value;
-                  const rec = ehrHistory.find(
-                    (r) => String(r._id) === selectedId
-                  );
-                  setSelectedRecord(rec || null);
-                }}
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  -- choose a record --
-                </option>
-                {ehrHistory.map((r) => (
-                  <option key={r._id} value={r._id}>
-                    {new Date(r.timestamp).toLocaleString()}
-                  </option>
-                ))}
-              </select>
+        <div className="dashboard-container">
+  <h2>Patient Dashboard</h2>
 
-              {selectedRecord ? (
-                <div className="selected-record">
-                  <h4>
-                    Record on{" "}
-                    {new Date(selectedRecord.timestamp).toLocaleString()}
-                  </h4>
-                  <div className="ehr-details">
-                    <h4>Health Metrics:</h4>
-                    <ul>
-                      {Object.entries(selectedRecord.ehr || {}).map(
-                        ([key, value]) =>
-                          value !== null &&
-                          typeof value !== "object" && (
+  {ehrHistory.length === 0 ? (
+    <p>No EHR data found. Add your first health record!</p>
+  ) : (
+    <div className="ehr-timeline">
+      {ehrHistory.map((record, index) => (
+        <div key={record._id} className="ehr-record-card">
+          
+
+          {/* Dropdown for each record */}
+          <div className="dropdown">
+            <input
+              hidden
+              className="sr-only"
+              name={`state-dropdown-${index}`}
+              id={`state-dropdown-${index}`}
+              type="checkbox"
+            />
+            <label
+              aria-label="dropdown scrollbar"
+              htmlFor={`state-dropdown-${index}`}
+              className="trigger"
+            >
+<h3>
+            Record on: {new Date(record.timestamp).toLocaleDateString()}
+          </h3>            </label>
+
+            <ul className="list webkit-scrollbar" role="list" dir="auto">
+              <li className="listitem" role="listitem">
+                <article className="article">
+                  <h4>Health Metrics:</h4>
+                  <ul>
+                    {Object.entries(record.ehr).map(
+                      ([key, value]) =>
+                        value !== null &&
+                        typeof value !== "object" && (
+                          <li key={key}>
+                            <strong>{key}:</strong> {value}
+                          </li>
+                        )
+                    )}
+                  </ul>
+                </article>
+              </li>
+
+              {record.symptoms &&
+                Object.keys(record.symptoms).length > 0 && (
+                  <li className="listitem" role="listitem">
+                    <article className="article">
+                      <h4>Symptoms:</h4>
+                      <ul>
+                        {Object.entries(record.symptoms).map(
+                          ([key, value]) => (
                             <li key={key}>
-                              <strong>{key}:</strong> {String(value)}
+                              <strong>{key}:</strong> {value}
                             </li>
                           )
-                      )}
+                        )}
+                      </ul>
+                    </article>
+                  </li>
+                )}
+
+              {record.medicines && record.medicines.length > 0 && (
+                <li className="listitem" role="listitem">
+                  <article className="article">
+                    <h4>Medicines:</h4>
+                    <ul>
+                      {record.medicines.map((med, i) => (
+                        <li key={i}>
+                          {med.name} - {med.dosage} ({med.frequency})
+                        </li>
+                      ))}
                     </ul>
-                  </div>
-                </div>
-              ) : (
-                <p className="select-prompt">Select a record to view details.</p>
+                  </article>
+                </li>
               )}
-            </div>
-          ) : (
-            <p>No EHR records available.</p>
-          )}
+
+              {record.prescription && record.prescription.length > 0 && (
+                <li className="listitem" role="listitem">
+                  <article className="article">
+                    <h4>Prescriptions:</h4>
+                    <ul>
+                      {record.prescription.map((pres, i) => (
+                        <li key={i}>
+                          {pres.medicine} - {pres.dosage} ({pres.duration})
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                </li>
+              )}
+
+              {record.predictedDisease && (
+                <li className="listitem" role="listitem">
+                  <article className="article">
+                    <h4>ML Predicted Disease:</h4>
+                    <p>
+                      {record.predictedDisease} (Confidence:{" "}
+                      {(record.confidence * 100).toFixed(2)}%)
+                    </p>
+                  </article>
+                </li>
+              )}
+
+              {record.relatedSymptoms &&
+                record.relatedSymptoms.length > 0 && (
+                  <li className="listitem" role="listitem">
+                    <article className="article">
+                      <h4>Related Symptoms:</h4>
+                      <ul>
+                        {record.relatedSymptoms.map((symptom, i) => (
+                          <li key={i}>{symptom.replace(/_/g, " ")}</li>
+                        ))}
+                      </ul>
+                    </article>
+                  </li>
+                )}
+
+              {record.aiInsights && (
+                <li className="listitem" role="listitem">
+                  <article className="article">
+                    <h4>AI Insights:</h4>
+                    <p>{record.aiInsights}</p>
+                  </article>
+                </li>
+              )}
+            </ul>
+          </div>
         </div>
+      ))}
+    </div>
+  )}
+</div>
+
+
       </div>
     </div>
   );

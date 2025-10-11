@@ -5,25 +5,10 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Detect system theme on first load
+  // Remove the system preference detection if you want to always start with light mode
   useEffect(() => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const applyTheme = (isDark) => {
-      setIsDarkMode(isDark);
-      document.body.classList.toggle("dark-mode", isDark);
-    };
-
-    applyTheme(prefersDark.matches); // Set initial
-
-    // Listen for system theme changes
-    const listener = (e) => {
-      applyTheme(e.matches);
-    };
-
-    prefersDark.addEventListener("change", listener);
-
-    return () => prefersDark.removeEventListener("change", listener);
+    // Just set initial light mode
+    document.body.classList.remove("dark-mode");
   }, []);
 
   // Manual toggle
