@@ -5,17 +5,24 @@ import { assets } from "../../assets/assets";
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import setShowLogin from "../navbar/Navbar";
+import { useAuth } from '../../context/AuthContext';
+import { authApi } from '../../api';
+import { useLocation, useNavigate } from 'react-router-dom';
+
 const LoginPop = () => {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from?.pathname || '/dashboard';
   const [currState, setCurrState] = useState("Sign Up");
   const [error, setError] = useState(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  
   const [bloodGroup, setBloodGroup] = useState("");
   const [medicalHistory, setMedicalHistory] = useState("");
   const [isOpen, setIsOpen] = useState(true);
@@ -23,18 +30,13 @@ const LoginPop = () => {
   const googleLogin = useGoogleLogin({
     onSuccess: async (response) => {
       try {
-        const res = await axios.post(
-          `${API_URL}/auth/google`,
-          {
-            code: response.access_token,
-          },
-          { withCredentials: true }
-        );
+        const res = await authApi.google(response.access_token);
 
         console.log("Google login successful:", res.data);
         localStorage.setItem("user", JSON.stringify(res.data.user));
+        login(res.data.user);
         setIsOpen(false);
-        window.location.href = "/";
+        navigate(redirectTo, { replace: true });
       } catch (err) {
         console.error("Google login failed:", err);
         setError("Failed to login with Google");
@@ -53,38 +55,28 @@ const LoginPop = () => {
     try {
       let res;
       if (currState === "Sign Up") {
-        res = await axios.post(
-          `${API_URL}/auth/signup`,
-          { name, email, password, age, gender, phone, address, bloodGroup, medicalHistory, code },
-          { withCredentials: true }
-        );
+        res = await authApi.signup({ name, email, password, age, gender, phone, bloodGroup, medicalHistory });
         if (res.data) {
-    alert("Signup successful! Please login with your email, password, and code.");
+    alert("Signup successful! Please login with your email, password");
     setCurrState("Login"); // switch to login screen
   }
-        // After signup, auto-login
-        res = await axios.post(
-          `${API_URL}/auth/signup`,
-          { email, password, code },
-          { withCredentials: true }
-        );
+        // Do not auto-login after signup; require explicit login
       } else {
-        res = await axios.post(
-          `${API_URL}/auth/login`,
-          { email, password, code },
-          { withCredentials: true }
-        );
+        res = await authApi.login({ email, password});
       }
       if (res.data && res.data.user) {
         localStorage.setItem("user", JSON.stringify(res.data.user));
+        login(res.data.user);
         setIsOpen(false);
-        window.location.href = "/home";
+        navigate(redirectTo, { replace: true });
       }
     } catch (err) {
       console.error("Error:", err);
       setError(err.response?.data?.error || "Authentication failed");
     }
   };
+
+  // Removed unused handleLogin helper; form submit handles auth
 
   if (!isOpen) return null;
 
@@ -201,15 +193,6 @@ const LoginPop = () => {
               {currState === "Sign Up" && (
                 <input
                   type="text"
-                  placeholder="Enter your Address"
-                  required
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              )}
-              {currState === "Sign Up" && (
-                <input
-                  type="text"
                   placeholder="Enter your Blood Group"
                   required
                   value={bloodGroup}
@@ -238,14 +221,7 @@ const LoginPop = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              {currState !== "Sign Up" && (
-                <input
-                  type="text"
-                  placeholder="Enter your code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              )}
+              
             </div>
 
             <button type="submit">

@@ -20,11 +20,7 @@ router.post("/google", async (req, res) => {
     })
   );
   try {
-    const { code } = req.body;
-    const ticket = await client.verifyIdToken({
-      idToken: code,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    
 
     const { email, name, picture } = ticket.getPayload();
 
@@ -88,7 +84,6 @@ router.post("/signup", async (req, res) => {
       address,
       bloodGroup,
       medicalHistory,
-      code: process.env.company_code,
     }); // Changed from User to Patient and added new fields
     console.log(user);
     await user.save();
@@ -103,16 +98,13 @@ router.post("/signup", async (req, res) => {
 // Login
 router.post("/login", async (req, res) => {
   try {
-    const { email, password, code } = req.body;
+    const { email, password } = req.body;
     const user = await Patient.findOne({ email }); // Changed from User to Patient
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-    if (code !== process.env.company_code) {
-      return res.status(401).json({ error: "Invalid code" });
-    }
 
     const token = jwt.sign(
       { id: user._id, email: user.email },

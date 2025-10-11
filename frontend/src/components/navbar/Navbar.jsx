@@ -96,15 +96,15 @@ const Navbar = ({ setShowLogin }) => {
         </a>
       </ul>
       <div className="navbar-right">
-        {ifLogin && (
+        {/* {ifLogin && (
           <div className="add-medicine">
             <button onClick={handleClick}>Add Medicine</button>
           </div>
-        )}
+        )} */}
         <div className="ai-div">
           <Button className="ai-button" onClick={() => setAskAi(true)}>
-            Ask to ChatGpt
-            <img className="chatgpt" src={assets.chatgpt} alt="" />
+            Ask to AI Doctor
+            
           </Button>
         </div>
         <div>

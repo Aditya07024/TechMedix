@@ -4,8 +4,7 @@ import bcrypt from "bcrypt";
 const doctorSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }, // hashed password
-  code: { type: String },
+  password: { type: String, required: true }
 });
 
 // Hash password before saving

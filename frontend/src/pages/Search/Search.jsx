@@ -154,7 +154,7 @@ const Search = () => {
         </div>
         <div className="ai-div">
           <div className="heading-div">
-            <h1>Ask to ChatGpt</h1>
+            <h1>Ask to AI Doctor about your medicine</h1>
             <Button variant="outlined" onClick={() => setAskAi(true)}>
               Click Here
             </Button>
