@@ -1,19 +1,19 @@
-import express from "express";
+const express = require("express");
 const app = express();
-import mongoose from "mongoose";
-import Medicine from "./models/medicine.js";
-import axios from "axios";
-import dotenv from "dotenv";
+const mongoose = require("mongoose");
+const Medicine = require("./models/medicine.js");
+const axios = require("axios");
+const dotenv = require("dotenv");
 dotenv.config();
-import cors from "cors";
+const cors = require("cors");
 const cookieParser = require("cookie-parser"); // Import cookie-parser
-import authRouter from "./routes/authRouter.js";
+const authRouter = require("./routes/authRouter.js");
 // import  authenticate  from "./middleware/auth.js";
-import QRCode from "qrcode";
-import doctorAuthRouter from "./routes/doctorAuthRouter.js"; // Import doctor auth router
-import { authenticate, authorizeRoles } from "./middleware/auth.js"; // Import authenticate and authorizeRoles
-import _ from "lodash"; // Import lodash for deep comparison
-import ExcelJS from "exceljs"; // Import exceljs
+const QRCode = require("qrcode");
+const doctorAuthRouter = require("./routes/doctorAuthRouter.js"); // Import doctor auth router
+const { authenticate, authorizeRoles } = require("./middleware/auth.js"); // Import authenticate and authorizeRoles
+const _ = require("lodash"); // Import lodash for deep comparison
+const ExcelJS = require("exceljs"); // Import exceljs
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
@@ -29,10 +29,10 @@ app.use(express.urlencoded({ extended: true })); // for parsing application/x-ww
 app.use(cookieParser()); // Use cookie-parser middleware
 
 // Add multer for file uploads
-import multer from "multer";
-import Report from "./models/report.js"; // We'll create this model next
-import PatientData from "./models/patientData.js"; // New import for PatientData
-import Patient from "./models/patient.js"; // New import for Patient
+const multer = require("multer");
+const Report = require("./models/report.js"); // We'll create this model next
+const PatientData = require("./models/patientData.js"); // New import for PatientData
+const Patient = require("./models/patient.js"); // New import for Patient
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
