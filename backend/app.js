@@ -6,7 +6,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
 import cors from "cors";
-import cookieParser from "cookie-parser"; // Import cookie-parser
+const cookieParser = require("cookie-parser"); // Import cookie-parser
 import authRouter from "./routes/authRouter.js";
 // import  authenticate  from "./middleware/auth.js";
 import QRCode from "qrcode";
@@ -499,13 +499,11 @@ app.get(
         errorCorrectionLevel: "L",
       });
 
-      res
-        .status(200)
-        .json({
-          qr: qrCodeImage,
-          uniqueCode: patient.uniqueCode,
-          accessUrl: patientHistoryUrl,
-        });
+      res.status(200).json({
+        qr: qrCodeImage,
+        uniqueCode: patient.uniqueCode,
+        accessUrl: patientHistoryUrl,
+      });
     } catch (error) {
       console.error("Error generating QR code:", error);
       res.status(500).json({ error: "Failed to generate QR code" });
