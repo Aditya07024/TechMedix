@@ -51,6 +51,11 @@ Password: demo123
 ## 👾 Features
 
 <code>❯ 🔍 Medicine Comparison: View generic vs. branded differences, ingredients, and pricing.
+❯ 💡 AI-Powered Recommendations: Intelligent suggestions for medicines and health tips.
+❯ 👩‍⚕️ Doctor's Portal: Dedicated access for healthcare professionals to manage patients and prescriptions.
+❯ 💊 Medicine Management: Easily track and manage your prescribed medications.
+❯ ⏰ Medicine Reminders: Set up personalized reminders to take your medicine on time.
+❯ 📈 Report Generation: Generate comprehensive health reports and analytics.
 ⚠️ Detailed Safety Information: Clear data on side effects, usage instructions, and warnings.
 💬 Real User Reviews: Community-driven feedback from patients for honest experiences.
 🛒 One-Click Purchase: Integrated trusted purchase links for seamless transactions.
@@ -447,12 +452,12 @@ Run the test suite using the following command:
 ---
 ## 📌 Project Roadmap
 
-- [ ] **`Task 1`**: Built core platform on MERN stack.
-- [ ] **`Task 2`**: Integrated third-party APIs for live medicine data.
-- [ ] **`Task 3`**: Implement AI-based medicine recommendations.
+- [x] **`Task 1`**: Built core platform on MERN stack.
+- [x] **`Task 2`**: Integrated third-party APIs for live medicine data.
+- [x] **`Task 3`**: Implement AI-based medicine recommendations.
 - [ ] **`Task 4`**: Develop mobile apps for Android and iOS.
 - [ ] **`Task 5`**: Add multilingual support for accessibility.
-- [ ] **`Task 6`**:  Integrate teleconsultation feature.
+- [ ] **`Task 6`**: Integrate teleconsultation feature.
 
 
 ---
