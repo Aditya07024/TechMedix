@@ -79,13 +79,7 @@ export const Dashboard = () => {
   // 📱 Generate QR code (protected route)
   const generateQR = async (patientId) => {
     try {
-      const res = await axios.post(
-        `${API_URL}/api/patient/${patientId}/qr`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
+      const res = await patientDataApi.generatePatientQR(patientId);
       setQrData(res.data.qr);
     } catch (err) {
       console.error("QR generation error:", err);
