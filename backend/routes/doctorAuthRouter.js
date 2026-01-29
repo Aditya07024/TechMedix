@@ -1,7 +1,11 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import Doctor from "../models/doctor.js"; // Import the Doctor model
+import {
+  getDoctorByEmail,
+  createDoctor,
+  comparePassword,
+} from "../models-pg/doctor.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -11,18 +15,18 @@ const router = express.Router();
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password, specialty } = req.body;
-    let doctor = await Doctor.findOne({ email });
+    let doctor = await getDoctorByEmail(email);
     if (doctor) {
       return res.status(400).json({ error: "Doctor already exists" });
     }
 
-    doctor = new Doctor({
+    const hashedPassword = await bcrypt.hash(password, 10);
+    doctor = await createDoctor({
       name,
       email,
-      password,
+      password: hashedPassword,
       specialty,
     });
-    await doctor.save();
 
     res.json({ message: "Doctor registered successfully" });
   } catch (error) {
@@ -35,16 +39,16 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const doctor = await Doctor.findOne({ email });
+    const doctor = await getDoctorByEmail(email);
     if (!doctor) return res.status(401).json({ error: "Invalid credentials" });
 
-    const isMatch = await bcrypt.compare(password, doctor.password);
+    const isMatch = await comparePassword(password, doctor.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
-      { id: doctor._id, email: doctor.email, role: "doctor" }, // Add role to token
+      { id: doctor.id, email: doctor.email, role: "doctor" },
       process.env.TOKEN_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "1d" },
     );
 
     res.cookie("token", token, {
