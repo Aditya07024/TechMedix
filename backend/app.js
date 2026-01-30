@@ -32,6 +32,7 @@ import { initializeAgentExecutorWithOptions } from "langchain/agents";
 import { DynamicTool } from "langchain/tools";
 import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
+import safetyRoutes from "./routes/safetyRoutes.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -686,6 +687,7 @@ const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
 };
 // app.use("/api/prescriptions", prescriptionSafetyRouter);
 app.use("/api/prescriptions", prescriptionRoutes);
+app.use("/api", safetyRoutes);
 
 // New route for public access to patient data via unique code (for QR code)
 app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
