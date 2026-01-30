@@ -27,6 +27,11 @@ import {
   deletePatientDataByPatientId,
 } from "./models-pg/patientData.js";
 import { createReport, getReportById } from "./models-pg/report.js";
+import { ChatOpenAI } from "@langchain/openai";
+import { initializeAgentExecutorWithOptions } from "langchain/agents";
+import { DynamicTool } from "langchain/tools";
+import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
+import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -91,6 +96,57 @@ function toNumOrNull(v) {
   const n = Number(v);
   return Number.isNaN(n) ? null : n;
 }
+
+// -------------------- LangChain Agent Setup --------------------
+const llm = new ChatOpenAI({
+  temperature: 0.3,
+  apiKey: process.env.API_KEY,
+  baseURL: process.env.BASE_URL,
+});
+
+// ML prediction tool
+const mlTool = new DynamicTool({
+  name: "DiseasePredictionTool",
+  description: "Predict disease based on patient symptoms",
+  func: async (input) => {
+    const { data } = await axios.post(
+      "http://localhost:5001/predict-disease",
+      { symptoms: JSON.parse(input) },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return JSON.stringify(data);
+  },
+});
+
+// EHR analysis tool
+const ehrTool = new DynamicTool({
+  name: "EHRAnalyzer",
+  description: "Analyze patient vitals and flag medical risks",
+  func: async (input) => {
+    const ehr = JSON.parse(input);
+    const alerts = [];
+
+    if (ehr?.bloodPressure?.systolic > 140) alerts.push("High blood pressure");
+    if (ehr?.glucose > 140) alerts.push("High glucose level");
+    if (ehr?.spo2 < 92) alerts.push("Low oxygen saturation");
+
+    return alerts.length ? alerts.join(", ") : "Vitals are within normal range";
+  },
+});
+
+async function getMedicalAgent() {
+  const agent = await createOpenAIFunctionsAgent({
+    llm,
+    tools: [mlTool, ehrTool],
+  });
+
+  return new AgentExecutor({
+    agent,
+    tools: [mlTool, ehrTool],
+    verbose: true,
+  });
+}
+// ---------------------------------------------------------------
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
@@ -248,74 +304,24 @@ app.post("/api/patientdata", async (req, res) => {
     const { patientId, email, symptoms, ehr, medicines, prescription } =
       req.body;
 
-    let predictedDisease = "ML Prediction Failed";
+    // Use LangChain medical agent
+    const agent = await getMedicalAgent();
+
+    const agentResult = await agent.run(`
+Patient symptoms: ${JSON.stringify(symptoms)}
+EHR data: ${JSON.stringify(ehr)}
+Medicines: ${JSON.stringify(medicines)}
+Prescription: ${JSON.stringify(prescription)}
+
+1. Predict the disease
+2. Estimate confidence
+3. Provide medical insights in bullet points
+`);
+
+    let predictedDisease = "Agent prediction unavailable";
     let confidence = 0;
     let relatedSymptoms = [];
-
-    // Call ML model for disease prediction
-    try {
-      console.log("Sending symptoms to ML model:", symptoms);
-      const mlResponse = await retryAxios(
-        "http://localhost:5001/predict-disease",
-        { symptoms },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: 5000,
-        },
-      );
-      console.log("ML model response:", mlResponse.data);
-      const {
-        predicted_disease,
-        confidence: conf,
-        related_symptoms,
-      } = mlResponse.data;
-      predictedDisease = predicted_disease ?? predictedDisease;
-      confidence = conf ?? 0;
-      relatedSymptoms = related_symptoms ?? [];
-    } catch (mlError) {
-      console.error("Error calling ML model API:", mlError.message);
-      console.error(
-        "ML model API response:",
-        mlError.response?.data || "No response data",
-      );
-    }
-
-    // Call ChatGPT API for insights
-    let aiInsights = "";
-    try {
-      const prompt = `Generate health insights and recommendations based on the following patient EHR data and predicted disease. Be concise and act as a medical assistant, providing actionable advice in bullet points:
-    Predicted Disease: ${predictedDisease}
-    Symptoms: ${JSON.stringify(symptoms)}
-    EHR: ${JSON.stringify(ehr)}
-    Medicines: ${JSON.stringify(medicines)}
-    Prescription: ${JSON.stringify(prescription)}`;
-
-      const aiResponse = await axios.post(
-        `${baseUrl}/chat/completions`,
-        {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a helpful medical assistant. Give insights and recommendations in bullet points.",
-            },
-            { role: "user", content: prompt },
-          ],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      aiInsights = aiResponse.data.choices[0].message.content;
-    } catch (aiErr) {
-      console.error("AI insights error:", aiErr.message);
-    }
+    let aiInsights = agentResult;
 
     const row = await createPatientData({
       patientId,
@@ -678,6 +684,8 @@ const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
     }
   }
 };
+// app.use("/api/prescriptions", prescriptionSafetyRouter);
+app.use("/api/prescriptions", prescriptionRoutes);
 
 // New route for public access to patient data via unique code (for QR code)
 app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
