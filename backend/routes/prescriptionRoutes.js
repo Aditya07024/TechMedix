@@ -2,7 +2,7 @@ import express from "express";
 import multer from "multer";
 import sql from "../config/database.js";
 import { v4 as uuidv4 } from "uuid";
-import  prescriptionAgent  from "../agents/prescriptionAgent.js";
+import prescriptionAgent from "../agents/prescriptionAgent.js";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -45,7 +45,7 @@ router.post("/:id/analyze", async (req, res) => {
 
     const workflowId = uuidv4();
 
-    prescriptionAgent.execute({
+    await prescriptionAgent.execute({
       prescriptionId,
       userId: rows[0].user_id,
       workflowId,
@@ -54,11 +54,11 @@ router.post("/:id/analyze", async (req, res) => {
     res.json({
       success: true,
       workflow_id: workflowId,
-      message: "Prescription analysis started",
+      message: "Prescription analysis completed",
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Analysis failed" });
+    console.error("Analysis failed:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

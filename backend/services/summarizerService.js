@@ -1,53 +1,91 @@
 // backend/services/summarizerService.js
-import { pipeline } from "@xenova/transformers";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-let summarizer = null;
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-export async function summarizePrescription(text) {
-  if (!summarizer) {
-    console.log("🧠 Loading FLAN-T5 summarizer model...");
-    summarizer = await pipeline(
-      "text2text-generation",
-      "Xenova/flan-t5-base"
-    );
-    console.log("✅ Model loaded successfully");
+let model;
+
+function getModel() {
+  if (!model) {
+    model = genAI.getGenerativeModel({
+      model: "gemini-3-flash-preview",
+    });
+    console.log("✅ Gemini model loaded");
+  }
+  return model;
+}
+
+export async function summarizePrescription(ocrText) {
+  if (!ocrText || !ocrText.trim()) {
+    throw new Error("No OCR text provided to summarizer");
   }
 
+  console.log("\n📄 OCR TEXT SENT TO GEMINI:\n");
+  console.log(ocrText);
+
   const prompt = `
-You are a medical assistant.
+You are a medical prescription extraction engine.
 
-Extract ONLY the medicines from the prescription text below.
+STRICT RULES (VERY IMPORTANT):
+- Output MUST be valid JSON
+- Output ONLY JSON
+- No explanations
+- No markdown
+- No text outside JSON
+- If a field is missing, use null
+- medicines must ALWAYS be an array
 
-Return STRICT JSON in this exact format:
+JSON SCHEMA (FOLLOW EXACTLY):
 {
   "medicines": [
     {
-      "medicine_name": "",
-      "dosage": "",
-      "frequency": "",
-      "duration": "",
-      "instructions": ""
+      "medicine_name": string,
+      "dosage": string | null,
+      "frequency": string | null,
+      "duration": string | null,
+      "instructions": string | null,
+      "confidence": number
     }
   ]
 }
 
-Rules:
-- Do NOT explain
-- Do NOT add extra text
-- If missing, use null
-
 PRESCRIPTION TEXT:
-${text}
+"""
+${ocrText}
+"""
 `;
 
-  console.log("\n🧠 MODEL PROMPT:\n", prompt);
+  console.log("\n🧠 GEMINI PROMPT:\n", prompt);
 
-  const result = await summarizer(prompt, {
-    max_new_tokens: 512,
-    temperature: 0,
-  });
+  const result = await getModel().generateContent(prompt);
+  const rawOutput = result.response.text().trim();
 
-  console.log("\n✨ RAW MODEL OUTPUT:\n", result[0].generated_text);
+  console.log("\n✨ RAW GEMINI OUTPUT:\n", rawOutput);
 
-  return result[0].generated_text;
+  const jsonStart = rawOutput.indexOf("{");
+  const jsonEnd = rawOutput.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1) {
+    throw new Error("Gemini did not return JSON");
+  }
+
+  const safeJsonText = rawOutput.slice(jsonStart, jsonEnd + 1);
+
+  let normalizedJson = safeJsonText
+    .replace(/'/g, '"')
+    .replace(/(\w+)\s*:/g, '"$1":');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(normalizedJson);
+  } catch (err) {
+    console.error("❌ JSON PARSE FAILED");
+    console.error(normalizedJson);
+    throw new Error("Invalid JSON from Gemini");
+  }
+
+  console.log("\n✅ PARSED MODEL JSON:\n");
+  console.dir(parsed, { depth: null });
+
+  return parsed;
 }
