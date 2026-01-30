@@ -61,5 +61,21 @@ router.post("/:id/analyze", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.post(
+  "/api/prescriptions/:prescriptionId/price-check",
+  async (req, res) => {
+    try {
+      const { prescriptionId } = req.params;
+      const data = await runPriceAgent({ prescriptionId });
+      res.json({ success: true, data });
+    } catch (err) {
+      console.error("❌ Price check failed:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message
+      });
+    }
+  }
+);
 
 export default router;
