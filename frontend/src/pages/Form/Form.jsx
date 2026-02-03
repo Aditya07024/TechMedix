@@ -187,7 +187,7 @@ export const Form = () => {
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("Error submitting health data.");
+      alert(error);
     }
   };
 

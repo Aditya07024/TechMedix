@@ -7,8 +7,9 @@
   ],
   "watch": [
     "app.js",
+    ".env",
     "routes/**/*.js",
     "models/**/*.js"
   ],
-  "ext": "js,json"
+  "ext": "js,json,env"
 }

@@ -1,28 +1,140 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, ".env") }); // Load from backend/.env
+
 import express from "express";
 const app = express();
-import mongoose from "mongoose";
-import Medicine from "./models/medicine.js";
+import sql from "./config/database.js"; // Neon serverless SQL connection
 import axios from "axios";
-import dotenv from "dotenv";
-dotenv.config();
 import cors from "cors";
-import cookieParser from "cookie-parser"; // Import cookie-parser
+import cookieParser from "cookie-parser";
 import authRouter from "./routes/authRouter.js";
-// import  authenticate  from "./middleware/auth.js";
 import QRCode from "qrcode";
-import doctorAuthRouter from "./routes/doctorAuthRouter.js"; // Import doctor auth router
-import { authenticate, authorizeRoles } from "./middleware/auth.js"; // Import authenticate and authorizeRoles
-import _ from "lodash"; // Import lodash for deep comparison
-import ExcelJS from "exceljs"; // Import exceljs
+import doctorAuthRouter from "./routes/doctorAuthRouter.js";
+import { authenticate, authorizeRoles } from "./middleware/auth.js";
+import _ from "lodash";
+import ExcelJS from "exceljs";
+import {
+  getPatientById,
+  getPatientByUniqueCode,
+  deletePatient as deletePatientById,
+  updatePatient,
+} from "./models-pg/patient.js";
+import {
+  createPatientData,
+  getPatientDataByPatientId,
+  getPatientDataById,
+  deletePatientData,
+  deletePatientDataByPatientId,
+} from "./models-pg/patientData.js";
+import { createReport, getReportById } from "./models-pg/report.js";
+import { searchMedicines } from "./models-pg/medicine.js";
+import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
+import prescriptionRoutes from "./routes/prescriptionRoutes.js";
+import safetyRoutes from "./routes/safetyRoutes.js";
+import priceRoutes from "./routes/priceRoutes.js";
+import { runPrescriptionMigration } from "./scripts/runPrescriptionMigration.js";
+import { runSafetyReportMigration } from "./scripts/runSafetyReportMigration.js";
+import { runPriceIntelligenceMigration } from "./scripts/runPriceIntelligenceMigration.js";
+
+
+
+// Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
+function mapPatientDataRowToFrontend(row) {
+  if (!row) return null;
+  return {
+    _id: row.id,
+    id: row.id,
+    timestamp: row.created_at,
+    created_at: row.created_at,
+    patientId: row.patient_id,
+    email: row.email,
+    symptoms: row.symptoms ?? {},
+    ehr: {
+      bloodPressure:
+        row.blood_pressure_systolic != null ||
+        row.blood_pressure_diastolic != null
+          ? {
+              systolic: row.blood_pressure_systolic,
+              diastolic: row.blood_pressure_diastolic,
+            }
+          : undefined,
+      heartRate: row.heart_rate,
+      glucose: row.glucose,
+      cholesterol: row.cholesterol,
+      temperature: row.temperature,
+      spo2: row.spo2,
+      bmi: row.bmi,
+      weight: row.weight,
+      sleep: row.sleep,
+      steps: row.steps,
+    },
+    medicines: row.medicines ?? [],
+    prescription: row.prescription ?? [],
+    aiInsights: row.ai_insights,
+    predictedDisease: row.predicted_disease,
+    confidence: row.confidence,
+    relatedSymptoms: row.related_symptoms ?? [],
+  };
+}
+
+// Map patient row to frontend (exclude password, camelCase)
+function mapPatientRowToFrontend(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    age: row.age,
+    gender: row.gender,
+    phone: row.phone,
+    address: row.address ?? null,
+    bloodGroup: row.blood_group,
+    medicalHistory: row.medical_history,
+    uniqueCode: row.unique_code,
+    createdAt: row.created_at,
+  };
+}
+
+// Coerce form values to number or null for DB integer/numeric columns (Postgres rejects "")
+function toNumOrNull(v) {
+  if (v === "" || v == null) return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
+// Hugging Face inference helper for medical insights
+async function generateMedicalInsightsLocal(payload) {
+  try {
+    const res = await axios.post(
+      "http://localhost:5005/insights",
+      payload,
+      { timeout: 5000 }
+    );
+    return res.data.aiInsights;
+  } catch (e) {
+    console.warn("Local AI failed:", e.message);
+    return "AI insights could not be generated at this time. Data saved successfully.";
+  }
+}
+
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
 
+// CORS configuration - allow all origins in development for mobile app compatibility
+// In production, restrict to specific origins
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin:
+      process.env.NODE_ENV === "production" ? process.env.FRONTEND_URL : true, // Allow all origins in development (needed for mobile apps)
     credentials: true,
-  })
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+  }),
 );
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
@@ -30,9 +142,6 @@ app.use(cookieParser()); // Use cookie-parser middleware
 
 // Add multer for file uploads
 import multer from "multer";
-import Report from "./models/report.js"; // We'll create this model next
-import PatientData from "./models/patientData.js"; // New import for PatientData
-import Patient from "./models/patient.js"; // New import for Patient
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -43,236 +152,52 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
-async function main() {
-  await mongoose.connect(process.env.MONGO_URL);
+
+// Test PostgreSQL connection on startup (non-blocking); run prescription migration so upload works
+async function testConnection() {
+  try {
+    const result = await sql`SELECT NOW()`;
+    console.log("✓ Connected to PostgreSQL (Neon):", result[0]);
+    await runPrescriptionMigration();
+    await runSafetyReportMigration();
+    await runPriceIntelligenceMigration();
+  } catch (err) {
+    console.warn("⚠ Database connection warning:", err.message);
+    console.warn(
+      "Note: The application will continue running, but database queries may fail",
+    );
+    // Don't exit - allow server to start even if DB connection fails initially
+  }
 }
-main()
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch((err) => {
-    console.log("Error connecting to MongoDB:", err);
-  });
+
+// Test connection asynchronously
+testConnection();
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
-app.get("/medicines", async (req, res) => {
-  const allMedicines = await Medicine.find();
-  res.json(allMedicines);
-});
-
-//new medicine route
-app.post("/new", async (req, res) => {
-  const newMedicine = new Medicine(req.body);
-  await newMedicine.save();
-  console.log(newMedicine);
-  // res.redirect("/");
-  console.log("Medicine saved");
-  res.status(201).json(newMedicine);
-});
-
-//edit route
-app.get("/medicines/:id", async (req, res) => {
-  try {
-    const updated = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: "Update failed" });
-  }
-});
-
-// delete route
-app.delete("/medicines/:id", async (req, res) => {
-  try {
-    const deleted = await Medicine.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ error: "Medicine not found" });
-    }
-    res.json({ message: "Medicine deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting medicine:", err);
-    res.status(500).json({ error: "Failed to delete medicine" });
-  }
-});
-
-// update route
-app.put("/medicines/:id", async (req, res) => {
-  try {
-    const updated = await Medicine.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!updated) return res.status(404).json({ error: "Medicine not found" });
-    res.json(updated);
-  } catch (err) {
-    console.error("Update failed:", err);
-    res.status(500).json({ error: "Update failed", details: err.message });
-  }
-});
-
-app.get("/api/medicines/search", async (req, res) => {
-  try {
-    const { medicine, solution } = req.query;
-    console.log("Search Query:", { medicine, solution });
-
-    let medicineData = null,
-      salt = null,
-      similarMedicines = [];
-
-    if (medicine) {
-      // Search by medicine name or salt and include all fields
-      medicineData = await Medicine.findOne({
-        $or: [
-          { name: { $regex: `^${medicine}$`, $options: "i" } },
-          { salt: { $regex: medicine, $options: "i" } },
-        ],
-      }).select(
-        "name price salt info benefits sideeffects usage working safetyadvice image link"
-      );
-
-      if (medicineData) {
-        salt = medicineData.salt;
-        // Find similar medicines with same salt excluding the found medicine
-        similarMedicines = await Medicine.find({
-          salt: salt,
-          _id: { $ne: medicineData._id },
-        })
-          .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image link"
-          )
-          .sort({ name: 1 })
-          .limit(10);
-      } else {
-        // If no exact medicineData found, do a broader search on both name and salt fields
-        similarMedicines = await Medicine.find({
-          $or: [
-            { name: { $regex: medicine, $options: "i" } },
-            { salt: { $regex: medicine, $options: "i" } },
-          ],
-        })
-          .select(
-            "name price salt info benefits sideeffects usage working safetyadvice image link"
-          )
-          .sort({ name: 1 })
-          .limit(10);
-        if (similarMedicines.length > 0) {
-          salt = similarMedicines[0].salt;
-        }
-      }
-    } else if (solution) {
-      // Search by salt/solution
-      similarMedicines = await Medicine.find({
-        salt: { $regex: solution, $options: "i" },
-      })
-        .select(
-          "name price salt info benefits sideeffects usage working safetyadvice image link"
-        )
-        .sort({ name: 1 })
-        .limit(10);
-      salt = solution;
-    }
-
-    if (!medicineData && similarMedicines.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No medicines found matching your query." });
-    }
-
-    console.log("Search Results:", {
-      medicineData,
-      salt,
-      similarMedicines,
-    });
-    res.json({ medicineData, salt, similarMedicines });
-  } catch (error) {
-    console.error("Error in search:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-app.get("/api/medicines/:id", async (req, res) => {
-  try {
-    const medicine = await Medicine.findById(req.params.id);
-    if (!medicine) {
-      return res.status(404).json({ message: "Medicine not found" });
-    }
-    res.json(medicine);
-  } catch (error) {
-    console.error("Error fetching medicine:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-app.get("/allmedicines", async (req, res) => {
-  res.send(await Medicine.find());
-});
+// Medicine routes will be implemented in a dedicated medicineRoutes.js file
+// For now, these endpoints are temporarily disabled
 
 app.get("/test", (req, res) => {
-  let sampleMedicine = new Medicine({
-    name: "Warfarin Soodiumm",
-    price: 100,
-    info: "Warfarin is an anticoagulant used to prevent blood clots.",
-    category: "Anticoagulant",
-    salt: "Warfarin Sodium",
-    benefits: "Prevents blood clots, reduces risk of stroke.",
-    sideeffects: "Bleeding, nausea, diarrhea.",
-    usage: "As directed by a healthcare provider.",
-    working: "Inhibits vitamin K epoxide reductase, reducing clotting factors.",
-    safetyadvice: "Avoid alcohol, monitor INR levels regularly.",
-  });
-  sampleMedicine
-    .save()
-    .then(() => {
-      console.log("Sample medicine saved successfully!");
-      res.send("Sample medicine saved successfully!");
-    })
-    .catch((err) => {
-      console.error("Error saving sample medicine:", err);
-      res.status(500).send("Error saving sample medicine: " + err.message);
-    });
+  res.json({ message: "API is working correctly with PostgreSQL/Neon" });
 });
 
-app.post("/aipop", async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt) {
-    return res.status(400).json({ error: "Prompt is required" });
-  }
+// AI health check route
+app.get("/api/ai/health", async (req, res) => {
   try {
-    const response = await axios.post(
-      `${baseUrl}/chat/completions`,
-      {
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a helpful assistant. Talk like a pharmacist and a doctor. Give results in points like user can easy to understand",
-          },
-          { role: "user", content: prompt },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      }
+    await axios.post(
+      "http://localhost:5005/insights",
+      { symptoms: {}, ehr: {}, medicines: [], prescription: [] },
+      { timeout: 2000 }
     );
-    const reply = response.data.choices[0].message.content;
-    res.json({ reply });
-  } catch (error) {
-    console.error(
-      "Error:",
-      error.response ? error.response.data : error.message
-    );
-    res.status(500).json({ error: "AI service error" });
+    res.json({ status: "AI service running" });
+  } catch {
+    res.status(503).json({ status: "AI service unavailable" });
   }
 });
+
 // New route for report uploads
 app.post("/api/upload-report", upload.single("report"), async (req, res) => {
   if (!req.file) {
@@ -296,19 +221,18 @@ app.post("/api/upload-report", upload.single("report"), async (req, res) => {
     - Precaution 1: Avoid self-medication.
     - This report is for informational purposes only and not a substitute for professional medical advice.`;
 
-    const newReport = new Report({
+    const newReport = await createReport({
       userId,
       filePath: reportPath,
       fileName: req.file.originalname,
       fileType: req.file.mimetype,
       aiReport: aiGeneratedReport,
     });
-    await newReport.save();
 
     res.status(200).json({
       message: "Report uploaded and processed successfully",
       aiReport: aiGeneratedReport,
-      reportId: newReport._id,
+      reportId: newReport.id,
     });
   } catch (error) {
     console.error("Error processing report:", error);
@@ -318,7 +242,7 @@ app.post("/api/upload-report", upload.single("report"), async (req, res) => {
 // New route to fetch a single report
 app.get("/api/reports/:id", async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id);
+    const report = await getReportById(req.params.id);
     if (!report) {
       return res.status(404).json({ message: "Report not found" });
     }
@@ -332,89 +256,56 @@ app.get("/api/reports/:id", async (req, res) => {
 // Route to save EHR data and get AI insights
 app.post("/api/patientdata", async (req, res) => {
   try {
-    const { patientId, email, symptoms, ehr, medicines, prescription } =
-      req.body;
+    const { patientId, email, symptoms, ehr, medicines, prescription } = req.body;
 
-    const newPatientData = new PatientData({
+    // Determine if AI insights should be generated
+    const shouldRunAI =
+      symptoms ||
+      ehr ||
+      (medicines?.length ?? 0) > 0 ||
+      (prescription?.length ?? 0) > 0;
+
+    const aiInsights = shouldRunAI
+      ? (await generateMedicalInsightsLocal({
+          symptoms,
+          ehr,
+          medicines,
+          prescription,
+        }))?.slice(0, 2000)
+      : "AI insights could not be generated at this time. Data saved successfully.";
+
+    let predictedDisease = "Agent prediction unavailable";
+    let confidence = 0;
+    let relatedSymptoms = [];
+
+    const row = await createPatientData({
       patientId,
-      email,
-      symptoms,
-      ehr,
-      medicines,
-      prescription,
+      email: email ?? "",
+      symptoms: symptoms ?? {},
+      bloodPressureSystolic: toNumOrNull(ehr?.bloodPressure?.systolic),
+      bloodPressureDiastolic: toNumOrNull(ehr?.bloodPressure?.diastolic),
+      heartRate: toNumOrNull(ehr?.heartRate),
+      glucose: toNumOrNull(ehr?.glucose),
+      cholesterol: toNumOrNull(ehr?.cholesterol),
+      temperature: toNumOrNull(ehr?.temperature),
+      spo2: toNumOrNull(ehr?.spo2),
+      bmi: toNumOrNull(ehr?.bmi),
+      weight: toNumOrNull(ehr?.weight),
+      sleep: toNumOrNull(ehr?.sleep),
+      steps: toNumOrNull(ehr?.steps),
+      medicines: medicines ?? [],
+      prescription: prescription ?? [],
+      aiInsights,
+      predictedDisease,
+      confidence: Number(confidence),
+      relatedSymptoms,
     });
 
-    // Call ML model for disease prediction
-    try {
-      console.log("Sending symptoms to ML model:", symptoms);
-      const mlResponse = await retryAxios(
-        "http://localhost:5001/predict-disease",
-        { symptoms },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          timeout: 5000,
-        }
-      );
-      console.log("ML model response:", mlResponse.data);
-      const { predicted_disease, confidence, related_symptoms } =
-        mlResponse.data; // Destructure related_symptoms
-      newPatientData.predictedDisease = predicted_disease;
-      newPatientData.confidence = confidence;
-      newPatientData.relatedSymptoms = related_symptoms; // Save related symptoms
-    } catch (mlError) {
-      console.error("Error calling ML model API:", mlError.message);
-      console.error(
-        "ML model API response:",
-        mlError.response?.data || "No response data"
-      );
-      console.error(
-        "ML model API status:",
-        mlError.response?.status || "No status"
-      );
-      console.error("Full error:", mlError);
-      newPatientData.predictedDisease = "ML Prediction Failed";
-      newPatientData.confidence = 0;
-    }
-
-    // Call ChatGPT API for insights
-    const prompt = `Generate health insights and recommendations based on the following patient EHR data and predicted disease. Be concise and act as a medical assistant, providing actionable advice in bullet points:
-    Predicted Disease: ${newPatientData.predictedDisease}
-    Symptoms: ${JSON.stringify(symptoms)}
-    EHR: ${JSON.stringify(ehr)}
-    Medicines: ${JSON.stringify(medicines)}
-    Prescription: ${JSON.stringify(prescription)}`;
-
-    const aiResponse = await axios.post(
-      `${baseUrl}/chat/completions`,
-      {
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a helpful medical assistant. Give insights and recommendations in bullet points.",
-          },
-          { role: "user", content: prompt },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    const aiInsights = aiResponse.data.choices[0].message.content;
-
-    // Update the saved patient data with AI insights
-    newPatientData.aiInsights = aiInsights;
-    await newPatientData.save();
+    const patientData = mapPatientDataRowToFrontend(row);
 
     res.status(201).json({
       message: "EHR data saved and insights generated successfully",
-      patientData: newPatientData,
+      patientData,
     });
   } catch (error) {
     console.error("Error saving EHR data or generating AI insights:", error);
@@ -428,9 +319,8 @@ app.post("/api/patientdata", async (req, res) => {
 app.get("/api/patientdata/:patientId", async (req, res) => {
   try {
     const { patientId } = req.params;
-    const patientEHRHistory = await PatientData.find({ patientId }).sort({
-      timestamp: -1,
-    });
+    const rows = await getPatientDataByPatientId(patientId);
+    const patientEHRHistory = rows.map(mapPatientDataRowToFrontend);
     res.status(200).json(patientEHRHistory);
   } catch (error) {
     console.error("Error fetching patient EHR history:", error);
@@ -442,11 +332,11 @@ app.get("/api/patientdata/:patientId", async (req, res) => {
 app.get("/api/patient/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const patient = await Patient.findById(id).select("-password"); // Exclude password
-    if (!patient) {
+    const row = await getPatientById(id);
+    if (!row) {
       return res.status(404).json({ message: "Patient not found" });
     }
-    res.status(200).json(patient);
+    res.status(200).json(mapPatientRowToFrontend(row));
   } catch (error) {
     console.error("Error fetching patient information:", error);
     res.status(500).json({ error: "Failed to fetch patient information" });
@@ -461,50 +351,43 @@ app.get(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const patient = await Patient.findById(id);
+      let patient = await getPatientById(id);
 
       if (!patient) {
         return res.status(404).json({ message: "Patient not found" });
       }
 
       // Ensure the authenticated user is either the patient themselves or a doctor
-      if (req.user.role === "patient" && req.user.id !== id) {
+      if (req.user.role === "patient" && String(req.user.id) !== String(id)) {
         return res.status(403).json({
           message:
             "Unauthorized: You can only generate QR for your own record.",
         });
       }
 
-      // Ensure uniqueCode exists
-      if (!patient.uniqueCode) {
-        patient.uniqueCode = Math.random()
-          .toString(36)
-          .substring(2, 10)
-          .toUpperCase();
-        await patient.save();
+      let uniqueCode = patient.unique_code;
+      if (!uniqueCode) {
+        uniqueCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        await updatePatient(id, { uniqueCode });
       }
 
-      // Data to be encoded in the QR code - only the unique patient ID
-      const qrData = patient.uniqueCode;
-      console.log("QR Code data (unique ID only):", qrData);
+      console.log("QR Code data (unique ID only):", uniqueCode);
 
-      const qrCodeImage = await QRCode.toDataURL(qrData.toString(), {
+      const qrCodeImage = await QRCode.toDataURL(uniqueCode.toString(), {
         width: 200,
         margin: 2,
         errorCorrectionLevel: "L",
       });
 
-      res
-        .status(200)
-        .json({
-          qr: qrCodeImage,
-          uniqueCode: patient.uniqueCode,
-        });
+      res.status(200).json({
+        qr: qrCodeImage,
+        uniqueCode,
+      });
     } catch (error) {
       console.error("Error generating QR code:", error);
       res.status(500).json({ error: "Failed to generate QR code" });
     }
-  }
+  },
 );
 
 // New route for doctors to access patient data via unique code
@@ -517,32 +400,30 @@ app.get(
       const { uniqueCode } = req.params;
       console.log(
         "Doctor dashboard received uniqueCode for search:",
-        uniqueCode
+        uniqueCode,
       );
-      // Temporarily simplify query for direct debugging
-      const patient = await Patient.findOne({ uniqueCode: uniqueCode });
-      console.log("Result of Patient.findOne query:", patient);
+      const patientRow = await getPatientByUniqueCode(uniqueCode);
+      console.log("Result of getPatientByUniqueCode:", patientRow);
 
-      if (!patient) {
+      if (!patientRow) {
         console.log("Patient not found in DB with uniqueCode:", uniqueCode);
         return res
           .status(404)
           .json({ message: "Patient not found with this code." });
       }
 
-      // Optionally, fetch latest EHR data for the patient as well
-      const patientEHRHistory = await PatientData.find({
-        patientId: patient._id,
-      }).sort({
-        timestamp: -1,
-      });
+      const rows = await getPatientDataByPatientId(patientRow.id);
+      const ehrHistory = rows.map(mapPatientDataRowToFrontend);
 
-      res.status(200).json({ patient, ehrHistory: patientEHRHistory });
+      res.status(200).json({
+        patient: mapPatientRowToFrontend(patientRow),
+        ehrHistory,
+      });
     } catch (error) {
       console.error("Error fetching patient data for doctor:", error);
       res.status(500).json({ error: "Failed to retrieve patient data." });
     }
-  }
+  },
 );
 
 // New route for patients to delete their own record
@@ -554,21 +435,19 @@ app.delete(
     try {
       const { id } = req.params;
 
-      // Ensure the authenticated user is deleting their own record
-      if (req.user.id !== id) {
+      if (String(req.user.id) !== String(id)) {
         return res.status(403).json({
           message: "Unauthorized: You can only delete your own record.",
         });
       }
 
-      const deletedPatient = await Patient.findByIdAndDelete(id);
+      const deletedPatient = await deletePatientById(id);
 
       if (!deletedPatient) {
         return res.status(404).json({ message: "Patient not found." });
       }
 
-      // Optionally, delete associated EHR data as well
-      await PatientData.deleteMany({ patientId: id });
+      await deletePatientDataByPatientId(id);
 
       res.status(200).json({
         message: "Patient record and associated data deleted successfully.",
@@ -577,7 +456,7 @@ app.delete(
       console.error("Error deleting patient record:", error);
       res.status(500).json({ error: "Failed to delete patient record." });
     }
-  }
+  },
 );
 
 // New route for patients to delete a specific patient data record
@@ -587,10 +466,10 @@ app.delete(
   authorizeRoles("patient"),
   async (req, res) => {
     try {
-      const { id } = req.params; // This is the PatientData record ID
+      const { id } = req.params;
       console.log(`Attempting to delete PatientData record with ID: ${id}`);
 
-      const patientDataRecord = await PatientData.findById(id);
+      const patientDataRecord = await getPatientDataById(id);
 
       if (!patientDataRecord) {
         console.log(`Patient data record with ID ${id} not found.`);
@@ -599,12 +478,11 @@ app.delete(
           .json({ message: "Patient data record not found." });
       }
       console.log(
-        `Found PatientData record. PatientData.patientId: ${patientDataRecord.patientId.toString()}`
+        `Found PatientData record. patient_id: ${patientDataRecord.patient_id}`,
       );
       console.log(`Authenticated user ID: ${req.user.id}`);
 
-      // Ensure the authenticated user is the owner of this patient data record
-      if (req.user.id !== patientDataRecord.patientId.toString()) {
+      if (String(req.user.id) !== String(patientDataRecord.patient_id)) {
         console.log("Authorization failed: User ID mismatch.");
         return res.status(403).json({
           message:
@@ -613,7 +491,7 @@ app.delete(
       }
       console.log("Authorization successful. Deleting record...");
 
-      await PatientData.findByIdAndDelete(id);
+      await deletePatientData(id);
 
       console.log(`Patient data record with ID ${id} deleted successfully.`);
       res
@@ -623,7 +501,7 @@ app.delete(
       console.error("Error deleting patient data record:", error);
       res.status(500).json({ error: "Failed to delete patient data record." });
     }
-  }
+  },
 );
 
 // Helper function to clean patient data based on the provided rules
@@ -657,16 +535,12 @@ app.get("/api/patient/:id/excel", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Fetch patient and all EHR history
-    const patient = await Patient.findById(id);
+    const patientRow = await getPatientById(id);
+    if (!patientRow)
+      return res.status(404).json({ error: "Patient not found" });
 
-    if (!patient) return res.status(404).json({ error: "Patient not found" });
-
-    const allPatientEHRHistory = await PatientData.find({ patientId: id }).sort(
-      { timestamp: -1 }
-    );
-
-    // Clean the patient data
+    const rows = await getPatientDataByPatientId(id);
+    const allPatientEHRHistory = rows.map(mapPatientDataRowToFrontend);
     const cleanedEHRHistory = cleanPatientData(allPatientEHRHistory);
 
     const workbook = new ExcelJS.Workbook();
@@ -732,11 +606,11 @@ app.get("/api/patient/:id/excel", async (req, res) => {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=patient_history_${patient._id}.xlsx`
+      `attachment; filename=patient_history_${patientRow.id}.xlsx`,
     );
 
     await workbook.xlsx.write(res);
@@ -750,8 +624,16 @@ app.get("/api/patient/:id/excel", async (req, res) => {
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
+
 app.listen(8080, () => {
   console.log("Server is running on port 8080");
+  const key = process.env.GEMINI_API_KEY;
+  if (key) {
+    console.log(`✓ GEMINI_API_KEY loaded (length: ${key.length})`);
+    if (key.length < 35) console.warn("⚠ GEMINI_API_KEY seems too short - check for typos");
+  } else {
+    console.warn("⚠ GEMINI_API_KEY not set - prescription AI extraction will fail");
+  }
 });
 
 // Add this function near the top of the file
@@ -765,33 +647,66 @@ const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
     }
   }
 };
+// app.use("/api/prescriptions", prescriptionSafetyRouter);
+app.use("/api/prescriptions", prescriptionRoutes);
+app.use("/api/prescription", prescriptionRoutes); // frontend calls /prescription/upload
+app.use("/api", safetyRoutes);
+app.use("/api", priceRoutes);
+
+// Medicine search (by name or salt) for prescription "Compare with salt"
+app.get("/api/medicines/search", async (req, res) => {
+  try {
+    const q = (req.query.q || req.query.medicine || req.query.solution || "").trim();
+    if (!q) {
+      return res.json({ medicineData: null, similarMedicines: [] });
+    }
+    const rows = await searchMedicines(q);
+    const medicines = rows.map((r) => ({
+      _id: r.id,
+      id: r.id,
+      name: r.name,
+      salt: r.salt,
+      price: r.price,
+      info: r.info,
+      benefits: r.benefits,
+      sideeffects: r.sideeffects,
+      usage: r.usage,
+      working: r.working,
+      safetyadvice: r.safetyadvice,
+      image: r.image,
+      link: r.link,
+    }));
+    const medicineData = medicines[0] || null;
+    const similarMedicines = medicines.slice(1);
+    res.json({ medicineData, similarMedicines: medicines });
+  } catch (err) {
+    console.error("Medicines search failed:", err);
+    res.status(500).json({ error: "Search failed" });
+  }
+});
 
 // New route for public access to patient data via unique code (for QR code)
 app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
   try {
     const { uniqueCode } = req.params;
-    const patient = await Patient.findOne({ uniqueCode: uniqueCode });
+    const patientRow = await getPatientByUniqueCode(uniqueCode);
 
-    if (!patient) {
+    if (!patientRow) {
       return res
         .status(404)
         .json({ message: "Patient not found with this code." });
     }
 
-    const allPatientEHRHistory = await PatientData.find({
-      patientId: patient._id,
-    }).sort({
-      timestamp: -1,
-    });
-
+    const rows = await getPatientDataByPatientId(patientRow.id);
+    const allPatientEHRHistory = rows.map(mapPatientDataRowToFrontend);
     const cleanedEHRHistory = cleanPatientData(allPatientEHRHistory);
 
     const patientPublicData = {
-      name: patient.name,
-      age: patient.age,
-      gender: patient.gender,
-      bloodGroup: patient.bloodGroup || null,
-      medicalHistory: patient.medicalHistory || null,
+      name: patientRow.name,
+      age: patientRow.age,
+      gender: patientRow.gender,
+      bloodGroup: patientRow.blood_group || null,
+      medicalHistory: patientRow.medical_history || null,
       ehrHistory: cleanedEHRHistory.map((record) => ({
         symptoms: record.symptoms,
         ehr: record.ehr,

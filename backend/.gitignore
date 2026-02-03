@@ -30,3 +30,5 @@ logs
 # OS files
 .DS_Store
 Thumbs.db
+
+config/google-credentials.json

@@ -450,3 +450,156 @@
   border-radius: 10px;
   border: 2px solid black;
 }
+
+.safety-check-section {
+  margin-top: 1rem;
+}
+
+.safety-check-section .safety-check-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 20px;
+  background-color: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.safety-check-section .safety-check-btn:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.safety-check-section .safety-check-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.safety-check-section .safety-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+
+.safety-check-section .safety-error {
+  color: #dc2626;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.safety-check-section .safety-warnings {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.safety-check-section .safety-warnings h4 {
+  margin: 0 0 0.5rem;
+  color: #991b1b;
+}
+
+.safety-check-section .safety-warnings ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.safety-check-section .safety-safe {
+  color: #059669;
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
+}
+
+.safety-check-section .price-check-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 10px 20px;
+  background-color: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.safety-check-section .price-check-btn:hover:not(:disabled) {
+  background-color: #047857;
+}
+
+.safety-check-section .price-check-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+}
+
+.safety-check-section .price-check-result h4 {
+  margin: 0 0 0.5rem;
+  color: #166534;
+}
+
+.safety-check-section .price-check-result .savings {
+  font-weight: 600;
+  color: #059669;
+}
+
+.price-insights-section {
+  margin-top: 1rem;
+}
+
+.price-insights-section .price-insights-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 20px;
+  background-color: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.price-insights-section .price-insights-btn:hover:not(:disabled) {
+  background-color: #6d28d9;
+}
+
+.price-insights-section .price-insights-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.price-insights-card {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f5f3ff;
+  border-radius: 8px;
+  border: 1px solid #ddd6fe;
+}
+
+.price-insight-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.insight-label {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.insight-value.trend-rising { color: #dc2626; }
+.insight-value.trend-falling { color: #059669; }
+.insight-value.trend-stable { color: #6b7280; }
+.insight-value.rec-buy_now { color: #059669; font-weight: 600; }
+.insight-value.rec-wait { color: #d97706; }
+.insight-value.rec-monitor { color: #6b7280; }
+
+.insight-hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0.5rem 0 0;
+}
