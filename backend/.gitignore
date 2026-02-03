@@ -31,4 +31,7 @@ logs
 .DS_Store
 Thumbs.db
 
+# Python virtualenv
+hf-env/
+
 config/google-credentials.json
