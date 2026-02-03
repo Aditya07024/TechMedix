@@ -40,8 +40,6 @@ import { runPrescriptionMigration } from "./scripts/runPrescriptionMigration.js"
 import { runSafetyReportMigration } from "./scripts/runSafetyReportMigration.js";
 import { runPriceIntelligenceMigration } from "./scripts/runPriceIntelligenceMigration.js";
 
-
-
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
   if (!row) return null;
@@ -109,18 +107,15 @@ function toNumOrNull(v) {
 // Hugging Face inference helper for medical insights
 async function generateMedicalInsightsLocal(payload) {
   try {
-    const res = await axios.post(
-      "http://localhost:5005/insights",
-      payload,
-      { timeout: 5000 }
-    );
+    const res = await axios.post("http://localhost:5005/insights", payload, {
+      timeout: 5000,
+    });
     return res.data.aiInsights;
   } catch (e) {
     console.warn("Local AI failed:", e.message);
     return "AI insights could not be generated at this time. Data saved successfully.";
   }
 }
-
 
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
@@ -190,7 +185,7 @@ app.get("/api/ai/health", async (req, res) => {
     await axios.post(
       "http://localhost:5005/insights",
       { symptoms: {}, ehr: {}, medicines: [], prescription: [] },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
     res.json({ status: "AI service running" });
   } catch {
@@ -256,7 +251,8 @@ app.get("/api/reports/:id", async (req, res) => {
 // Route to save EHR data and get AI insights
 app.post("/api/patientdata", async (req, res) => {
   try {
-    const { patientId, email, symptoms, ehr, medicines, prescription } = req.body;
+    const { patientId, email, symptoms, ehr, medicines, prescription } =
+      req.body;
 
     // Determine if AI insights should be generated
     const shouldRunAI =
@@ -266,12 +262,14 @@ app.post("/api/patientdata", async (req, res) => {
       (prescription?.length ?? 0) > 0;
 
     const aiInsights = shouldRunAI
-      ? (await generateMedicalInsightsLocal({
-          symptoms,
-          ehr,
-          medicines,
-          prescription,
-        }))?.slice(0, 2000)
+      ? (
+          await generateMedicalInsightsLocal({
+            symptoms,
+            ehr,
+            medicines,
+            prescription,
+          })
+        )?.slice(0, 2000)
       : "AI insights could not be generated at this time. Data saved successfully.";
 
     let predictedDisease = "Agent prediction unavailable";
@@ -624,16 +622,18 @@ app.get("/api/patient/:id/excel", async (req, res) => {
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
-
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   const key = process.env.GEMINI_API_KEY;
   if (key) {
     console.log(`✓ GEMINI_API_KEY loaded (length: ${key.length})`);
-    if (key.length < 35) console.warn("⚠ GEMINI_API_KEY seems too short - check for typos");
+    if (key.length < 35)
+      console.warn("⚠ GEMINI_API_KEY seems too short - check for typos");
   } else {
-    console.warn("⚠ GEMINI_API_KEY not set - prescription AI extraction will fail");
+    console.warn(
+      "⚠ GEMINI_API_KEY not set - prescription AI extraction will fail",
+    );
   }
 });
 
@@ -657,7 +657,12 @@ app.use("/api", priceRoutes);
 // Medicine search (by name or salt) for prescription "Compare with salt"
 app.get("/api/medicines/search", async (req, res) => {
   try {
-    const q = (req.query.q || req.query.medicine || req.query.solution || "").trim();
+    const q = (
+      req.query.q ||
+      req.query.medicine ||
+      req.query.solution ||
+      ""
+    ).trim();
     if (!q) {
       return res.json({ medicineData: null, similarMedicines: [] });
     }
