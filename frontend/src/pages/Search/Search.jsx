@@ -14,6 +14,14 @@ const Search = () => {
   const { product_list } = useContext(StoreContext);
   const [medicine, setMedicine] = useState(location.state?.medicine || "");
   const [solution, setSolution] = useState(location.state?.solution || "");
+  const prescriptionId = location.state?.prescriptionId;
+  const [safetyLoading, setSafetyLoading] = useState(false);
+  const [safetyResult, setSafetyResult] = useState(null);
+  const [safetyError, setSafetyError] = useState(null);
+  const [priceInsights, setPriceInsights] = useState(null);
+  const [priceInsightsLoading, setPriceInsightsLoading] = useState(false);
+  const [priceCheckResult, setPriceCheckResult] = useState(null);
+  const [priceCheckLoading, setPriceCheckLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -113,6 +121,85 @@ const Search = () => {
   const selectedProductData = searchResults.find(
     (item) => item._id === selectedProduct
   );
+
+  const handleSafetyCheck = async () => {
+    try {
+      setSafetyLoading(true);
+      setSafetyError(null);
+      setSafetyResult(null);
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (!user?.id) {
+        setSafetyError("User not logged in");
+        return;
+      }
+      if (!prescriptionId) {
+        setSafetyError("Open a prescription first, then use Compare with salt to run safety check.");
+        return;
+      }
+      const res = await fetch(
+        `/api/prescriptions/${prescriptionId}/safety-check`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        }
+      );
+      const data = await res.json();
+      if (data?.success) {
+        setSafetyResult(data.data);
+      } else {
+        setSafetyError(data?.error || "Safety check failed");
+      }
+    } catch (err) {
+      setSafetyError("Failed to run safety check");
+    } finally {
+      setSafetyLoading(false);
+    }
+  };
+
+  const formatWarning = (w) => {
+    if (typeof w === "string") return w;
+    const parts = [w.medicine_1, w.medicine_2].filter(Boolean);
+    if (parts.length) return `${parts.join(" + ")}: ${w.description || ""}`;
+    return w.description || JSON.stringify(w);
+  };
+
+  const fetchPriceInsights = async () => {
+    if (!selectedProductData?.name) return;
+    setPriceInsightsLoading(true);
+    setPriceInsights(null);
+    try {
+      const res = await fetch(
+        `/api/medicines/${encodeURIComponent(selectedProductData.name)}/price-insights`
+      );
+      const data = await res.json();
+      if (data?.success) setPriceInsights(data.data);
+    } catch (_) {
+      setPriceInsights(null);
+    } finally {
+      setPriceInsightsLoading(false);
+    }
+  };
+
+  const handlePriceCheck = async () => {
+    if (!prescriptionId) return;
+    setPriceCheckLoading(true);
+    setPriceCheckResult(null);
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      const res = await fetch(`/api/prescriptions/${prescriptionId}/price-check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user?.id }),
+      });
+      const data = await res.json();
+      if (data?.success) setPriceCheckResult(data.data);
+    } catch (_) {
+      setPriceCheckResult(null);
+    } finally {
+      setPriceCheckLoading(false);
+    }
+  };
 
   return (
     <div className="search-page">
@@ -238,6 +325,98 @@ const Search = () => {
                       >
                         <button className="buy-button">Buy Now</button>
                       </a>
+                    </div>
+                    <div className="safety-check-section">
+                      <button
+                        type="button"
+                        className="safety-check-btn"
+                        onClick={handleSafetyCheck}
+                        disabled={safetyLoading || !prescriptionId}
+                      >
+                        {safetyLoading ? "Running Safety Check..." : "Run Safety Check"}
+                      </button>
+                      {/* {prescriptionId && (
+                        <button
+                          type="button"
+                          className="price-check-btn"
+                          onClick={handlePriceCheck}
+                          disabled={priceCheckLoading}
+                        >
+                          {priceCheckLoading ? "Checking..." : "💰 Run Price Check"}
+                        </button>
+                      )} */}
+                      {!prescriptionId && (
+                        <p className="safety-hint">Upload a prescription and use &quot;Compare with salt&quot; to enable safety check.</p>
+                      )}
+                      {safetyError && (
+                        <p className="safety-error">{safetyError}</p>
+                      )}
+                      {safetyResult?.warnings?.length > 0 && (
+                        <div className="safety-warnings">
+                          <h4>⚠️ Safety Warnings</h4>
+                          <ul>
+                            {safetyResult.warnings.map((w, idx) => (
+                              <li key={idx}>{formatWarning(w)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {safetyResult && (!safetyResult.warnings || safetyResult.warnings.length === 0) && (
+                        <p className="safety-safe">✅ No safety issues detected.</p>
+                      )}
+                      {priceCheckResult && (
+                        <div className="price-check-result">
+                          <h4>💰 Price Check Result</h4>
+                          <p>Original: ₹{priceCheckResult.total_original_price} → Best: ₹{priceCheckResult.total_replaced_price}</p>
+                          <p className="savings">Savings: ₹{priceCheckResult.savings}</p>
+                          {priceCheckResult.replacements?.length > 0 && (
+                            <ul>
+                              {priceCheckResult.replacements.map((r, i) => (
+                                <li key={i}>{r.original} → {r.replaced_with} (save ₹{r.savings})</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="price-insights-section">
+                      <button
+                        type="button"
+                        className="price-insights-btn"
+                        onClick={fetchPriceInsights}
+                        disabled={priceInsightsLoading}
+                      >
+                        {priceInsightsLoading ? "Loading..." : "📊 View Price Insights"}
+                      </button>
+                      {priceInsights && (
+                        <div className="price-insights-card">
+                          <div className="price-insight-row">
+                            <span className="insight-label">Trend:</span>
+                            <span className={`insight-value trend-${priceInsights.trend}`}>
+                              {priceInsights.trend === "rising" && "↗ Rising"}
+                              {priceInsights.trend === "falling" && "↘ Falling"}
+                              {priceInsights.trend === "stable" && "→ Stable"}
+                            </span>
+                          </div>
+                          <div className="price-insight-row">
+                            <span className="insight-label">Recommendation:</span>
+                            <span className={`insight-value rec-${priceInsights.recommendation}`}>
+                              {priceInsights.recommendation === "buy_now" && "✓ Good time to buy"}
+                              {priceInsights.recommendation === "wait" && "⏳ Consider waiting"}
+                              {priceInsights.recommendation === "monitor" && "👀 Monitor prices"}
+                            </span>
+                          </div>
+                          {priceInsights.avgPrice != null && (
+                            <div className="price-insight-row">
+                              <span className="insight-label">30-day avg:</span>
+                              <span className="insight-value">₹{priceInsights.avgPrice}</span>
+                            </div>
+                          )}
+                          {priceInsights.dataPoints > 0 && (
+                            <p className="insight-hint">Based on {priceInsights.dataPoints} data point(s)</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="product-view-info">
                       <h3>Product Information</h3>

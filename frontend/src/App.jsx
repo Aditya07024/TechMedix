@@ -18,10 +18,13 @@ import { Dashboard } from "./pages/Dashboard/Dashboard";
 import { Form } from "./pages/Form/Form";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
-import DoctorLogin from "./pages/DoctorLogin/DoctorLogin"; // Import DoctorLogin
-import DoctorSignup from "./pages/DoctorSignup/DoctorSignup"; // Import DoctorSignup
-import DoctorDashboard from "./pages/DoctorDashboard/DoctorDashboard"; // Import DoctorDashboard
-import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions"; // Import TermsAndConditions
+import DoctorLogin from "./pages/DoctorLogin/DoctorLogin";
+import DoctorSignup from "./pages/DoctorSignup/DoctorSignup";
+import DoctorDashboard from "./pages/DoctorDashboard/DoctorDashboard";
+import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions";
+
+import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
+import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -38,8 +41,11 @@ const App = () => {
   return (
     <AuthProvider>
       {showLogin && <GoogleAuthWrapper />}
+
       <div className="app">
-        {location.pathname !== "/" && <Navbar setShowLogin={setShowLogin} />}
+        {location.pathname !== "/" && (
+          <Navbar setShowLogin={setShowLogin} />
+        )}
 
         <Routes>
           <Route path="/" element={<Landingpage />} />
@@ -48,6 +54,18 @@ const App = () => {
           <Route path="/view" element={<ProductView />} />
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
+          <Route path="/search" element={<Search />} />
+
+          {/* 🔥 PRESCRIPTION FLOW */}
+          <Route
+            path="/upload-prescription"
+            element={<UploadPrescription />}
+          />
+          <Route
+            path="/prescription-details"
+            element={<PrescriptionDetails />}
+          />
+
           <Route
             path="/dashboard"
             element={
@@ -56,21 +74,19 @@ const App = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/search" element={<Search />} />
+
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
           <Route path="/report-generator" element={<ReportGenerator />} />
-          <Route path="*" element={<Notfound />} />
           <Route path="/form" element={<Form />} />
-          <Route path="/doctor/login" element={<DoctorLogin />} />{" "}
-          {/* Doctor Login Route */}
-          <Route path="/doctor/signup" element={<DoctorSignup />} />{" "}
-          {/* Doctor Signup Route */}
-          <Route
-            path="/terms-and-conditions"
-            element={<TermsAndConditions />}
-          />{" "}
-          {/* Terms and Conditions Route */}
+
+          <Route path="/doctor/login" element={<DoctorLogin />} />
+          <Route path="/doctor/signup" element={<DoctorSignup />} />
+
+
+            <Route path="/prescription-details" element={<PrescriptionDetails />}/>
+
+
           <Route
             path="/doctor/dashboard"
             element={
@@ -79,6 +95,13 @@ const App = () => {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/terms-and-conditions"
+            element={<TermsAndConditions />}
+          />
+
+          <Route path="*" element={<Notfound />} />
         </Routes>
       </div>
     </AuthProvider>

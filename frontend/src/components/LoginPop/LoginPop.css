@@ -58,11 +58,12 @@
 
 .login-popup-container {
   width: 100%;
-  height: 81%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  justify-content: flex-start; /* ✅ force top alignment */
 }
+
 
 .login-popup-title {
   display: flex;

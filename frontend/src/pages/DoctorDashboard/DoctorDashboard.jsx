@@ -119,17 +119,17 @@ const DoctorDashboard = () => {
           return;
         }
 
-        scannerRef.current = new Html5QrcodeScanner(
-          scannerId,
-          {
-            fps: 10,
-            qrbox: { width: 300, height: 300 },
-            supportedScanTypes: Html5QrcodeScanType
-              ? [Html5QrcodeScanType.SCAN_TYPE_QR_CODE]
-              : undefined,
-          },
-          false
-        );
+        // Inside your useEffect where scanner is initialized:
+scannerRef.current = new Html5QrcodeScanner(
+  scannerId,
+  {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    // Remove the conditional supportedScanTypes that is causing the undefined error
+    aspectRatio: 1.0 
+  },
+  /* verbose= */ false
+);
 
         scannerRef.current.render(
           (decodedText) => handleScanSuccess(decodedText),
