@@ -1,1 +1,19 @@
 .DS_Store
+# Node
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Python
+hf-env/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Env files
+.env
+.env.*
+
+# OS
+.DS_Store
