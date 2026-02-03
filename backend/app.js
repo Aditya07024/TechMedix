@@ -625,8 +625,9 @@ app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
 
-app.listen(8080, () => {
-  console.log("Server is running on port 8080");
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
   const key = process.env.GEMINI_API_KEY;
   if (key) {
     console.log(`✓ GEMINI_API_KEY loaded (length: ${key.length})`);
