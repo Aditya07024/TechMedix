@@ -42,6 +42,7 @@ export default function DoctorDashboardNew() {
   const [newMedicineFrequency, setNewMedicineFrequency] = useState("");
   const [newMedicineDuration, setNewMedicineDuration] = useState("");
   const [patientPrescriptions, setPatientPrescriptions] = useState([]);
+  const [patientRecordings, setPatientRecordings] = useState([]);
   const qrRefId = "doctor-qr-reader";
 
   useEffect(() => {
@@ -207,6 +208,18 @@ export default function DoctorDashboardNew() {
       console.log("Parsed medicines:", medicines);
 
       setPatientPrescriptions(medicines);
+      // also load recordings for this patient
+      try {
+        const recRes = await fetch(`/api/recordings/patient/${patientId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          credentials: "include",
+        });
+        const recData = await recRes.json();
+        if (recRes.ok && Array.isArray(recData)) setPatientRecordings(recData);
+        else setPatientRecordings([]);
+      } catch (e) {
+        setPatientRecordings([]);
+      }
     } catch (err) {
       console.error("Failed to load prescriptions:", err);
     }
@@ -358,16 +371,21 @@ export default function DoctorDashboardNew() {
           <label>Fee: ₹</label>
           <input
             type="number"
+            min={0}
+            step="1"
             value={consultationFee}
-            onChange={(e) => setConsultationFee(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "") { setConsultationFee(0); return; }
+              const n = Number(v);
+              if (!Number.isNaN(n) && n >= 0) setConsultationFee(n);
+            }}
             disabled={profileLoading}
           />
           <button
             onClick={async () => {
               try {
-                await doctorApi.updateProfile({
-                  consultation_fee: consultationFee,
-                });
+                await doctorApi.updateProfile({ consultation_fee: Number(consultationFee) });
                 alert("Consultation fee updated");
               } catch (err) {
                 setError("Failed to update fee");
@@ -624,10 +642,8 @@ export default function DoctorDashboardNew() {
                   <p className="amount">₹{earnings?.total_earnings || 0}</p>
                 </div>
                 <div className="earnings-card">
-                  <h4>Total Consulted</h4>
-                  <p className="amount">
-                    {earnings?.completed_consultations || 0}
-                  </p>
+                  <h4>Total Paid Appointments</h4>
+                  <p className="amount">{earnings?.total_paid_appointments || 0}</p>
                 </div>
               </div>
             )}
@@ -767,12 +783,31 @@ export default function DoctorDashboardNew() {
                           "patient_id",
                           (patientData.patient || patientData).id,
                         );
+                        // Best-effort: attach appointment_id if we can match today's appointment by patient name
+                        try {
+                          const pname = (patientData.patient || patientData).name || (patientData.patient || patientData).patient_name;
+                          const today = new Date().toISOString().split("T")[0];
+                          const match = appointments.find(a => a.patient_name === pname && (a.status === 'booked' || a.status === 'in_progress' || a.status === 'arrived') && String(a.appointment_date || '').startsWith(today));
+                          if (match?.id) {
+                            formData.append("appointment_id", match.id);
+                          }
+                        } catch {}
 
                         try {
                           await doctorApi.uploadRecording(formData);
                           // alert("Prescription uploaded successfully");
                           setAudioBlob(null);
                           setAudioURL("");
+                          // refresh recordings list
+                          await (async () => {
+                            const pid = (patientData.patient || patientData).id;
+                            const recRes = await fetch(`/api/recordings/patient/${pid}`, {
+                              headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+                              credentials: "include",
+                            });
+                            const recData = await recRes.json();
+                            if (recRes.ok && Array.isArray(recData)) setPatientRecordings(recData);
+                          })();
                         } catch {
                           setError("Upload failed");
                         }
@@ -949,6 +984,23 @@ export default function DoctorDashboardNew() {
                             🛑 Stop Medicine
                           </button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <h4 className="section-subtitle" style={{ marginTop: 16 }}>Patient Voice Notes</h4>
+                {patientRecordings.length === 0 ? (
+                  <p>No recordings yet for this patient.</p>
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {patientRecordings.slice(0, 5).map((r) => (
+                      <div key={r.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <strong>Date:</strong>
+                          <span>{r.appointment_date ? new Date(r.appointment_date).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <audio controls src={r.file_url} style={{ width: "100%" }} />
                       </div>
                     ))}
                   </div>

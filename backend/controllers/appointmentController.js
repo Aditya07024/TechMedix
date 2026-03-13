@@ -48,7 +48,7 @@ export async function cancelAppointmentHandler(req, res) {
     const { appointment_id } = req.params;
     const { cancel_reason } = req.body;
 
-    const result = await cancelAppointment(appointment_id, cancel_reason);
+    const result = await cancelAppointment(appointment_id, req.user?.id, cancel_reason);
 
     await logAudit({
       user_id: req.user?.id,
@@ -57,6 +57,41 @@ export async function cancelAppointmentHandler(req, res) {
       entity_type: "appointment",
       details: { cancel_reason },
     });
+
+    // Wallet credit on paid online cancellation
+    try {
+      const sql = (await import("../config/database.js")).default;
+      const appt = await sql`SELECT patient_id FROM appointments WHERE id = ${appointment_id}`;
+      const pay = await sql`
+        SELECT id, amount, payment_method, status
+        FROM payments
+        WHERE appointment_id = ${appointment_id}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      if (appt.length && pay.length && pay[0].status === 'paid' && pay[0].payment_method === 'online') {
+        const dup = await sql`
+          SELECT id FROM wallet_transactions
+          WHERE patient_id = ${appt[0].patient_id}
+            AND type = 'credit'
+            AND source = 'appointment_cancel'
+            AND reference_id = ${appointment_id}
+          LIMIT 1
+        `;
+        if (!dup.length) {
+          const { creditWallet } = await import("../services/walletService.js");
+          await creditWallet({
+            patientId: appt[0].patient_id,
+            amount: pay[0].amount,
+            source: 'appointment_cancel',
+            referenceId: appointment_id,
+            note: 'Refunded as wallet credit for cancelled appointment',
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Wallet credit on cancel failed (v2):', e.message);
+    }
 
     res.json({ success: true, data: result });
   } catch (error) {

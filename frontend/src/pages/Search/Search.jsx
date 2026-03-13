@@ -132,18 +132,26 @@ const Search = () => {
         setSafetyError("User not logged in");
         return;
       }
-      if (!prescriptionId) {
-        setSafetyError("Open a prescription first, then use Compare with salt to run safety check.");
+      // Prefer checking by salt when available; fall back to product name
+      const candidate = (solution || selectedProductData?.name || medicine || "").trim();
+      if (!candidate) {
+        setSafetyError("Select a medicine first");
         return;
       }
-      const res = await fetch(
-        `/api/prescriptions/${prescriptionId}/safety-check`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id }),
-        }
-      );
+
+      const endpoint = prescriptionId
+        ? `/api/prescriptions/${prescriptionId}/safety-check`
+        : `/api/prescriptions/safety-check-latest`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ candidate_medicine: candidate }),
+      });
       const data = await res.json();
       if (data?.success) {
         setSafetyResult(data.data);
@@ -331,7 +339,7 @@ const Search = () => {
                         type="button"
                         className="safety-check-btn"
                         onClick={handleSafetyCheck}
-                        disabled={safetyLoading || !prescriptionId}
+                        disabled={safetyLoading}
                       >
                         {safetyLoading ? "Running Safety Check..." : "Run Safety Check"}
                       </button>
@@ -346,7 +354,7 @@ const Search = () => {
                         </button>
                       )} */}
                       {!prescriptionId && (
-                        <p className="safety-hint">Upload a prescription and use &quot;Compare with salt&quot; to enable safety check.</p>
+                        <p className="safety-hint">No open prescription found. We’ll use your latest prescription automatically.</p>
                       )}
                       {safetyError && (
                         <p className="safety-error">{safetyError}</p>

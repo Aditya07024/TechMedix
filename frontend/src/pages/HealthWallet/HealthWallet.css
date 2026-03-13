@@ -1,0 +1,94 @@
+.health-wallet {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.wallet-header {
+  margin-bottom: 24px;
+}
+
+.wallet-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #21325e;
+}
+
+.wallet-header p {
+  margin: 8px 0 0;
+  color: #4b5563;
+}
+
+.upload-section {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.upload-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.upload-label input {
+  display: none;
+}
+
+.files-section h2 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+  color: #1e293b;
+}
+
+.files-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.file-name {
+  color: #1e293b;
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.remove-btn {
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.remove-btn:hover {
+  background: #dc2626;
+}
+
+.empty-state {
+  color: #64748b;
+  font-size: 0.95rem;
+}

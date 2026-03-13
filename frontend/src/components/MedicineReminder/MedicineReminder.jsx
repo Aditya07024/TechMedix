@@ -219,16 +219,17 @@ const MedicineReminder = () => {
         <div className="dialog-overlay">
           <div className="dialog">
             <h3>Add Medicine Reminder</h3>
-            <div className="form-group">
+            <div className="form2-group">
               <label>Medicine Name:</label>
               <input
                 type="text"
-                value={selectedMedicine}
+                value={selectedMedicine || ''}
                 onChange={(e) => setSelectedMedicine(e.target.value)}
                 placeholder="Enter medicine name"
+                autoComplete="off"
               />
             </div>
-            <div className="form-group">
+            <div className="form2-group">
               <label>Dosage:</label>
               <input
                 type="text"

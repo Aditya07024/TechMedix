@@ -9,25 +9,26 @@ export async function saveRecording(data) {
     duration = 0,
   } = data;
 
-  // Validate input
-  if (!appointment_id || !patient_id || !doctor_id) {
-    throw new Error("appointment_id, patient_id, and doctor_id are required");
+  // Validate input (appointment_id optional)
+  if (!patient_id || !doctor_id) {
+    throw new Error("patient_id and doctor_id are required");
   }
 
   if (!file_url) {
     throw new Error("Recording file URL is required");
   }
 
-  // Check if appointment exists
-  const appointment = await sql`
-    SELECT id, status
-    FROM appointments
-    WHERE id = ${appointment_id}
-      AND is_deleted = FALSE
-  `;
-
-  if (appointment.length === 0) {
-    throw new Error("Appointment not found");
+  // If appointment_id provided, ensure it exists; otherwise allow null
+  if (appointment_id) {
+    const appointment = await sql`
+      SELECT id, status
+      FROM appointments
+      WHERE id = ${appointment_id}
+        AND is_deleted = FALSE
+    `;
+    if (appointment.length === 0) {
+      throw new Error("Appointment not found");
+    }
   }
 
   // Insert recording
@@ -41,7 +42,7 @@ export async function saveRecording(data) {
       created_at
     )
     VALUES (
-      ${appointment_id},
+      ${appointment_id || null},
       ${patient_id},
       ${doctor_id},
       ${file_url},
@@ -65,11 +66,10 @@ export async function getPatientRecordings(patientId) {
       a.appointment_date,
       a.slot_time
     FROM recordings r
-    JOIN appointments a ON r.appointment_id = a.id
+    LEFT JOIN appointments a ON r.appointment_id = a.id
     JOIN doctors d ON r.doctor_id = d.id
     WHERE r.patient_id = ${patientId}
-      AND a.is_deleted = FALSE
-      AND r.is_deleted = FALSE
+      AND COALESCE(r.is_deleted, FALSE) = FALSE
     ORDER BY r.created_at DESC
   `;
 
@@ -87,11 +87,10 @@ export async function getDoctorRecordings(doctorId) {
       a.appointment_date,
       a.slot_time
     FROM recordings r
-    JOIN appointments a ON r.appointment_id = a.id
+    LEFT JOIN appointments a ON r.appointment_id = a.id
     JOIN patients p ON r.patient_id = p.id
     WHERE r.doctor_id = ${doctorId}
-      AND a.is_deleted = FALSE
-      AND r.is_deleted = FALSE
+      AND COALESCE(r.is_deleted, FALSE) = FALSE
     ORDER BY r.created_at DESC
   `;
 

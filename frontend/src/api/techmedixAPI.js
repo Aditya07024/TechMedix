@@ -184,9 +184,20 @@ export const notificationAPI = {
 
 export const analyticsAPI = {
   getDoctorStats: (doctorId) =>
-    axios.get(`${API_BASE}/analytics/doctor/${doctorId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    }),
+    axios
+      .get(`/api/analytics/doctor/${doctorId}/dashboard`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => {
+        const r = res.data || {};
+        const normalized = {
+          patients_today: Number(r?.today?.appointments || 0),
+          avg_consultation_time: Number(r?.this_week?.avg_consultation_minutes || 0),
+          completion_rate: Number(r?.today?.conversion_rate || 0),
+          no_show_rate: Number(r?.today?.no_show_rate || 0),
+        };
+        return { data: { data: normalized } };
+      }),
 
   getSystemStats: () =>
     axios.get(`${API_BASE}/analytics/system`, {

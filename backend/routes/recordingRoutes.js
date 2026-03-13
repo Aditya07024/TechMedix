@@ -6,14 +6,21 @@ import {
 } from "../services/recordingService.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import multer from "multer";
+import fs from "fs";
 import path from "path";
 
 const router = express.Router();
 
+// Ensure recordings directory exists
+const recordingsDir = "uploads/recordings";
+if (!fs.existsSync(recordingsDir)) {
+  fs.mkdirSync(recordingsDir, { recursive: true });
+}
+
 // Multer storage config
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/recordings");
+    cb(null, recordingsDir);
   },
   filename: function (req, file, cb) {
     const uniqueName = Date.now() + "-" + file.originalname;
@@ -33,10 +40,10 @@ router.post(
     try {
       const { appointment_id, patient_id } = req.body;
 
-      if (!appointment_id || !patient_id) {
+      if (!patient_id) {
         return res.status(400).json({
           success: false,
-          error: "appointment_id and patient_id are required",
+          error: "patient_id is required",
         });
       }
 
@@ -52,8 +59,8 @@ router.post(
       const fileUrl = `${process.env.BACKEND_URL || "http://localhost:8080"}/${normalizedPath}`;
 
       const recordingData = {
-        appointment_id: parseInt(appointment_id),
-        patient_id: parseInt(patient_id),
+        appointment_id: appointment_id ? appointment_id : null,
+        patient_id,
         doctor_id: req.user.id,
         file_url: fileUrl,
         duration: 0,
@@ -85,12 +92,8 @@ router.get(
         });
       }
       const recordings = await getPatientRecordings(patientId);
-      const recordingsWithUrl = recordings.map((rec) => ({
-        ...rec,
-        audio_url: `http://localhost:8080/${rec.file_path}`,
-      }));
-
-      res.json(recordingsWithUrl);
+      // file_url from DB already contains full URL
+      res.json(recordings);
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }

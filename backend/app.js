@@ -181,17 +181,189 @@ function toNumOrNull(v) {
   return Number.isNaN(n) ? null : n;
 }
 
-// Hugging Face inference helper for medical insights
+// Lightweight rule-based insights (no external service)
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function toNumber(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
+function analyzeVitals(ehr = {}) {
+  const s = toNumber(ehr?.bloodPressure?.systolic);
+  const d = toNumber(ehr?.bloodPressure?.diastolic);
+  const hr = toNumber(ehr?.heartRate);
+  const glu = toNumber(ehr?.glucose);
+  const chol = toNumber(ehr?.cholesterol);
+  const temp = toNumber(ehr?.temperature);
+  const spo2 = toNumber(ehr?.spo2);
+  const bmi = toNumber(ehr?.bmi);
+  const sleep = toNumber(ehr?.sleep);
+  const steps = toNumber(ehr?.steps);
+
+  const findings = [];
+  const signals = { strong: 0, medium: 0 };
+
+  // Blood pressure
+  if (s != null && d != null) {
+    if (s >= 140 || d >= 90) {
+      findings.push("Elevated blood pressure — consistent with hypertension.");
+      signals.strong++;
+    } else if (s >= 130 || d >= 85) {
+      findings.push("Prehypertensive range — monitor BP and reduce sodium.");
+      signals.medium++;
+    }
+  }
+
+  // Heart rate
+  if (hr != null) {
+    if (hr > 100) {
+      findings.push("Tachycardia detected (>100 bpm).");
+      signals.medium++;
+    } else if (hr < 55) {
+      findings.push("Bradycardia detected (<55 bpm); verify if athletic baseline.");
+      signals.medium++;
+    }
+  }
+
+  // Glucose (casual reading heuristic)
+  if (glu != null) {
+    if (glu >= 200) {
+      findings.push("High glucose suggests diabetes — consult for HbA1c.");
+      signals.strong++;
+    } else if (glu >= 140) {
+      findings.push("Borderline high glucose — consider fasting test.");
+      signals.medium++;
+    }
+  }
+
+  // Cholesterol
+  if (chol != null) {
+    if (chol >= 240) {
+      findings.push("High total cholesterol — lifestyle + lipid panel follow‑up.");
+      signals.medium++;
+    } else if (chol >= 200) {
+      findings.push("Borderline cholesterol — monitor diet and recheck.");
+    }
+  }
+
+  // Temperature
+  if (temp != null && temp >= 38.0) {
+    findings.push("Fever present (≥38°C) — possible infection or inflammation.");
+    signals.medium++;
+  }
+
+  // SpO2
+  if (spo2 != null && spo2 < 94) {
+    findings.push("Low SpO₂ (<94%) — evaluate respiratory status if symptomatic.");
+    signals.strong++;
+  }
+
+  // BMI
+  if (bmi != null) {
+    if (bmi >= 30) {
+      findings.push("Obesity range — weight management recommended.");
+      signals.medium++;
+    } else if (bmi >= 25) {
+      findings.push("Overweight range — consider nutrition and activity plan.");
+    }
+  }
+
+  // Lifestyle
+  if (sleep != null && sleep < 6) {
+    findings.push("Short sleep duration (<6h) — improve sleep hygiene.");
+  }
+  if (steps != null && steps < 5000) {
+    findings.push("Low daily activity — aim for ≥7k steps/day if feasible.");
+  }
+
+  return { findings, signals };
+}
+
+function guessCondition(ehr = {}, symptoms = {}) {
+  const s = toNumber(ehr?.bloodPressure?.systolic);
+  const d = toNumber(ehr?.bloodPressure?.diastolic);
+  const glu = toNumber(ehr?.glucose);
+  const temp = toNumber(ehr?.temperature);
+  const spo2 = toNumber(ehr?.spo2);
+  const bmi = toNumber(ehr?.bmi);
+
+  const sx = Object.keys(symptoms || {}).filter((k) => {
+    const v = symptoms[k];
+    if (v === true) return true;
+    if (typeof v === "number") return v > 0.5;
+    if (typeof v === "string") return v.length > 0;
+    return false;
+  });
+
+  let label = "No acute condition suspected";
+  let conf = 0.35;
+
+  if ((s != null && d != null) && (s >= 140 || d >= 90)) {
+    label = "Hypertension";
+    conf = 0.75;
+    if (bmi != null && bmi >= 30) conf += 0.05;
+  }
+  if (glu != null && glu >= 200) {
+    label = "Diabetes Mellitus (suspected)";
+    conf = Math.max(conf, 0.78);
+  }
+  if (temp != null && temp >= 38) {
+    label = "Acute Infection (suspected)";
+    conf = Math.max(conf, 0.65);
+  }
+  if (spo2 != null && spo2 < 94) {
+    label = "Respiratory compromise (suspected)";
+    conf = Math.max(conf, 0.8);
+  }
+
+  // Slight boost with supporting symptoms
+  conf = clamp(conf + Math.min(sx.length * 0.02, 0.1), 0.0, 0.95);
+  return { label, confidence: conf, relatedSymptoms: sx };
+}
+
 async function generateMedicalInsightsLocal(payload) {
+  // Try external service first if available; otherwise use local rules
   try {
     const res = await axios.post("http://localhost:5005/insights", payload, {
-      timeout: 5000,
+      timeout: 2000,
     });
-    return res.data.aiInsights;
+    if (res?.data?.aiInsights) {
+      return {
+        text: String(res.data.aiInsights).slice(0, 2000),
+        predictedDisease: res.data.predictedDisease || "Agent prediction",
+        confidence: Number(res.data.confidence ?? 0.6),
+        relatedSymptoms: res.data.relatedSymptoms || [],
+      };
+    }
   } catch (e) {
-    console.warn("Local AI failed:", e.message);
-    return "AI insights could not be generated at this time. Data saved successfully.";
+    // fall through to local rules
   }
+
+  const { findings, signals } = analyzeVitals(payload?.ehr || {});
+  const guess = guessCondition(payload?.ehr || {}, payload?.symptoms || {});
+
+  const lines = [];
+  lines.push("Personalized Health Insights:");
+  if (findings.length) {
+    for (const f of findings) lines.push(`- ${f}`);
+  } else {
+    lines.push("- Vitals within general ranges. Keep tracking health metrics.");
+  }
+  lines.push("");
+  lines.push(`ML Predicted Disease: ${guess.label} (Confidence: ${(guess.confidence * 100).toFixed(0)}%)`);
+  if (guess.relatedSymptoms.length) {
+    lines.push(`Related symptoms: ${guess.relatedSymptoms.join(", ")}`);
+  }
+
+  return {
+    text: lines.join("\n").slice(0, 2000),
+    predictedDisease: guess.label,
+    confidence: guess.confidence,
+    relatedSymptoms: guess.relatedSymptoms,
+  };
 }
 
 const apiKey = process.env.API_KEY;
@@ -218,7 +390,7 @@ app.use(
     origin:
       process.env.NODE_ENV === "production" ? process.env.FRONTEND_URL : true, // Allow all origins in development (needed for mobile apps)
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   }),
 );
@@ -286,6 +458,77 @@ app.get("/api/ai/health", async (req, res) => {
     res.json({ status: "AI service running" });
   } catch {
     res.status(503).json({ status: "AI service unavailable" });
+  }
+});
+
+// Multi-turn Health Chatbot — uses patient's EHR + insights as context
+app.post("/api/health-chat", authenticate, async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "messages array is required" });
+    }
+
+    // Fetch recent EHR/insights for this patient
+    const rows = await getPatientDataByPatientId(req.user.id);
+    const recent = rows.slice(0, 5).map(mapPatientDataRowToFrontend);
+
+    const context = {
+      patient_id: req.user.id,
+      latest_metrics: recent[0]?.ehr || {},
+      ai_insights_latest: recent[0]?.aiInsights || null,
+      predicted_disease_latest: recent[0]?.predictedDisease || null,
+      confidence_latest: recent[0]?.confidence || null,
+      history_len: recent.length,
+    };
+
+    // Try local service first
+    try {
+      const local = await axios.post(
+        "http://localhost:5005/insights",
+        { chat: messages, context },
+        { timeout: 2000 }
+      );
+      const text = local.data?.reply || local.data?.aiInsights;
+      if (text) return res.json({ reply: String(text).slice(0, 2000) });
+    } catch (_) {}
+
+    // Fallback to LLM chat API (same key/baseUrl as AiPop)
+    if (!apiKey || !baseUrl) {
+      return res.status(503).json({ error: "AI service unavailable" });
+    }
+
+    const systemPrompt = `You are TechMedix Health Assistant. Answer conversationally using the patient's context below. 
+Context JSON: ${JSON.stringify(context)}
+Rules: 
+- Be helpful and concise.
+- Use the context when relevant; otherwise say you need more data.
+- Do not provide definitive diagnoses or prescribe; suggest seeking medical advice where appropriate.
+- If metrics are borderline, explain simply and suggest next steps.`;
+
+    const payload = {
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m) => ({ role: m.role, content: String(m.content || "") })),
+      ],
+      temperature: 0.3,
+      max_tokens: 700,
+    };
+
+    const llm = await axios.post(`${baseUrl}/chat/completions`, payload, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    });
+
+    const reply = llm.data?.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+    res.json({ reply: reply.slice(0, 2000) });
+  } catch (err) {
+    console.error("health-chat error:", err.message);
+    res.status(500).json({ error: "Failed to process chat" });
   }
 });
 
@@ -357,20 +600,14 @@ app.post("/api/patientdata", authenticate, async (req, res) => {
       (medicines?.length ?? 0) > 0 ||
       (prescription?.length ?? 0) > 0;
 
-    const aiInsights = shouldRunAI
-      ? (
-          await generateMedicalInsightsLocal({
-            symptoms,
-            ehr,
-            medicines,
-            prescription,
-          })
-        )?.slice(0, 2000)
-      : "AI insights could not be generated at this time. Data saved successfully.";
-
-    let predictedDisease = "Agent prediction unavailable";
-    let confidence = 0;
-    let relatedSymptoms = [];
+    let ai = null;
+    if (shouldRunAI) {
+      ai = await generateMedicalInsightsLocal({ symptoms, ehr, medicines, prescription });
+    }
+    const aiInsights = ai?.text || "AI insights could not be generated at this time. Data saved successfully.";
+    let predictedDisease = ai?.predictedDisease || "Agent prediction unavailable";
+    let confidence = Number(ai?.confidence || 0);
+    let relatedSymptoms = ai?.relatedSymptoms || [];
 
     const row = await createPatientData({
       patientId,

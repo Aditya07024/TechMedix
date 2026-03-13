@@ -74,7 +74,7 @@ export async function createPayment(
           WHERE id = ${appointment[0].doctor_id}
         `;
         const fee = Number(doc[0]?.consultation_fee) || 500;
-        const razorAmount = fee * 100;
+        const razorAmount = Math.round(fee * 100);
 
         // Create a short receipt within 40-char limit
         // Format: "rcpt_" + first 8 chars of appointmentId + timestamp (last 8 digits)
@@ -139,8 +139,8 @@ export async function createPayment(
     let razorpayOrder = null;
 
     if (paymentMethod === "online") {
-      // convert to paise for Razorpay
-      const razorAmount = amount * 100;
+      // convert to paise for Razorpay (integer)
+      const razorAmount = Math.round(amount * 100);
 
       // Create a short receipt within 40-char limit
       // Format: "rcpt_" + first 8 chars of appointmentId + timestamp (last 8 digits)
@@ -309,6 +309,28 @@ export async function confirmOnlinePayment(
 
   console.log("Payment confirmation completed successfully");
 
+  // Update doctor analytics revenue for the appointment date
+  try {
+    const appt = await sql`
+      SELECT a.appointment_date::date as date, a.doctor_id, d.consultation_fee
+      FROM appointments a
+      JOIN doctors d ON d.id = a.doctor_id
+      WHERE a.id = ${payment[0].appointment_id}
+    `;
+    if (appt.length) {
+      const fee = Number(appt[0].consultation_fee) || 0;
+      await sql`
+        INSERT INTO doctor_analytics (doctor_id, date, revenue_estimated)
+        VALUES (${appt[0].doctor_id}, ${appt[0].date}, ${fee})
+        ON CONFLICT (doctor_id, date)
+        DO UPDATE SET revenue_estimated = doctor_analytics.revenue_estimated + EXCLUDED.revenue_estimated,
+                      updated_at = CURRENT_TIMESTAMP
+      `;
+    }
+  } catch (e) {
+    console.warn("Analytics revenue update failed:", e.message);
+  }
+
   return {
     message: "Payment successful",
     transaction_id: razorpayPaymentId,
@@ -344,6 +366,28 @@ export async function markCashPayment(paymentId) {
         razorpay_payment_id = 'CASH'
     WHERE id = ${paymentId}
   `;
+
+  // Update analytics revenue for the appointment date
+  try {
+    const appt = await sql`
+      SELECT a.appointment_date::date as date, a.doctor_id, d.consultation_fee
+      FROM appointments a
+      JOIN doctors d ON d.id = a.doctor_id
+      WHERE a.id = ${payment[0].appointment_id}
+    `;
+    if (appt.length) {
+      const fee = Number(appt[0].consultation_fee) || 0;
+      await sql`
+        INSERT INTO doctor_analytics (doctor_id, date, revenue_estimated)
+        VALUES (${appt[0].doctor_id}, ${appt[0].date}, ${fee})
+        ON CONFLICT (doctor_id, date)
+        DO UPDATE SET revenue_estimated = doctor_analytics.revenue_estimated + EXCLUDED.revenue_estimated,
+                      updated_at = CURRENT_TIMESTAMP
+      `;
+    }
+  } catch (e) {
+    console.warn("Analytics revenue update (cash) failed:", e.message);
+  }
 
   return { message: "Cash payment marked as paid" };
 }

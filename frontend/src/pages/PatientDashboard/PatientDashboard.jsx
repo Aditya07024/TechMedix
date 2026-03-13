@@ -16,7 +16,8 @@ import NotificationCenter from "../../components/NotificationCenter/Notification
 import PrescriptionView from "../../components/PrescriptionView/PrescriptionView";
 import HealthMetrics from "../../components/HealthMetrics/HealthMetrics";
 import "./PatientDashboard.css";
-
+import HealthChat from "../../components/HealthChat/HealthChat";
+import HealthWallet from "../HealthWallet/HealthWallet";
 /**
  * PATIENT DASHBOARD
  * Central hub for patient - shows appointments, queue, prescriptions, timeline, notifications
@@ -39,6 +40,28 @@ export default function PatientDashboard() {
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
+  const [healthChatOpen, setHealthChatOpen] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [recordings, setRecordings] = useState([]);
+  const fetchRecordings = async (pid) => {
+    try {
+      const recRes = await fetch(`/api/recordings/patient/${pid}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        credentials: "include",
+      });
+      if (recRes.ok) {
+        const recData = await recRes.json();
+        setRecordings(Array.isArray(recData) ? recData : []);
+      } else {
+        setRecordings([]);
+      }
+    } catch (err) {
+      console.error("Failed to load recordings:", err);
+      setRecordings([]);
+    }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -93,6 +116,30 @@ export default function PatientDashboard() {
         setMedicines(medData || []);
       } catch (err) {
         console.error("Failed to load medicines:", err);
+      }
+
+      // Load recordings for this patient
+      await fetchRecordings(user.id);
+
+      // Load wallet balance
+      try {
+        const wbRes = await fetch(`/api/payments/wallet/balance`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        });
+        const wbData = await wbRes.json();
+        if (wbRes.ok) {
+          setWalletBalance(Number(wbData.balance || 0));
+        } else {
+          console.warn("Wallet balance error:", wbData?.error);
+          setWalletBalance(0);
+        }
+      } catch (err) {
+        console.error("Failed to load wallet balance:", err);
+        setWalletBalance(0);
       }
     } catch (err) {
       setError("Failed to load dashboard data: " + err.message);
@@ -162,9 +209,17 @@ export default function PatientDashboard() {
 
   return (
     <div className="patient-dashboard">
+      {healthChatOpen && (
+        <HealthChat open={healthChatOpen} onClose={() => setHealthChatOpen(false)} />
+      )}
       <header className="dashboard-header">
         <h1>Welcome, {user?.name}</h1>
         <p className="patient-id">Patient ID: {user?.id}</p>
+        <div style={{ marginLeft: "auto" }}>
+          <button className="action-btn" onClick={() => setHealthChatOpen(true)}>
+            💬 Health Chatbot
+          </button>
+        </div>
       </header>
 
       <div className="dashboard-tabs">
@@ -193,6 +248,12 @@ export default function PatientDashboard() {
           📜 Record
         </button>
         <button
+          className={`tab-btn ${activeTab === "recordings" ? "active" : ""}`}
+          onClick={() => setActiveTab("recordings")}
+        >
+          🎧 Recordings
+        </button>
+        <button
           className={`tab-btn ${activeTab === "queue" ? "active" : ""}`}
           onClick={() => setActiveTab("queue")}
         >
@@ -203,6 +264,12 @@ export default function PatientDashboard() {
           onClick={() => setActiveTab("notifications")}
         >
           🔔 Notifications
+        </button>
+        <button
+          className={`tab-btn`}
+          onClick={() => navigate("/health-wallet")}
+        >
+          Document Wallet
         </button>
       </div>
 
@@ -247,43 +314,51 @@ export default function PatientDashboard() {
                   </button>
                 )}
               </div>
-              <div className="stat-card">
-                <p style={{ marginBottom: "6px", fontWeight: "600" }}>
-                  Health Status
-                </p>
-                <div
-                  style={{
-                    width: "100%",
-                    background: "#eee",
-                    borderRadius: 8,
-                    height: 12,
-                    marginBottom: 6,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${Math.min(medicines.length * 20, 100)}%`,
-                      background:
-                        medicines.length > 3
-                          ? "#22c55e"
-                          : medicines.length > 1
-                            ? "#f59e0b"
-                            : "#ef4444",
-                      height: "100%",
-                      borderRadius: 8,
-                      transition: "width 300ms ease-in-out",
-                    }}
-                  />
-                </div>
-                <span style={{ fontSize: "12px", color: "#555" }}>
-                  {Math.min(medicines.length * 20, 100)}% Health Score
-                </span>
+            <div className="stat-card">
+              <p style={{ marginBottom: "6px", fontWeight: "600" }}>
+                Health Status
+              </p>
+                {(() => {
+                  const score = medicines.length
+                    ? Math.min(medicines.length * 20, 100)
+                    : 40; // baseline health status when no meds are listed
+                  const color =
+                    score > 70
+                      ? "#22c55e"
+                      : score > 40
+                      ? "#f59e0b"
+                      : "#ef4444";
+                  return (
+                    <>
+                      <div
+                        style={{
+                          width: "100%",
+                          background: "#eee",
+                          borderRadius: 8,
+                          height: 12,
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${score}%`,
+                            background: color,
+                            height: "100%",
+                            borderRadius: 8,
+                            transition: "width 300ms ease-in-out",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: "12px", color: "#555" }}>
+                        {score}% Health Score
+                      </span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
-            <HealthMetrics patientId={user?.id} />
-
-            <div className="quick-actions">
+<div className="quick-actions">
               <h3>Quick Actions</h3>
               <button
                 className="action-btn"
@@ -304,6 +379,18 @@ export default function PatientDashboard() {
                 📜 Add new Data
               </button>
             </div>
+
+            <div className="stat-card">
+              <p style={{ fontWeight: "600", marginBottom: 6 }}>Wallet Balance</p>
+              <h3>₹{Number(walletBalance).toFixed(2)}</h3>
+              <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+                Use at payment: Pay with Wallet
+              </p>
+            </div>
+
+            <HealthMetrics patientId={user?.id} />
+
+            
           </div>
         )}
 
@@ -545,6 +632,45 @@ export default function PatientDashboard() {
           <div className="tab-content notifications-tab">
             <h2>Notifications</h2>
             <NotificationCenter userId={user?.id} />
+          </div>
+        )}
+
+        {/* RECORDINGS TAB */}
+        {activeTab === "recordings" && (
+          <div className="tab-content recordings-tab">
+            <h2>Your Voice Notes</h2>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 12 }}>
+              <p style={{ margin: 0 }}>Latest voice notes from your doctor.</p>
+              <button className="action-btn" onClick={() => fetchRecordings(user?.id)} style={{ padding: "6px 10px" }}>Refresh</button>
+            </div>
+            {recordings.length === 0 ? (
+              <p>No recordings yet. Your doctor’s voice notes will appear here.</p>
+            ) : (
+              <div className="recordings-list" style={{ display: "grid", gap: 12 }}>
+                {recordings.map((r) => (
+                  <div
+                    key={r.id}
+                    style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, background: "#fff" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <strong>Doctor:</strong>
+                      <span>{r.doctor_name || "-"}</span>
+                    </div>
+                    <audio controls src={r.file_url} style={{ width: "100%" }} />
+                    <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 12, color: "#555" }}>
+                      <div>
+                        <strong>Date:</strong> {r.appointment_date ? new Date(r.appointment_date).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
+                      </div>
+                      {r.slot_time && (
+                        <div>
+                          <strong>Time:</strong> {String(r.slot_time).slice(0,5)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

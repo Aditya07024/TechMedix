@@ -1,6 +1,7 @@
 import express from "express";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import * as analyticsService from "../services/doctorAnalyticsService.js";
+import sql from "../config/database.js";
 
 const router = express.Router();
 
@@ -145,11 +146,11 @@ router.get(
 
       // Get all doctors
       const doctors = await sql`
-      SELECT id, name 
-      FROM users 
-      WHERE role = 'doctor'
-      ORDER BY name
-    `;
+        SELECT id, name 
+        FROM doctors 
+        WHERE COALESCE(is_deleted,false)=FALSE
+        ORDER BY name
+      `;
 
       const summaries = [];
       for (const doctor of doctors) {

@@ -17,6 +17,7 @@ import { assets } from "../../assets/assets";
 import { patientApi } from "../../api"; // Import patientApi
 import { useAuth } from "../../context/AuthContext"; // Import useAuth
 import { patientDataApi } from "../../api"; // Import patientDataApi
+import HealthChat from "../../components/HealthChat/HealthChat";
 
 ChartJS.register(
   CategoryScale,
@@ -37,6 +38,7 @@ export const Dashboard = () => {
   const [hoveredMetric, setHoveredMetric] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const { logout } = useAuth(); // Get logout function from AuthContext
   const navigate = useNavigate(); // For redirection after deletion
 
@@ -249,6 +251,15 @@ export const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
+      <div className="dash-toolbar">
+        <h2 className="dash-title">My Health Dashboard</h2>
+        <div className="dash-actions">
+          <a href="/form" className="Documents-btn"><p className="text">➕ Add Data</p></a>
+          <a href="/upload-prescription" className="Documents-btn"><p className="text">📄 Upload Prescription</p></a>
+          <button onClick={() => setChatOpen(true)} className="Documents-btn"><p className="text">💬 Health Chatbot</p></button>
+        </div>
+      </div>
+      {chatOpen && <HealthChat open={chatOpen} onClose={() => setChatOpen(false)} />}
       <div className="dashboard-grid">
         {/* 🧍 Patient Information (Top-Left) */}
         <div className="dashboard-tile left">
@@ -351,6 +362,13 @@ export const Dashboard = () => {
             )}
           </div>
           <div className="button-div">
+            <button
+              onClick={() => setChatOpen(true)}
+              className="Documents-btn"
+              style={{ marginTop: 16 }}
+            >
+              <p className="text">💬 Health Chatbot</p>
+            </button>
             <Link
               to="/dashboard"
               className="go-to-home-data-button"

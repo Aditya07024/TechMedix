@@ -21,6 +21,11 @@ export default function DoctorScheduleManager({ doctorId }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [expandedDayId, setExpandedDayId] = useState(null);
+
+  const toggleDayDetails = (dayId) => {
+    setExpandedDayId((prev) => (prev === dayId ? null : dayId));
+  };
 
   // Initialize schedule
   useEffect(() => {
@@ -157,7 +162,7 @@ export default function DoctorScheduleManager({ doctorId }) {
         });
       }
 
-      setSuccess("✅ Schedule saved successfully!");
+      setSuccess(" Schedule saved successfully!");
       setTimeout(() => setSuccess(null), 4000);
     } catch (err) {
       console.error("Full backend error:", err);
@@ -176,70 +181,114 @@ export default function DoctorScheduleManager({ doctorId }) {
   return (
     <div className="schedule-manager-container">
       <div className="schedule-card">
-        <h2>📅 Manage Your Schedule</h2>
+        <h2 className="schedule-title">📅 Manage Your Schedule</h2>
+        <p className="schedule-subtitle">
+          Set your weekly availability and consultation timing. Make sure to hit
+          “Save Schedule” when you are done.
+        </p>
 
         {error && <div className="alert alert-error">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
 
         {loading ? (
-          <p>Loading schedule...</p>
+          <p className="loading">Loading schedule...</p>
         ) : (
           <>
-            {DAYS_OF_WEEK.map((day) => {
-              const daySchedule = schedule[day.id] || {};
+            <div className="schedule-items">
+              {DAYS_OF_WEEK.map((day) => {
+                const daySchedule = schedule[day.id] || {};
+                const isActive = daySchedule.is_active;
 
-              return (
-                <div key={day.id} className="schedule-item">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={daySchedule.is_active || false}
-                      onChange={() => toggleDayActive(day.id)}
-                    />
-                    {day.name}
-                  </label>
+                return (
+                  <div
+                    key={day.id}
+                    className={`schedule-item ${isActive ? "active" : "inactive"}`}
+                  >
+                    <div className="day-header">
+                      <label className="day-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={!!isActive}
+                          onChange={() => toggleDayActive(day.id)}
+                        />
+                        <span className="day-name">{day.name}</span>
+                      </label>
 
-                  {daySchedule.is_active && (
-                    <div className="time-inputs">
-                      <input
-                        type="time"
-                        value={daySchedule.start_time}
-                        onChange={(e) =>
-                          handleDayChange(day.id, "start_time", e.target.value)
-                        }
-                      />
-
-                      <input
-                        type="time"
-                        value={daySchedule.end_time}
-                        onChange={(e) =>
-                          handleDayChange(day.id, "end_time", e.target.value)
-                        }
-                      />
-
-                      <select
-                        value={daySchedule.consultation_duration}
-                        onChange={(e) =>
-                          handleDayChange(
-                            day.id,
-                            "consultation_duration",
-                            e.target.value,
-                          )
-                        }
-                      >
-                        <option value="15">15 min</option>
-                        <option value="20">20 min</option>
-                        <option value="30">30 min</option>
-                        <option value="45">45 min</option>
-                        <option value="60">60 min</option>
-                      </select>
+                      {isActive && (
+                        <button
+                          type="button"
+                          className="toggle-details"
+                          onClick={() => toggleDayDetails(day.id)}
+                        >
+                          {expandedDayId === day.id ? "Hide details" : "Edit"}
+                        </button>
+                      )}
                     </div>
+
+                    {isActive ? (
+                      <>
+                        <div className="day-summary">
+                          <span>
+                            {daySchedule.start_time} - {daySchedule.end_time}
+                          </span>
+                          <span>• {daySchedule.consultation_duration} min</span>
+                        </div>
+
+                        {expandedDayId === day.id && (
+                          <div className="time-inputs">
+                            <div className="input-group">
+                              <label>Start time</label>
+                              <input
+                                type="time"
+                                value={daySchedule.start_time}
+                                onChange={(e) =>
+                                  handleDayChange(day.id, "start_time", e.target.value)
+                                }
+                              />
+                            </div>
+
+                            <div className="input-group">
+                              <label>End time</label>
+                              <input
+                                type="time"
+                                value={daySchedule.end_time}
+                                onChange={(e) =>
+                                  handleDayChange(day.id, "end_time", e.target.value)
+                                }
+                              />
+                            </div>
+
+                            <div className="input-group">
+                              <label>Duration</label>
+                              <select
+                                value={daySchedule.consultation_duration}
+                                onChange={(e) =>
+                                  handleDayChange(
+                                    day.id,
+                                    "consultation_duration",
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                <option value="15">15 min</option>
+                                <option value="20">20 min</option>
+                                <option value="30">30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60">60 min</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                    <div className="day-summary off">Not available</div>
                   )}
                 </div>
               );
             })}
+          </div>
 
-            <button onClick={handleSaveSchedule} disabled={saving}>
+            <button onClick={handleSaveSchedule} disabled={saving} className="save-button">
               {saving ? "Saving..." : "Save Schedule"}
             </button>
           </>

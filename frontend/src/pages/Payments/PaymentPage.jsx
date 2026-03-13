@@ -12,6 +12,8 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [appointment, setAppointment] = useState(null);
+  const [wallet, setWallet] = useState({ balance: 0 });
+  const [lastOrderAmount, setLastOrderAmount] = useState(null); // paise
 
   // Validate appointment ID on mount
   useEffect(() => {
@@ -37,6 +39,14 @@ export default function PaymentPage() {
       }
     }
     fetchAppt();
+    // load wallet balance
+    async function fetchWallet() {
+      try {
+        const res = await paymentApi.getWalletBalance();
+        setWallet({ balance: Number(res.data?.balance || 0) });
+      } catch (_) {}
+    }
+    fetchWallet();
   }, [appointmentId, user, navigate]);
 
   const handleOnlinePayment = async () => {
@@ -64,6 +74,7 @@ export default function PaymentPage() {
 
       const backendPaymentId = paymentRes.data.id;
       const order = paymentRes.data.order;
+      setLastOrderAmount(order?.amount ?? null);
 
       if (!order || !order.id) {
         setError("Failed to create payment order. Please try again.");
@@ -100,8 +111,8 @@ export default function PaymentPage() {
         },
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+          const rzp = new window.Razorpay(options);
+          rzp.open();
     } catch (error) {
       console.error("Payment error FULL:", {
         status: error.response?.status,
@@ -164,6 +175,28 @@ export default function PaymentPage() {
     }
   };
 
+  const handleWalletPayment = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!appointmentId || appointmentId.trim() === "") {
+        setError("Invalid appointment ID.");
+        setLoading(false);
+        return;
+      }
+
+      await paymentApi.payWithWallet({ appointment_id: appointmentId });
+      alert("Paid with wallet successfully");
+      navigate("/dashboard");
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || error.message || "Wallet payment failed.";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="payment-page">
       <h2 className="payment-title">Choose Payment Method</h2>
@@ -209,7 +242,7 @@ export default function PaymentPage() {
           <p>You must be logged in to proceed. Redirecting...</p>
         </div>
       ) : (
-        <>
+        <> 
           {appointment && (
             <div className="appointment-summary">
               <p>
@@ -218,6 +251,14 @@ export default function PaymentPage() {
               <p>
                 <strong>Consultation Fee:</strong> ₹
                 {appointment.consultation_fee}
+              </p>
+              {lastOrderAmount != null && (
+                <p style={{ marginTop: 4, fontSize: 13, color: "#555" }}>
+                  Billing this session: ₹{(lastOrderAmount / 100).toFixed(2)}
+                </p>
+              )}
+              <p>
+                <strong>Wallet Balance:</strong> ₹{wallet.balance}
               </p>
             </div>
           )}
@@ -235,6 +276,14 @@ export default function PaymentPage() {
             disabled={loading}
           >
             {loading ? "Processing..." : "Pay at Clinic (Cash)"}
+          </button>
+
+          <button
+            className="payment-btn cash"
+            onClick={handleWalletPayment}
+            disabled={loading || wallet.balance < (appointment?.consultation_fee || 0)}
+          >
+            {loading ? "Processing..." : `Pay with Wallet${wallet.balance < (appointment?.consultation_fee || 0) ? " (Insufficient)" : ""}`}
           </button>
         </>
       )}

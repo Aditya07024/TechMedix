@@ -221,6 +221,42 @@ router.post("/:appointmentId/cancel", authenticate, async (req, res) => {
       );
     }
 
+    // If payment was online and already paid, convert to wallet credit
+    try {
+      const sql = (await import("../config/database.js")).default;
+      const pay = await sql`
+        SELECT id, amount, payment_method, status
+        FROM payments
+        WHERE appointment_id = ${appointmentId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+
+      if (pay.length && pay[0].status === 'paid' && pay[0].payment_method === 'online') {
+        // prevent duplicate credit for same appointment
+        const dup = await sql`
+          SELECT id FROM wallet_transactions
+          WHERE patient_id = ${apt[0].patient_id}
+            AND type = 'credit'
+            AND source = 'appointment_cancel'
+            AND reference_id = ${appointmentId}
+          LIMIT 1
+        `;
+        if (!dup.length) {
+          const { creditWallet } = await import("../services/walletService.js");
+          await creditWallet({
+            patientId: apt[0].patient_id,
+            amount: pay[0].amount,
+            source: 'appointment_cancel',
+            referenceId: appointmentId,
+            note: 'Refunded as wallet credit for cancelled appointment',
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Wallet credit on cancel failed:', e.message);
+    }
+
     res.json({ success: true, appointment: result });
   } catch (err) {
     res.status(400).json({ error: err.message });

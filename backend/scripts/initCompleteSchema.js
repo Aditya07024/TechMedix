@@ -107,6 +107,51 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    // 5b️⃣ WALLETS
+    await sql`
+      CREATE TABLE IF NOT EXISTS wallets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        patient_id UUID UNIQUE REFERENCES patients(id) ON DELETE CASCADE,
+        balance NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        wallet_id UUID REFERENCES wallets(id) ON DELETE CASCADE,
+        patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL, -- 'credit' | 'debit'
+        amount NUMERIC NOT NULL CHECK (amount >= 0),
+        source VARCHAR(50),         -- e.g., 'appointment_cancel', 'payment'
+        reference_id UUID,          -- appointment_id or payment_id
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_wallets_patient ON wallets(patient_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_wallet_tx_patient ON wallet_transactions(patient_id)`;
+
+    // 5c️⃣ DOCTOR ANALYTICS
+    await sql`
+      CREATE TABLE IF NOT EXISTS doctor_analytics (
+        doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        completed_appointments INTEGER DEFAULT 0,
+        cancelled_appointments INTEGER DEFAULT 0,
+        total_patients_seen INTEGER DEFAULT 0,
+        avg_consultation_duration_minutes NUMERIC DEFAULT 0,
+        revenue_estimated NUMERIC DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(doctor_id, date)
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_doc_analytics_doctor ON doctor_analytics(doctor_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_doc_analytics_date ON doctor_analytics(date)`;
+
     // 6️⃣ RECORDINGS TABLE
     await sql`
       CREATE TABLE IF NOT EXISTS recordings (

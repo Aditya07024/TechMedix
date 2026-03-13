@@ -50,6 +50,8 @@ export const paymentApi = {
   markCashPaid: (data) => api.post("/api/payments/mark-cash-paid", data),
   getDoctorSummary: (doctorId) =>
     api.get(`/api/payments/doctor/${doctorId}/summary`),
+  payWithWallet: (data) => api.post("/api/payments/pay-with-wallet", data),
+  getWalletBalance: () => api.get("/api/payments/wallet/balance"),
 };
 
 export const aiApi = {
@@ -73,7 +75,11 @@ export const doctorApi = {
   // 👇 Upload recording
   uploadRecording: (formData) =>
     api.post("/api/recordings", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+      headers: {
+        "Content-Type": "multipart/form-data",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      withCredentials: true,
     }),
 
   // 👇 Get all recordings

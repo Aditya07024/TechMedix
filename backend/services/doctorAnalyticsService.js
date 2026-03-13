@@ -199,17 +199,22 @@ export async function getDoctorDashboardMetrics(doctorId) {
   `;
 
   // Patient load - peak hours
-  const peakHoursData = await sql`
-    SELECT 
-      EXTRACT(HOUR FROM appointment_time)::INTEGER as hour,
-      COUNT(*) as appointment_count
-    FROM appointments
-    WHERE doctor_id = ${doctorId}
-      AND DATE(appointment_date) = ${today}
-    GROUP BY EXTRACT(HOUR FROM appointment_time)
-    ORDER BY appointment_count DESC
-    LIMIT 1
-  `;
+  let peakHoursData = [];
+  try {
+    peakHoursData = await sql`
+      SELECT 
+        EXTRACT(HOUR FROM slot_time)::INTEGER as hour,
+        COUNT(*) as appointment_count
+      FROM appointments
+      WHERE doctor_id = ${doctorId}
+        AND DATE(appointment_date) = ${today}
+      GROUP BY EXTRACT(HOUR FROM slot_time)
+      ORDER BY appointment_count DESC
+      LIMIT 1
+    `;
+  } catch (_) {
+    peakHoursData = [];
+  }
 
   // Conversion metrics
   const conversionData = await sql`

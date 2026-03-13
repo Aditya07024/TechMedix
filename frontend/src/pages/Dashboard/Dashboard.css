@@ -5,6 +5,25 @@
   height: 100%;
 }
 
+.dash-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 6px 12px;
+}
+.dash-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+.dash-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .dashboard-grid {
   display: grid;
   /* left column fixed at 30%, right column takes remaining space */
