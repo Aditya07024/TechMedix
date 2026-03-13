@@ -6,19 +6,64 @@ import prescriptionAgent from "../agents/prescriptionAgent.js";
 import adherenceAgent from "../agents/adherenceAgent.js";
 import workflowOrchestrator from "../orchestrator/workflowOrchestrator.js";
 import { runSafetyAgent } from "../agents/safetyAgent.js";
+import { runPriceAgent } from "../agents/priceAgent.js";
 import { getMedicinesByPrescription } from "../models/PrescriptionMedicine.js";
+import { runRiskAnalysis } from "../services/riskEngine.js";
 
 // ✅ IMPORT YOUR UPLOAD MIDDLEWARE
 import { uploadPrescription } from "../middleware/upload.js";
+import { authenticate, authorizeRoles } from "../middleware/auth.js";
+
 
 const router = express.Router();
 
+/* ===================== GET PATIENT ACTIVE PRESCRIPTIONS ===================== */
+router.get(
+  "/patient/:patientId",
+  authenticate,
+  authorizeRoles("doctor", "patient"),
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      const medicines = await sql`
+  SELECT
+    pm.id AS medicine_id,
+    pm.medicine_name,
+    pm.dosage,
+    pm.frequency,
+    pm.duration,
+    pm.instructions
+  FROM prescription_medicines pm
+  JOIN prescriptions p
+  ON pm.prescription_id = p.id
+  WHERE p.user_id = ${patientId}
+  ORDER BY p.created_at DESC
+`;
+
+      res.json({
+        success: true,
+        data: medicines
+      });
+    } catch (err) {
+      console.error("❌ Failed to load patient prescriptions:", err);
+      res.status(500).json({
+        success: false,
+        error: "Failed to load prescriptions"
+      });
+    }
+  }
+);
+
 /* ===================== GET PRESCRIPTION DETAILS (for frontend) ===================== */
-router.get("/:id/details", async (req, res) => {
+router.get(
+  "/:id/details",
+  authenticate,
+  async (req, res) => {
   try {
     const prescriptionId = req.params.id;
     const rows = await sql`
-      SELECT id, image_url, extracted_text, status
+      SELECT id, image, extracted_text, status
       FROM prescriptions
       WHERE id = ${prescriptionId}
     `;
@@ -29,6 +74,7 @@ router.get("/:id/details", async (req, res) => {
     res.json({
       prescription: rows[0],
       medicines: medicines.map((m) => ({
+        id: m.id,
         medicine_name: m.medicine_name,
         dosage: m.dosage,
         frequency: m.frequency,
@@ -46,33 +92,41 @@ router.get("/:id/details", async (req, res) => {
 /* ===================== UPLOAD ===================== */
 router.post(
   "/upload",
-  uploadPrescription, // ✅ USE MIDDLEWARE HERE
+  authenticate,
+  authorizeRoles("patient"),
+  uploadPrescription,
   async (req, res) => {
     try {
       const { userId, patientId } = req.body;
 
       // ✅ VALIDATION
-      if (!userId || !patientId || !req.file) {
-        return res.status(400).json({ error: "Invalid input" });
+      if (!patientId || !req.file) {
+        return res.status(400).json({ error: "patientId and file are required" });
       }
 
-      const userIdInt = parseInt(userId, 10);
-      const patientIdInt = parseInt(patientId, 10);
-      if (Number.isNaN(userIdInt) || Number.isNaN(patientIdInt)) {
-        return res.status(400).json({ error: "Invalid user or patient id" });
-      }
+      // UUID validation
+if (!userId || !patientId) {
+  return res.status(400).json({ error: "Invalid user or patient id" });
+}
+
+// Ensure logged-in user matches request
+if (String(req.user.id) !== String(userId)) {
+  return res.status(403).json({
+    error: "You can only upload prescriptions for yourself"
+  });
+}
 
       // Use integer columns (run migrations/002_prescriptions_integer_user.sql if you use UUID schema)
       const result = await sql`
         INSERT INTO prescriptions (
-          user_id_int,
-          patient_id,
-          image_url,
-          status
-        )
+  user_id,
+  patient_id,
+  image,
+  status
+)
         VALUES (
-          ${userIdInt},
-          ${patientIdInt},
+          ${req.user.id},
+          ${patientId},
           ${req.file.path},
           'processing'
         )
@@ -109,45 +163,50 @@ router.post(
 );
 
 /* ===================== ANALYZE ===================== */
-router.post("/:id/analyze", async (req, res) => {
-  try {
-    const prescriptionId = req.params.id;
+router.post(
+  "/:id/analyze",
+  authenticate,
+  async (req, res) => {
+    try {
+      const prescriptionId = req.params.id;
 
-    const rows = await sql`
-      SELECT user_id_int, user_id FROM prescriptions WHERE id = ${prescriptionId}
-    `;
+      const rows = await sql`
+        SELECT user_id_int, user_id FROM prescriptions WHERE id = ${prescriptionId}
+      `;
 
-    if (!rows.length) {
-      return res.status(404).json({ error: "Prescription not found" });
+      if (!rows.length) {
+        return res.status(404).json({ error: "Prescription not found" });
+      }
+
+      const userId = rows[0].user_id_int != null ? rows[0].user_id_int : rows[0].user_id;
+      const workflowId = uuidv4();
+
+      await prescriptionAgent.execute({
+        prescriptionId,
+        userId,
+        workflowId,
+      });
+
+      res.json({
+        success: true,
+        workflow_id: workflowId,
+        message: "Prescription analysis completed",
+      });
+    } catch (err) {
+      console.error("❌ Analysis failed:", err);
+      res.status(500).json({ error: err.message });
     }
-
-    const userId = rows[0].user_id_int != null ? rows[0].user_id_int : rows[0].user_id;
-    const workflowId = uuidv4();
-
-    await prescriptionAgent.execute({
-      prescriptionId,
-      userId,
-      workflowId,
-    });
-
-    res.json({
-      success: true,
-      workflow_id: workflowId,
-      message: "Prescription analysis completed",
-    });
-  } catch (err) {
-    console.error("❌ Analysis failed:", err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 /* ===================== PRICE CHECK ===================== */
 router.post(
   "/:prescriptionId/price-check",
+  authenticate,
   async (req, res) => {
     try {
       const { prescriptionId } = req.params;
-      const data = await runSafetyAgent({ prescriptionId });
+      const data = await runPriceAgent({ prescriptionId });
 
       res.json({ success: true, data });
     } catch (err) {
@@ -161,53 +220,188 @@ router.post(
 );
 
 /* ===================== ADHERENCE ===================== */
-router.post("/:id/adherence", async (req, res) => {
-  try {
-    await adherenceAgent.execute({
-      prescriptionId: req.params.id
-    });
+router.post(
+  "/:id/adherence",
+  authenticate,
+  async (req, res) => {
+    try {
+      await adherenceAgent.execute({
+        prescriptionId: req.params.id
+      });
 
-    res.json({
-      success: true,
-      message: "Adherence schedule created"
-    });
-  } catch (err) {
-    console.error("❌ Adherence failed:", err);
-    res.status(500).json({ error: err.message });
+      res.json({
+        success: true,
+        message: "Adherence schedule created"
+      });
+    } catch (err) {
+      console.error("❌ Adherence failed:", err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 /* ===================== FULL WORKFLOW ===================== */
-router.post("/:id/process-complete", async (req, res) => {
-  try {
-    const prescriptionId = req.params.id;
+router.post(
+  "/:id/process-complete",
+  authenticate,
+  async (req, res) => {
+    try {
+      const prescriptionId = req.params.id;
 
-    const rows = await sql`
-      SELECT user_id_int, user_id FROM prescriptions WHERE id = ${prescriptionId}
+      const rows = await sql`
+        SELECT user_id_int, user_id FROM prescriptions WHERE id = ${prescriptionId}
+      `;
+
+      if (!rows.length) {
+        return res.status(404).json({ error: "Prescription not found" });
+      }
+
+      const userId = rows[0].user_id_int != null ? rows[0].user_id_int : rows[0].user_id;
+
+      const result = await workflowOrchestrator.execute({
+        prescriptionId,
+        userId,
+      });
+
+      // 🔥 Run AI Risk Analysis after workflow completes
+      const io = req.app.get("io");
+      const alerts = await runRiskAnalysis(prescriptionId, io);
+
+      // 🚨 If any severe alert exists → block prescription
+      const severeAlert = alerts.find(a => a.severity === "high" || a.severity === "critical");
+
+      if (severeAlert) {
+        await sql`
+          UPDATE prescriptions
+          SET status = 'blocked'
+          WHERE id = ${prescriptionId}
+        `;
+
+        return res.status(400).json({
+          success: false,
+          blocked: true,
+          message: "Prescription blocked due to high-risk alert",
+          alert: severeAlert,
+        });
+      }
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (err) {
+      console.error("❌ Workflow failed:", err);
+      res.status(500).json({
+        success: false,
+        error: err.error || err.message,
+      });
+    }
+  }
+);
+
+router.post("/manual", authenticate, async (req, res) => {
+  try {
+    const { patient_id, medicine_name, dosage, frequency, duration } = req.body;
+
+    const prescription = await sql`
+      INSERT INTO prescriptions (user_id, created_at)
+      VALUES (${patient_id}, NOW())
+      RETURNING id
     `;
 
-    if (!rows.length) {
-      return res.status(404).json({ error: "Prescription not found" });
-    }
-
-    const userId = rows[0].user_id_int != null ? rows[0].user_id_int : rows[0].user_id;
-
-    const result = await workflowOrchestrator.execute({
-      prescriptionId,
-      userId,
-    });
+    const medicine = await sql`
+      INSERT INTO prescription_medicines
+      (prescription_id, medicine_name, dosage, frequency, duration)
+      VALUES
+      (${prescription[0].id}, ${medicine_name}, ${dosage}, ${frequency}, ${duration})
+      RETURNING id, medicine_name, dosage, frequency, duration
+    `;
 
     res.json({
       success: true,
-      ...result,
+      data: medicine[0]
     });
+
   } catch (err) {
-    console.error("❌ Workflow failed:", err);
-    res.status(500).json({
-      success: false,
-      error: err.error || err.message,
-    });
+    console.error("Manual prescription failed:", err);
+    res.status(500).json({ success: false });
   }
 });
 
+/* ===================== EDIT MEDICINE DOSAGE/FREQUENCY/DURATION ===================== */
+router.patch(
+  "/medicine/:id",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { dosage, frequency, duration } = req.body;
+
+      const result = await sql`
+        UPDATE prescription_medicines
+        SET
+          dosage = COALESCE(${dosage}, dosage),
+          frequency = COALESCE(${frequency}, frequency),
+          duration = COALESCE(${duration}, duration)
+        WHERE id = ${id}
+        RETURNING *
+      `;
+
+      if (!result.length) {
+        return res.status(404).json({
+          success: false,
+          error: "Medicine not found"
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result[0]
+      });
+    } catch (err) {
+      console.error("❌ Update medicine failed:", err);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update medicine"
+      });
+    }
+  }
+);
+
+/* ===================== STOP MEDICINE ===================== */
+router.delete(
+  "/medicine/:id",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const result = await sql`
+        DELETE FROM prescription_medicines
+        WHERE id = ${id}
+        RETURNING id
+      `;
+
+      if (!result.length) {
+        return res.status(404).json({
+          success: false,
+          error: "Medicine not found"
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Medicine stopped successfully"
+      });
+    } catch (err) {
+      console.error("❌ Stop medicine failed:", err);
+      res.status(500).json({
+        success: false,
+        error: "Failed to stop medicine"
+      });
+    }
+  }
+);
 export default router;

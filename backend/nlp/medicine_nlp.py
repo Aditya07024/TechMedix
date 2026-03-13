@@ -1,9 +1,16 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import spacy
 import re
 
 app = Flask(__name__)
-nlp = spacy.load("en_core_web_sm")
+CORS(app)
+
+# Load model safely
+try:
+    nlp = spacy.load("en_core_web_sm")
+except Exception as e:
+    raise RuntimeError("SpaCy model not found. Run: python -m spacy download en_core_web_sm")
 
 FREQ_MAP = {
     "od": "Once daily",
@@ -16,54 +23,82 @@ FREQ_MAP = {
 
 MED_HINTS = ["tab", "tablet", "cap", "capsule", "syp", "inj"]
 
+MAX_TEXT_LENGTH = 5000
+
+
 def clean_text(text):
     text = re.sub(r"[^a-zA-Z0-9\s./]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/parse-medicines", methods=["POST"])
 def parse_medicines():
-    data = request.json
-    raw_text = data.get("text", "")
+    try:
+        if not request.json or "text" not in request.json:
+            return jsonify({"error": "Missing text field"}), 400
 
-    cleaned = clean_text(raw_text)
-    doc = nlp(cleaned)
+        raw_text = request.json.get("text", "")
 
-    medicines = []
+        if len(raw_text) > MAX_TEXT_LENGTH:
+            return jsonify({"error": "Input too large"}), 400
 
-    for sent in doc.sents:
-        s = sent.text.lower()
+        cleaned = clean_text(raw_text)
+        doc = nlp(cleaned)
 
-        if not any(h in s for h in MED_HINTS):
-            continue
+        medicines = []
 
-        # extract dosage
-        dosage_match = re.search(r"\d+\s?(mg|ml|mcg|g)", s)
-        dosage = dosage_match.group(0) if dosage_match else None
+        for sent in doc.sents:
+            s = sent.text.lower()
 
-        # extract frequency
-        frequency = None
-        for k, v in FREQ_MAP.items():
-            if re.search(rf"\b{k}\b", s):
-                frequency = v
-                break
+            if not any(h in s for h in MED_HINTS):
+                continue
 
-        # extract name
-        name = re.sub(r"(tab|tablet|cap|capsule|syp|inj)", "", s)
-        name = re.sub(r"\d+\s?(mg|ml|mcg|g)", "", name)
-        name = re.sub(r"\b(od|bd|tds|qid|hs|sos)\b", "", name)
-        name = name.strip().title()
+            # dosage extraction
+            dosage_match = re.search(r"\d+\s?(mg|ml|mcg|g)", s)
+            dosage = dosage_match.group(0) if dosage_match else None
 
-        if len(name) < 3:
-            continue
+            # frequency extraction
+            frequency = None
+            for k, v in FREQ_MAP.items():
+                if re.search(rf"\b{k}\b", s):
+                    frequency = v
+                    break
 
-        medicines.append({
-            "medicine_name": name,
-            "dosage": dosage,
-            "frequency": frequency,
-            "confidence": 0.75 + (0.1 if dosage else 0)
-        })
+            if not frequency:
+                frequency = "Not specified"
 
-    return jsonify(medicines)
+            # name cleaning
+            name = re.sub(r"(tab|tablet|cap|capsule|syp|inj)", "", s)
+            name = re.sub(r"\d+\s?(mg|ml|mcg|g)", "", name)
+            name = re.sub(r"\b(od|bd|tds|qid|hs|sos)\b", "", name)
+            name = name.strip().title()
+
+            if len(name) < 3:
+                continue
+
+            confidence = 0.7
+            if dosage:
+                confidence += 0.1
+            if frequency != "Not specified":
+                confidence += 0.1
+
+            medicines.append({
+                "medicine_name": name,
+                "dosage": dosage,
+                "frequency": frequency,
+                "confidence": round(confidence, 2)
+            })
+
+        return jsonify(medicines), 200
+
+    except Exception as e:
+        return jsonify({"error": "Parsing failed"}), 500
+
 
 if __name__ == "__main__":
     app.run(port=5005)

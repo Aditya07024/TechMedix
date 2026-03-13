@@ -6,7 +6,11 @@ export const uploadPrescription = async (file, userId, patientId) => {
   // MUST MATCH multer.single("file")
   formData.append("file", file);
   formData.append("userId", userId);
-  formData.append("patientId", patientId);
+  // Backend requires patientId to match authenticated user
+  const finalPatientId = patientId || userId;
+  formData.append("patientId", finalPatientId);
+
+  const token = localStorage.getItem("token");
 
   const res = await api.post(
     "/prescription/upload",
@@ -14,6 +18,7 @@ export const uploadPrescription = async (file, userId, patientId) => {
     {
       headers: {
         "Content-Type": "multipart/form-data",
+        Authorization: `Bearer ${token}`,
       },
     }
   );

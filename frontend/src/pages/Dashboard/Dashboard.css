@@ -100,7 +100,8 @@
   margin-bottom: 1rem;
 }
 .dropdown input:where(:checked) + .trigger:before {
-  rotate: 90deg;
+  /* When expanded, show arrow pointing up (collapse indicator) */
+  rotate: -90deg;
   transition-delay: 0ms;
 }
 
@@ -113,7 +114,8 @@
 }
 .trigger:before {
   content: "›";
-  rotate: -90deg;
+  /* When collapsed, show arrow pointing down (expand indicator) */
+  rotate: 90deg;
   width: 17px;
   height: 17px;
   color: #262626;
@@ -690,7 +692,8 @@
   margin-bottom: 1rem;
 }
 .dropdown input:where(:checked) + .trigger:before {
-  rotate: 90deg;
+  /* When expanded, show arrow pointing up (collapse indicator) */
+  rotate: -90deg;
   transition-delay: 0ms;
 }
 
@@ -703,7 +706,8 @@
 }
 .trigger:before {
   content: "›";
-  rotate: -90deg;
+  /* When collapsed, show arrow pointing down (expand indicator) */
+  rotate: 90deg;
   width: 17px;
   height: 17px;
   color: #262626;

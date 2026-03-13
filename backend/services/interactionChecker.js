@@ -1,15 +1,21 @@
-import DrugInteraction from "../models/DrugInteraction.js";
+import { findInteraction } from "../models/DrugInteraction.js";
 
-export async function checkInteractionDB(a, b) {
-  return await DrugInteraction.findOne({
-    where: {
-      medicine_a: a,
-      medicine_b: b
-    }
-  }) || await DrugInteraction.findOne({
-    where: {
-      medicine_a: b,
-      medicine_b: a
-    }
-  });
+function normalize(name) {
+  return (name || "").toString().trim().toLowerCase();
+}
+
+export async function checkInteractionDB(drugA, drugB) {
+  const cleanA = normalize(drugA);
+  const cleanB = normalize(drugB);
+
+  if (!cleanA || !cleanB) {
+    return null;
+  }
+
+  try {
+    return await findInteraction(cleanA, cleanB);
+  } catch (err) {
+    console.error("DB interaction check failed:", err.message);
+    return null;
+  }
 }

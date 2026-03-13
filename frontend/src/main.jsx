@@ -6,9 +6,10 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom";
 import StoreProvider from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
-import axios from 'axios';
+import axios from "axios";
 
-axios.defaults.baseURL = 'http://localhost:8080';
+axios.defaults.baseURL = "http://localhost:8080";
+axios.defaults.withCredentials = true; // 🔥 VERY IMPORTANT
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <StrictMode>

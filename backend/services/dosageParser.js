@@ -1,13 +1,31 @@
 export function parseDosage(dosageText) {
   if (!dosageText) return null;
 
-  // Examples:
-  // "500mg" → 500
-  // "1 tablet (500mg)" → 500
-  // "1/2 tablet 250mg" → 250
+  const text = dosageText.toString().trim().toLowerCase();
 
-  const mgMatch = dosageText.match(/(\d+)\s*mg/i);
-  if (mgMatch) return parseInt(mgMatch[1], 10);
+  // Match patterns like:
+  // 500mg
+  // 500 mg
+  // 0.5 g
+  // 250mcg
+  const match = text.match(/(\d*\.?\d+)\s*(mg|g|mcg)/i);
 
-  return null; // fallback (non-mg dosage)
+  if (!match) return null;
+
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+
+  if (isNaN(value)) return null;
+
+  // Normalize everything to mg
+  switch (unit) {
+    case "mg":
+      return value;
+    case "g":
+      return value * 1000;
+    case "mcg":
+      return value / 1000;
+    default:
+      return null;
+  }
 }

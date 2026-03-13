@@ -6,134 +6,133 @@ const adherenceAgent = {
   async execute({ prescriptionId }) {
     console.log("⏰ Agent-4 (Adherence) started");
 
-    const meds = await sql`
-      SELECT * FROM prescription_medicines
-      WHERE prescription_id = ${prescriptionId}
-    `;
+    // Wrap everything in transaction for safety
+    return await sql.begin(async (tx) => {
 
-    console.log(`📥 Loaded ${meds.length} medicine(s) for adherence planning`);
-
-    if (!meds.length) {
-      console.warn("⚠️ No medicines found for adherence scheduling");
-      console.log("ℹ️ Agent-4 skipped reminder creation because prescription has no medicines");
-      console.log("✅ Agent-4 completed with ZERO reminders");
-      return {
-        success: true,
-        summary: {
-          prescriptionId,
-          totalMedicines: 0,
-          totalReminders: 0,
-          totalDoses: 0,
-          medicines: []
-        }
-      };
-    }
-
-    const summary = {
-      prescriptionId,
-      totalMedicines: meds.length,
-      totalReminders: 0,
-      totalDoses: 0,
-      medicines: [],
-    };
-
-    for (const med of meds) {
-      const times = getTimesFromFrequency(med.frequency);
-      const duration = Number(med.duration) || 5;
-      const doses = times.length * duration;
-
-      console.log(`\n💊 Medicine: ${med.medicine_name}`);
-      console.log(`   Frequency: ${med.frequency}`);
-      console.log(`   Duration: ${duration} days`);
-      console.log(`   Scheduled times: ${times.join(", ")}`);
-      console.log(`   Total doses: ${doses}`);
-
-      const reminderId = uuid();
-
-      /* ---------- REMINDER (MASTER) ---------- */
-      await sql`
-        INSERT INTO reminders (
-          id,
-          prescription_id,
-          medicine_name,
-          dosage,
-          scheduled_times,
-          duration_days,
-          instructions,
-          is_active
-        )
-        VALUES (
-          ${reminderId},
-          ${prescriptionId},
-          ${med.medicine_name},
-          ${med.dosage},
-          (
-            SELECT array_agg(t::time)
-            FROM unnest(${times}::text[]) AS t
-          ),
-          ${duration},
-          ${med.instructions ?? "After food"},
-          true
-        )
+      const meds = await tx`
+        SELECT * FROM prescription_medicines
+        WHERE prescription_id = ${prescriptionId}
       `;
 
-      /* ---------- DAILY SCHEDULE ---------- */
-      for (let day = 0; day < duration; day++) {
-        for (const time of times) {
-          await sql`
-            INSERT INTO adherence_schedule (
-              id,
-              reminder_id,
-              scheduled_datetime,
-              status
-            )
-            VALUES (
-              ${uuid()},
-              ${reminderId},
-              (
-                CURRENT_DATE
-                + ${day} * INTERVAL '1 day'
-                + ${time}::time
-              ),
-              'pending'
-            )
-          `;
-        }
+      if (!meds.length) {
+        return {
+          success: true,
+          summary: {
+            prescriptionId,
+            totalMedicines: 0,
+            totalReminders: 0,
+            totalDoses: 0,
+            medicines: []
+          }
+        };
       }
 
-      summary.totalReminders += 1;
-      summary.totalDoses += doses;
+      const summary = {
+        prescriptionId,
+        totalMedicines: meds.length,
+        totalReminders: 0,
+        totalDoses: 0,
+        medicines: [],
+      };
 
-      summary.medicines.push({
-        medicine: med.medicine_name,
-        frequency: med.frequency,
-        duration_days: duration,
-        scheduled_times: times,
-        total_doses: doses,
-      });
-    }
+      for (const med of meds) {
 
-    console.log("\n📊 Adherence Summary:");
-    console.table(
-      summary.medicines.map(m => ({
-        Medicine: m.medicine,
-        Frequency: m.frequency,
-        Duration_Days: m.duration_days,
-        Scheduled_Times: m.scheduled_times.join(", "),
-        Total_Doses: m.total_doses
-      }))
-    );
+        // 🚫 Prevent duplicate reminders
+        const existing = await tx`
+          SELECT id FROM reminders
+          WHERE prescription_id = ${prescriptionId}
+            AND medicine_name = ${med.medicine_name}
+            AND is_active = true
+          LIMIT 1
+        `;
 
-    console.log(`🧾 Medicines processed: ${summary.totalMedicines}`);
-    console.log(`⏰ Reminders created: ${summary.totalReminders}`);
-    console.log(`💊 Total doses scheduled: ${summary.totalDoses}`);
-    console.log("✅ Agent-4 completed successfully with detailed schedule");
+        if (existing.length) {
+          console.log(`⚠️ Reminder already exists for ${med.medicine_name}, skipping`);
+          continue;
+        }
 
-    return {
-      success: true,
-      summary,
-    };
-  },
+        const times = getTimesFromFrequency(med.frequency);
+        const duration = Number(med.duration) || 5;
+        const doses = times.length * duration;
+
+        const reminderId = uuid();
+
+        // ---------- MASTER REMINDER ----------
+        await tx`
+          INSERT INTO reminders (
+            id,
+            prescription_id,
+            medicine_name,
+            dosage,
+            scheduled_times,
+            duration_days,
+            instructions,
+            is_active,
+            created_at
+          )
+          VALUES (
+            ${reminderId},
+            ${prescriptionId},
+            ${med.medicine_name},
+            ${med.dosage},
+            (
+              SELECT array_agg(t::time)
+              FROM unnest(${times}::text[]) AS t
+            ),
+            ${duration},
+            ${med.instructions ?? "After food"},
+            true,
+            NOW()
+          )
+        `;
+
+        // ---------- DAILY DOSE SCHEDULE ----------
+        for (let day = 0; day < duration; day++) {
+          for (const time of times) {
+            await tx`
+              INSERT INTO adherence_schedule (
+                id,
+                reminder_id,
+                scheduled_datetime,
+                status,
+                created_at
+              )
+              VALUES (
+                ${uuid()},
+                ${reminderId},
+                (
+                  CURRENT_DATE
+                  + INTERVAL '1 day'   -- start from tomorrow
+                  + ${day} * INTERVAL '1 day'
+                  + ${time}::time
+                ),
+                'pending',
+                NOW()
+              )
+            `;
+          }
+        }
+
+        summary.totalReminders += 1;
+        summary.totalDoses += doses;
+
+        summary.medicines.push({
+          medicine: med.medicine_name,
+          frequency: med.frequency,
+          duration_days: duration,
+          scheduled_times: times,
+          total_doses: doses,
+        });
+      }
+
+      console.log("✅ Agent-4 completed successfully");
+
+      return {
+        success: true,
+        summary,
+      };
+    });
+  }
 };
 
 export default adherenceAgent;

@@ -6,6 +6,7 @@ import {
   createPatient,
   comparePassword,
 } from "../models-pg/patient.js";
+import sql from "../config/database.js";
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -13,7 +14,6 @@ dotenv.config();
 
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-let ifLogin = false;
 
 // Google OAuth login
 
@@ -32,6 +32,9 @@ router.post("/signup", async (req, res) => {
       bloodGroup,
       medicalHistory,
     } = req.body; // Added new fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email and password are required" });
+    }
     let user = await getPatientByEmail(email);
     if (user) {
       console.log("User already exists with email:", email);
@@ -66,48 +69,87 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await getPatientByEmail(email);
-    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
 
-    const isMatch = await comparePassword(password, user.password);
-    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
+    // 1️⃣ First check in users table (admin / future doctor roles)
+    const users = await sql`
+      SELECT * FROM users
+      WHERE email = ${email}
+    `;
+
+    if (users.length) {
+  const user = users[0];
+
+  const isMatch = await bcrypt.compare(password, user.password_hash);
+  if (!isMatch)
+    return res.status(401).json({ error: "Invalid credentials" });
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.TOKEN_SECRET,
+    { expiresIn: "1d" }
+  );
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 24 * 60 * 60 * 1000,
+  });
+
+  return res.json({
+    ifLogin: true,
+    role: user.role,
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    }
+  });
+}
+
+    // 2️⃣ Otherwise fallback to patient table login
+    const patient = await getPatientByEmail(email);
+    if (!patient)
+      return res.status(401).json({ error: "Invalid credentials" });
+
+    const isMatch = await comparePassword(password, patient.password);
+    if (!isMatch)
+      return res.status(401).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: "patient" },
+      { id: patient.id, email: patient.email, role: "patient" },
       process.env.TOKEN_SECRET,
-      { expiresIn: "1d" },
+      { expiresIn: "1d" }
     );
 
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax", // Changed from "strict" to "lax"
+      sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000,
     });
-    ifLogin = true;
-    console.log("login successfull");
-    // Return full patient record (excluding password) so frontend has complete profile.
-    // NOTE: We are using PostgreSQL, so the fields come back as:
-    // id, name, email, age, gender, phone, blood_group, medical_history, unique_code, created_at
-    // Map them to the camelCase shape expected by the frontend.
+
     const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      age: user.age,
-      gender: user.gender,
-      phone: user.phone,
-      address: user.address ?? null,
-      bloodGroup: user.blood_group ?? null,
-      medicalHistory: user.medical_history ?? null,
-      uniqueCode: user.unique_code ?? null,
-      createdAt: user.created_at ?? null,
+      id: patient.id,
+      name: patient.name,
+      email: patient.email,
+      age: patient.age,
+      gender: patient.gender,
+      phone: patient.phone,
+      address: patient.address ?? null,
+      bloodGroup: patient.blood_group ?? null,
+      medicalHistory: patient.medical_history ?? null,
+      uniqueCode: patient.unique_code ?? null,
+      createdAt: patient.created_at ?? null,
     };
 
-    res.json({
-      ifLogin,
+    return res.json({
+      ifLogin: true,
       user: safeUser,
-      token,
+      role: "patient",
     });
   } catch (error) {
     console.error(error);
@@ -123,9 +165,7 @@ router.get("/logout", async (req, res) => {
       expires: new Date(0),
     });
     console.log("logout successfully");
-    ifLogin = false;
     return res.json({
-      ifLogin,
       message: "Logged out successfully",
       success: true,
     });
@@ -134,7 +174,14 @@ router.get("/logout", async (req, res) => {
   }
 });
 router.get("/status", (req, res) => {
-  res.json({ ifLogin });
+  const token = req.cookies?.token;
+  if (!token) return res.json({ ifLogin: false });
+  try {
+    jwt.verify(token, process.env.TOKEN_SECRET);
+    return res.json({ ifLogin: true });
+  } catch {
+    return res.json({ ifLogin: false });
+  }
 });
 
 export default router;

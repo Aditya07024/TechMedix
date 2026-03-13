@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }) => {
     } catch (_) {}
     setIsAuthenticated(false);
     setUser(null);
+    localStorage.removeItem("user");
   };
 
   const refreshAuthStatus = useCallback(async () => {

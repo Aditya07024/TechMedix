@@ -69,4 +69,5 @@ VALUES
  'Risk of agitation, fever, seizures',
  'Excess serotonergic activity',
  'Avoid combination',
- 'FDA');
+ 'FDA')
+ON CONFLICT (medicine_a, medicine_b) DO NOTHING;

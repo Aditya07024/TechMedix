@@ -150,12 +150,7 @@ const Navbar = ({ setShowLogin }) => {
                   overflow: "hidden",
                 }}
               >
-                <button
-                  style={dropdownBtnStyle}
-                  onClick={handleUploadRedirect}
-                >
-                  Upload Prescription
-                </button>
+                
 
                 <button
                   style={{ ...dropdownBtnStyle, color: "red" }}

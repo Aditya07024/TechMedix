@@ -84,9 +84,12 @@ const PrescriptionDetails = () => {
         <h1 className="prescription-details-title">Extracted Medicines</h1>
 
         {loading && (
-          <p className="prescription-details-loading">
-            Analyzing prescription… Extracted medicines will appear here shortly.
-          </p>
+          <div className="prescription-details-loading">
+            <p>Analyzing prescription…</p>
+            <progress
+              style={{ width: "300px", height: "12px", marginTop: "10px" }}
+            />
+          </div>
         )}
         {loadError && !loading && (
           <p className="prescription-details-error">{loadError}</p>

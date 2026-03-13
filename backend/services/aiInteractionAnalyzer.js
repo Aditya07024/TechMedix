@@ -6,6 +6,7 @@ import { pipeline } from "@xenova/transformers";
 const MODEL = "Xenova/flan-t5-base";
 
 let generator = null;
+const interactionCache = new Map();
 
 async function getGenerator() {
   if (!generator) {
@@ -71,21 +72,34 @@ function checkKnownInteractions(medA, medB) {
 }
 
 export async function analyzeInteractionAI(medA, medB) {
-  const known = checkKnownInteractions(medA, medB);
-  if (known) return known;
+  const cleanA = (medA || "").trim().toLowerCase();
+  const cleanB = (medB || "").trim().toLowerCase();
+
+  const cacheKey = [cleanA, cleanB].sort().join("|");
+  if (interactionCache.has(cacheKey)) {
+    return interactionCache.get(cacheKey);
+  }
+
+  const known = checkKnownInteractions(cleanA, cleanB);
+  if (known) {
+    interactionCache.set(cacheKey, known);
+    return known;
+  }
 
   try {
     const gen = await getGenerator();
-    const prompt = `Drug interaction between ${medA} and ${medB}? Answer yes or no.`;
+    const prompt = `Is there a clinically significant drug interaction between ${cleanA} and ${cleanB}? Answer yes or no with severity.`;
     const output = await gen(prompt, { max_new_tokens: 50, do_sample: false });
 
     const first = Array.isArray(output) ? output[0] : output;
     const text = first?.generated_text ?? (typeof output === "string" ? output : "") ?? "";
 
-    return parseModelOutput(text, medA, medB);
+    const result = parseModelOutput(text, cleanA, cleanB);
+    interactionCache.set(cacheKey, result);
+    return result;
   } catch (err) {
     console.warn("⚠ AI interaction analysis failed:", err.message);
-    return {
+    const fallback = {
       interaction_found: false,
       severity: "low",
       description: "",
@@ -93,5 +107,7 @@ export async function analyzeInteractionAI(medA, medB) {
       recommendation: "Consult your doctor if you have concerns about your medications.",
       confidence: 0,
     };
+    interactionCache.set(cacheKey, fallback);
+    return fallback;
   }
 }

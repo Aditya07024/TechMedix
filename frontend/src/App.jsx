@@ -21,10 +21,16 @@ import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
 import DoctorLogin from "./pages/DoctorLogin/DoctorLogin";
 import DoctorSignup from "./pages/DoctorSignup/DoctorSignup";
 import DoctorDashboard from "./pages/DoctorDashboard/DoctorDashboard";
+
 import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions";
+import PatientDashboard from "./pages/PatientDashboard/PatientDashboard";
+import DoctorDashboardNew from "./pages/DoctorDashboardNew/DoctorDashboardNew";
+import AdminDashboard from "./pages/AdminDashboard/AdminDashboard";
 
 import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
 import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
+import PaymentPage from "./pages/Payments/PaymentPage";
+import HealthMetrics from "./components/HealthMetrics/HealthMetrics";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -43,9 +49,7 @@ const App = () => {
       {showLogin && <GoogleAuthWrapper />}
 
       <div className="app">
-        {location.pathname !== "/" && (
-          <Navbar setShowLogin={setShowLogin} />
-        )}
+        {location.pathname !== "/" && <Navbar setShowLogin={setShowLogin} />}
 
         <Routes>
           <Route path="/" element={<Landingpage />} />
@@ -55,22 +59,30 @@ const App = () => {
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/health" element={<HealthMetrics />}/>
 
           {/* 🔥 PRESCRIPTION FLOW */}
-          <Route
-            path="/upload-prescription"
-            element={<UploadPrescription />}
-          />
+          <Route path="/upload-prescription" element={<UploadPrescription />} />
           <Route
             path="/prescription-details"
             element={<PrescriptionDetails />}
           />
 
           <Route
-            path="/dashboard"
+            path="/new/dashboard"
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ✨ NEW PATIENT DASHBOARD */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <PatientDashboard />
               </ProtectedRoute>
             }
           />
@@ -82,13 +94,11 @@ const App = () => {
 
           <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/doctor/signup" element={<DoctorSignup />} />
+          <Route path="/payment/:appointmentId" element={<PaymentPage />} />
 
-
-            <Route path="/prescription-details" element={<PrescriptionDetails />}/>
-
-
+          {/* 👨‍⚕️ DOCTOR DASHBOARD */}
           <Route
-            path="/doctor/dashboard"
+            path="/doctor/dashboard-v2"
             element={
               <ProtectedRoute requiredRole="doctor">
                 <DoctorDashboard />
@@ -96,11 +106,30 @@ const App = () => {
             }
           />
 
+          {/* ✨ NEW DOCTOR DASHBOARD V2 */}
           <Route
-            path="/terms-and-conditions"
-            element={<TermsAndConditions />}
+            path="/doctor/dashboard"
+            element={
+              <ProtectedRoute requiredRole="doctor">
+                <DoctorDashboardNew />
+              </ProtectedRoute>
+            }
           />
 
+          {/* 👑 ADMIN DASHBOARD */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 📄 TERMS & CONDITIONS */}
+          <Route path="/terms" element={<TermsAndConditions />} />
+
+          {/* 🔥 FALLBACK */}
           <Route path="*" element={<Notfound />} />
         </Routes>
       </div>

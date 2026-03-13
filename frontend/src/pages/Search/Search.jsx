@@ -303,7 +303,7 @@ const Search = () => {
                     <div className="product-view-category">
                       <span>Salt:</span> {solution}
                     </div>
-                    {ifLogin && (
+                    {/* {ifLogin && (
                       <div className="editanddeletebutton">
                         <Button onClick={handleEditClick} variant="outlined">
                           Edit Medicine
@@ -316,7 +316,7 @@ const Search = () => {
                           Delete Medicine
                         </Button>
                       </div>
-                    )}
+                    )} */}
                     <div className="product-view-price">
                       <a
                         href={selectedProductData.link}

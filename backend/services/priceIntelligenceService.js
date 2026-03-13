@@ -13,6 +13,9 @@ const SPIKE_THRESHOLD_PCT = 15;
  * Get price history for a medicine (from price_history + current from medicine_prices)
  */
 export async function getPriceHistory(medicineName, days = TREND_WINDOW_DAYS) {
+  if (!medicineName || typeof medicineName !== 'string') return [];
+  medicineName = medicineName.trim();
+
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
 
@@ -72,7 +75,7 @@ function computeTrend(points) {
   const recent = points.slice(-5);
   const first = recent[0]?.price ?? 0;
   const last = recent[recent.length - 1]?.price ?? 0;
-  if (first === 0) return "stable";
+  if (!first || isNaN(first) || isNaN(last)) return "stable";
   const pctChange = ((last - first) / first) * 100;
   if (pctChange > 2) return "rising";
   if (pctChange < -2) return "falling";
@@ -116,16 +119,23 @@ export async function analyzeMedicinePrice(medicineName) {
   const points = await getPriceHistory(medicineName);
   const currentPrice = points.length ? points[points.length - 1].price : null;
   const avgPrice =
-    points.length ? points.reduce((s, p) => s + p.price, 0) / points.length : currentPrice;
-  const minPrice = points.length ? Math.min(...points.map((p) => p.price)) : currentPrice;
-  const maxPrice = points.length ? Math.max(...points.map((p) => p.price)) : currentPrice;
+    points.length > 0
+      ? points.reduce((s, p) => s + (Number(p.price) || 0), 0) / points.length
+      : null;
+  const prices = points.map(p => Number(p.price) || 0);
+  const minPrice = prices.length ? Math.min(...prices) : null;
+  const maxPrice = prices.length ? Math.max(...prices) : null;
 
   const trend = computeTrend(points);
   const dropDetected = detectDrop(points, avgPrice);
   const spikeDetected = detectSpike(points, avgPrice);
 
+  const roundedCurrent = currentPrice != null
+    ? Math.round(Number(currentPrice) * 100) / 100
+    : null;
+
   const insights = {
-    currentPrice,
+    currentPrice: roundedCurrent,
     avgPrice: avgPrice ? Math.round(avgPrice * 100) / 100 : null,
     minPrice,
     maxPrice,
@@ -137,7 +147,7 @@ export async function analyzeMedicinePrice(medicineName) {
       trend,
       dropDetected,
       spikeDetected,
-      currentPrice,
+      currentPrice: roundedCurrent,
       avgPrice,
     }),
   };
@@ -149,6 +159,8 @@ export async function analyzeMedicinePrice(medicineName) {
  * Record price into history (call when price is updated via admin/CSV)
  */
 export async function recordPriceHistory(medicineName, price, platformId = null, source = "manual") {
+  if (!medicineName || !price || isNaN(price)) return;
+
   await sql`
     INSERT INTO price_history (medicine_name, price, platform_id, source)
     VALUES (${medicineName}, ${price}, ${platformId}, ${source})

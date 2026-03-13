@@ -10,6 +10,11 @@ export async function validateDosage({
   dosage,
   frequencyPerDay = 1
 }) {
+  if (!medicineName) {
+    return { valid: true, note: "Medicine name missing" };
+  }
+
+  const normalizedName = (medicineName || "").toString().trim().toLowerCase();
   const doseMg = parseDosage(dosage);
 
   // If dosage not in mg, skip safely
@@ -23,7 +28,9 @@ export async function validateDosage({
   const rows = await sql`
     SELECT *
     FROM dosage_limits
-    WHERE salt_name ILIKE ${'%' + medicineName + '%'}
+    WHERE LOWER(salt_name) = ${normalizedName}
+       OR LOWER(salt_name) ILIKE ${normalizedName + '%'}
+    ORDER BY max_daily_dose_mg DESC NULLS LAST
     LIMIT 1
   `;
 
@@ -35,13 +42,15 @@ export async function validateDosage({
   }
 
   const limit = rows[0];
-  const totalDailyDose = doseMg * frequencyPerDay;
+  const safeFrequency = Number(frequencyPerDay) || 1;
+  const totalDailyDose = doseMg * safeFrequency;
 
   if (limit.max_single_dose_mg && doseMg > limit.max_single_dose_mg) {
     return {
       valid: false,
       severity: "high",
-      reason: `Single dose exceeds safe limit (${limit.max_single_dose_mg}mg)`
+      reason: `Single dose exceeds safe limit (${limit.max_single_dose_mg}mg)`,
+      confidence: 1.0
     };
   }
 
@@ -49,9 +58,14 @@ export async function validateDosage({
     return {
       valid: false,
       severity: "critical",
-      reason: `Daily dose exceeds safe limit (${limit.max_daily_dose_mg}mg/day)`
+      reason: `Daily dose exceeds safe limit (${limit.max_daily_dose_mg}mg/day)`,
+      confidence: 1.0
     };
   }
 
-  return { valid: true };
+  return {
+    valid: true,
+    evaluatedDoseMg: doseMg,
+    totalDailyDose
+  };
 }

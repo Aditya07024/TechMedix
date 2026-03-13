@@ -9,7 +9,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      alert("Please login first");
+      // alert("Please login first");
     }
     // If a required role is specified and the user's role doesn't match
     if (
@@ -27,13 +27,13 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   if (loading) return null;
 
   if (!isAuthenticated) {
-    return <Navigate to="/home" replace state={{ from: location }} />;
+    return <Navigate to="/" replace state={{ from: location }} />;
   }
 
   // Check role if requiredRole is provided
   if (requiredRole && user?.role !== requiredRole) {
     return (
-      <Navigate to="/home" replace state={{ from: location }} /> // Redirect to home or an unauthorized page
+      <Navigate to="/" replace state={{ from: location }} /> // Redirect to home or an unauthorized page
     );
   }
 

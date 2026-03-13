@@ -1,38 +1,64 @@
 import jwt from "jsonwebtoken";
 
 export const authenticate = (req, res, next) => {
-  const token = req.cookies?.token;
-  console.log(
-    "Auth Middleware: Received token:",
-    token ? "(token present)" : "(no token)"
-  );
-  if (!token) {
-    return res.status(401).json({ error: "No token, authorization denied" });
-  }
-
   try {
+    let token = null;
+
+    // 1️⃣ Check cookie
+    if (req.cookies?.token) {
+      token = req.cookies.token;
+    }
+
+    // 2️⃣ Check Authorization header (Bearer token)
+    const authHeader = req.headers.authorization;
+    if (!token && authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required"
+      });
+    }
+
+    if (!process.env.TOKEN_SECRET) {
+      console.error("TOKEN_SECRET not configured");
+      return res.status(500).json({
+        success: false,
+        error: "Server configuration error"
+      });
+    }
+
     const decoded = jwt.verify(token, process.env.TOKEN_SECRET);
     req.user = decoded;
-    console.log("Auth Middleware: Token decoded successfully. User:", req.user);
+
     next();
+
   } catch (err) {
-    console.error("Auth Middleware: Token verification failed:", err.message);
-    return res.status(401).json({ error: "Invalid token" });
+    return res.status(401).json({
+      success: false,
+      error: "Invalid or expired token"
+    });
   }
 };
 
 export const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!req.user || !req.user.role) {
-      return res
-        .status(403)
-        .json({ error: "Access denied. No role provided." });
+      return res.status(403).json({
+        success: false,
+        error: "Access denied"
+      });
     }
+
     if (!roles.includes(req.user.role)) {
-      return res
-        .status(403)
-        .json({ error: `Access denied. Required roles: ${roles.join(", ")}` });
+      return res.status(403).json({
+        success: false,
+        error: `Required role: ${roles.join(", ")}`
+      });
     }
+
     next();
   };
 };

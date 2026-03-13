@@ -89,32 +89,45 @@ except Exception as e:
 @app.route('/predict-disease', methods=['POST'])
 def predict_disease():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         logging.debug(f"Received data: {data}")
-        
-        if not data or 'symptoms' not in data:
+
+        symptoms = data.get('symptoms', {})
+
+        if not isinstance(symptoms, dict):
+            return jsonify({'error': 'Symptoms must be an object'}), 400
+
+        if len(str(symptoms)) > 3000:
+            return jsonify({'error': 'Input too large'}), 400
+
+        if not symptoms:
             return jsonify({'error': 'No symptoms provided'}), 400
         
-        symptoms = data['symptoms']
-        logging.debug(f"Processing symptoms: {symptoms}")
-        
-        # Create input vector using only valid columns
+        normalized = {
+            k.lower().strip(): v
+            for k, v in symptoms.items()
+        }
+
         input_vector = np.zeros(len(valid_columns))
         for i, symptom in enumerate(valid_columns):
-            if symptom in symptoms and symptoms[symptom] == 1:
+            value = normalized.get(symptom)
+            if value in [1, True, "1", "true", "True"]:
                 input_vector[i] = 1
         
         input_vector = input_vector.reshape(1, -1)
         prediction = clf.predict(input_vector)
         confidence = np.max(clf.predict_proba(input_vector))
         
-        # Use the predicted disease name directly
+        proba = clf.predict_proba(input_vector)[0]
+        all_probabilities = {
+            str(cls): float(prob)
+            for cls, prob in zip(clf.classes_, proba)
+        }
+        
         predicted_disease = str(prediction[0])
         logging.info(f"Predicted disease: {predicted_disease}, Confidence: {confidence:.4f}")
 
-        # Use disease name for related symptoms logic
         try:
-            # Ensure we're comparing strings (avoid ambiguous Series truth-value)
             y_values = y['prognosis'].values.ravel().astype(str)
             mask = (y_values == predicted_disease)
 
@@ -124,7 +137,6 @@ def predict_disease():
             else:
                 related_symptoms = []
                 for col in valid_columns:
-                    # get column values as numpy array and compute mean only over matching rows
                     col_vals = X[col].values
                     mean_val = float(np.mean(col_vals[mask]))
                     logging.debug(f"Mean presence of '{col}' for disease '{predicted_disease}': {mean_val:.4f}")
@@ -137,7 +149,8 @@ def predict_disease():
         response = {
             "predicted_disease": predicted_disease,
             "confidence": float(confidence),
-            "related_symptoms": related_symptoms
+            "related_symptoms": related_symptoms,
+            "all_probabilities": all_probabilities
         }
         logging.debug(f"Sending response: {response}")
         
@@ -148,4 +161,4 @@ def predict_disease():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001)

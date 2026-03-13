@@ -2,95 +2,182 @@ import sql from "../config/database.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 
+/*
+  CREATE PATIENT
+*/
 export const createPatient = async (patientData) => {
-  const {
-    name,
-    email,
-    password,
-    age,
-    gender,
-    phone,
-    bloodGroup,
-    medicalHistory,
-  } = patientData;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const uniqueCode = crypto.randomBytes(4).toString("hex").toUpperCase();
+  try {
+    const {
+      name,
+      email,
+      password,
+      age,
+      gender,
+      phone,
+      bloodGroup,
+      medicalHistory,
+    } = patientData;
 
-  const result = await sql`
-    INSERT INTO patients (name, email, password, age, gender, phone, blood_group, medical_history, unique_code)
-    VALUES (${name}, ${email}, ${hashedPassword}, ${age}, ${gender}, ${phone}, ${bloodGroup}, ${medicalHistory}, ${uniqueCode})
-    RETURNING id, name, email, age, gender, phone, blood_group, medical_history, unique_code, created_at
-  `;
-  return result[0];
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // generate unique code safely
+    let uniqueCode;
+    let exists = true;
+
+    while (exists) {
+      uniqueCode = crypto.randomBytes(4).toString("hex").toUpperCase();
+      const check = await sql`
+        SELECT id FROM patients WHERE unique_code = ${uniqueCode}
+      `;
+      exists = check.length > 0;
+    }
+
+    const result = await sql`
+      INSERT INTO patients (
+        name,
+        email,
+        password,
+        age,
+        gender,
+        phone,
+        blood_group,
+        medical_history,
+        unique_code,
+        created_at,
+        is_deleted
+      )
+      VALUES (
+        ${name},
+        ${email},
+        ${hashedPassword},
+        ${age},
+        ${gender},
+        ${phone},
+        ${bloodGroup},
+        ${medicalHistory},
+        ${uniqueCode},
+        NOW(),
+        FALSE
+      )
+      RETURNING id, name, email, age, gender, phone,
+                blood_group, medical_history, unique_code, created_at
+    `;
+
+    return result[0];
+
+  } catch (error) {
+    if (error.code === "23505") {
+      return { error: "Email already registered" };
+    }
+    console.error("Create patient failed:", error);
+    return null;
+  }
 };
 
+
+/*
+  GET PATIENT BY ID
+*/
 export const getPatientById = async (id) => {
   const result = await sql`
-    SELECT id, name, email, age, gender, phone, blood_group, medical_history, unique_code, created_at 
-    FROM patients WHERE id = ${id}
+    SELECT id, name, email, age, gender,
+           phone, blood_group, medical_history,
+           unique_code, created_at
+    FROM patients
+    WHERE id = ${id}
+      AND is_deleted = FALSE
   `;
-  return result[0];
+  return result.length ? result[0] : null;
 };
 
+
+/*
+  GET BY EMAIL (LOGIN)
+*/
 export const getPatientByEmail = async (email) => {
   const result = await sql`
-    SELECT * FROM patients WHERE email = ${email}
+    SELECT *
+    FROM patients
+    WHERE email = ${email}
+      AND is_deleted = FALSE
   `;
-  return result[0];
+  return result.length ? result[0] : null;
 };
 
+
+/*
+  GET BY UNIQUE CODE
+*/
 export const getPatientByUniqueCode = async (uniqueCode) => {
   const result = await sql`
-    SELECT id, name, email, age, gender, phone, blood_group, medical_history, unique_code, created_at 
-    FROM patients WHERE unique_code = ${uniqueCode}
+    SELECT id, name, email, age, gender,
+           phone, blood_group, medical_history,
+           unique_code, created_at
+    FROM patients
+    WHERE unique_code = ${uniqueCode}
+      AND is_deleted = FALSE
   `;
-  return result[0];
+  return result.length ? result[0] : null;
 };
 
-export const updatePatient = async (id, patientData) => {
-  const updates = [];
-  const values = [];
 
-  Object.entries(patientData).forEach(([key, value]) => {
-    if (value !== undefined && key !== "password" && key !== "id") {
-      const dbKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
-      updates.push(`${dbKey} = \${values[${values.length}]}`);
-      values.push(value);
-    }
-  });
+/*
+  SAFE UPDATE
+*/
+export const updatePatient = async (id, data) => {
+  const result = await sql`
+    UPDATE patients
+    SET name = COALESCE(${data.name}, name),
+        email = COALESCE(${data.email}, email),
+        age = COALESCE(${data.age}, age),
+        gender = COALESCE(${data.gender}, gender),
+        phone = COALESCE(${data.phone}, phone),
+        blood_group = COALESCE(${data.bloodGroup}, blood_group),
+        medical_history = COALESCE(${data.medicalHistory}, medical_history),
+        updated_at = NOW()
+    WHERE id = ${id}
+      AND is_deleted = FALSE
+    RETURNING id, name, email, age, gender,
+              phone, blood_group, medical_history, unique_code
+  `;
 
-  if (updates.length === 0) return null;
-
-  // Build dynamic SQL for update - NOTE: This is complex with Neon, using safer approach
-  let updateFields = "";
-  values.forEach((_, i) => {
-    const key = Object.keys(patientData)[i];
-    if (key && key !== "password" && key !== "id") {
-      const dbKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
-      updateFields += `${dbKey} = ${i > 0 ? "," : ""} `;
-    }
-  });
-
-  const query = `UPDATE patients SET ${updateFields.trim()}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length + 1} RETURNING *`;
-  const result = await sql(query, [...values, id]);
-  return result[0];
+  return result.length ? result[0] : null;
 };
 
+
+/*
+  SOFT DELETE
+*/
 export const deletePatient = async (id) => {
   const result = await sql`
-    DELETE FROM patients WHERE id = ${id} RETURNING id
+    UPDATE patients
+    SET is_deleted = TRUE,
+        updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id
   `;
-  return result[0];
+  return result.length ? result[0] : null;
 };
 
+
+/*
+  PASSWORD COMPARE
+*/
 export const comparePassword = async (candidatePassword, hashedPassword) => {
   return bcrypt.compare(candidatePassword, hashedPassword);
 };
 
+
+/*
+  GET ALL PATIENTS
+*/
 export const getAllPatients = async () => {
-  const result = await sql`
-    SELECT id, name, email, age, gender, phone, blood_group, medical_history, unique_code, created_at 
-    FROM patients ORDER BY created_at DESC
+  return await sql`
+    SELECT id, name, email, age, gender,
+           phone, blood_group, medical_history,
+           unique_code, created_at
+    FROM patients
+    WHERE is_deleted = FALSE
+    ORDER BY created_at DESC
   `;
-  return result;
 };

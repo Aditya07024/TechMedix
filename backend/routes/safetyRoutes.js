@@ -1,22 +1,47 @@
 import express from "express";
 import { runSafetyAgent } from "../agents/safetyAgent.js";
+import sql from "../config/database.js";
+import { authenticate, authorizeRoles } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // POST /api/prescriptions/:prescriptionId/safety-check
 router.post(
   "/prescriptions/:prescriptionId/safety-check",
+  authenticate,
+  authorizeRoles("patient", "doctor"),
   async (req, res) => {
     try {
       const { prescriptionId } = req.params;
-      const { userId } = req.body;
 
-      if (!prescriptionId || !userId) {
+      if (!prescriptionId) {
         return res.status(400).json({
           success: false,
-          error: "prescriptionId or userId missing",
+          error: "prescriptionId missing",
         });
       }
+
+      // Verify prescription ownership (patients can only check their own)
+      const rows = await sql`
+        SELECT user_id_int, user_id
+        FROM prescriptions
+        WHERE id = ${prescriptionId}
+      `;
+
+      if (!rows.length) {
+        return res.status(404).json({ success: false, error: "Prescription not found" });
+      }
+
+      const ownerId = rows[0].user_id_int ?? rows[0].user_id;
+
+      if (req.user.role === "patient" && String(req.user.id) !== String(ownerId)) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only run safety check for your own prescription"
+        });
+      }
+
+      const userId = req.user.id;
 
       const report = await runSafetyAgent({
         prescriptionId,

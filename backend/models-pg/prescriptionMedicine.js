@@ -4,9 +4,17 @@ export async function saveMedicines(prescriptionId, medicines) {
   const saved = [];
 
   for (const m of medicines) {
-    const [row] = await sql`
-      INSERT INTO medicines
-      (prescription_id, medicine_name, dosage, frequency, duration, instructions, confidence)
+    const result = await sql`
+      INSERT INTO prescription_medicines (
+        prescription_id,
+        medicine_name,
+        dosage,
+        frequency,
+        duration,
+        instructions,
+        confidence,
+        created_at
+      )
       VALUES (
         ${prescriptionId},
         ${m.medicine_name},
@@ -14,11 +22,14 @@ export async function saveMedicines(prescriptionId, medicines) {
         ${m.frequency},
         ${m.duration},
         ${m.instructions},
-        ${m.confidence}
+        ${m.confidence || null},
+        NOW()
       )
       RETURNING *
     `;
-    saved.push(row);
+
+    saved.push(result[0]);
   }
+
   return saved;
 }

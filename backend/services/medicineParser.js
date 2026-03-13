@@ -70,7 +70,13 @@ function extractName(line) {
     .trim();
 
   const words = cleaned.split(" ");
-  return words.slice(0, 2).join(" ").toUpperCase();
+  const name = words
+    .filter(w => w.length > 1)
+    .slice(0, 3)
+    .join(" ")
+    .trim();
+
+  return name ? name.toUpperCase() : null;
 }
 
 function confidenceScore({ medicine_name, frequency }) {
@@ -78,6 +84,16 @@ function confidenceScore({ medicine_name, frequency }) {
   if (medicine_name.length >= 4) c += 0.2;
   if (frequency) c += 0.2;
   return Math.min(c, 0.9);
+}
+
+function deduplicateMedicines(list) {
+  const seen = new Set();
+  return list.filter(m => {
+    const key = (m.medicine_name || "").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /* ---------- MAIN PARSER ---------- */
@@ -106,7 +122,7 @@ export function parsePrescriptionText(rawText) {
     medicines.push(med);
   }
 
-  return medicines;
+  return deduplicateMedicines(medicines);
 }
 
 /* ---------- FLEXIBLE PARSER (for BART output + raw prescription lines) ---------- */
@@ -181,5 +197,5 @@ export function extractMedicinesFromText(rawText) {
     medicines.push(med);
   }
 
-  return medicines;
+  return deduplicateMedicines(medicines);
 }

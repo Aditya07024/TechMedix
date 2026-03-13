@@ -24,4 +24,40 @@ export async function runPrescriptionMigration() {
   } catch (err) {
     console.warn("⚠ Prescription migration warning:", err.message);
   }
+
+  try {
+    // Add foreign key for patient_id
+    await sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'prescriptions_patient_id_fkey'
+        ) THEN
+          ALTER TABLE prescriptions
+          ADD CONSTRAINT prescriptions_patient_id_fkey
+          FOREIGN KEY (patient_id) REFERENCES patients(id)
+          ON DELETE SET NULL;
+        END IF;
+      END
+      $$;
+    `;
+  } catch (err) {
+    console.warn("⚠ Prescription migration warning:", err.message);
+  }
+
+  try {
+    // Add index for faster lookup
+    await sql`CREATE INDEX IF NOT EXISTS idx_prescriptions_user_id_int ON prescriptions(user_id_int)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id)`;
+  } catch (err) {
+    console.warn("⚠ Prescription migration warning:", err.message);
+  }
+
+  try {
+    // Ensure soft delete support exists
+    await sql`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
+  } catch (err) {
+    console.warn("⚠ Prescription migration warning:", err.message);
+  }
 }

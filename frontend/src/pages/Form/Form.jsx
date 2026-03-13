@@ -1,76 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import symptomsList from "../../utils/symptomsList";
 import "./Form.css";
 
 const API_URL = import.meta.env.VITE_API_URL;
-
-// Categorized symptoms
-const categorizedSymptoms = {
-  "Skin & Dermatological": [
-    "itching", "skin_rash", "nodal_skin_eruptions", "patches_in_throat",
-    "red_spots_over_body", "blackheads", "scurring", "skin_peeling",
-    "silver_like_dusting", "small_dents_in_nails", "inflammatory_nails",
-    "blister", "red_sore_around_nose", "yellow_crust_ooze"
-  ],
-  "Respiratory": [
-    "continuous_sneezing", "cough", "breathlessness", "phlegm",
-    "throat_irritation", "sinus_pressure", "runny_nose", "congestion"
-  ],
-  "Fever / Infection / Systemic": [
-    "shivering", "chills", "high_fever", "malaise",
-    "toxic_look_(typhos)", "dehydration"
-  ],
-  "Gastrointestinal / Digestive": [
-    "stomach_pain", "acidity", "ulcers_on_tongue", "vomiting",
-    "indigestion", "abdominal_pain", "diarrhoea", "constipation",
-    "belly_pain", "stomach_bleeding", "distention_of_abdomen"
-  ],
-  "Musculoskeletal / Joint / Pain": [
-    "joint_pain", "muscle_wasting", "muscle_pain", "back_pain",
-    "cramps", "bruising", "knee_pain", "hip_joint_pain",
-    "muscle_weakness", "stiff_neck", "swelling_joints",
-    "movement_stiffness", "painful_walking"
-  ],
-  "Urinary / Renal": [
-    "burning_micturition", "spotting_urination", "foul_smell_of_urine",
-    "continuous_feel_of_urine", "passage_of_gases", "polyuria",
-    "bladder_discomfort", "blood_in_sputum"
-  ],
-  "Cardiovascular / Circulatory": [
-    "fast_heart_rate", "palpitations", "weakness_in_limbs",
-    "swollen_legs", "swollen_blood_vessels", "puffy_face_and_eyes",
-    "prominent_veins_on_calf"
-  ],
-  "Metabolic / Endocrine": [
-    "weight_gain", "weight_loss", "obesity", "irregular_sugar_level",
-    "excessive_hunger", "increased_appetite"
-  ],
-  "Neurological / Mental Health": [
-    "anxiety", "mood_swings", "restlessness", "lethargy",
-    "depression", "irritability", "lack_of_concentration",
-    "altered_sensorium", "loss_of_balance", "unsteadiness",
-    "weakness_of_one_body_side", "loss_of_smell", "slurred_speech",
-    "spinning_movements", "visual_disturbances"
-  ],
-  "Eye / Vision": [
-    "sunken_eyes", "redness_of_eyes", "watering_from_eyes",
-    "blurred_and_distorted_vision"
-  ],
-  "Liver / Kidney / Other Organ Dysfunction": [
-    "yellowish_skin", "dark_urine", "yellow_urine", "yellowing_of_eyes",
-    "acute_liver_failure"
-  ],
-  "Reproductive / Hormonal": [
-    "abnormal_menstruation", "extra_marital_contacts", "family_history"
-  ],
-  "Misc / Other": [
-    "mucoid_sputum", "rusty_sputum", "coma",
-    "receiving_blood_transfusion", "receiving_unsterile_injections",
-    "history_of_alcohol_consumption", "prognosis"
-  ]
-};
 
 export const Form = () => {
   const navigate = useNavigate();
@@ -107,6 +41,38 @@ export const Form = () => {
 
   const [selectedSymptoms, setSelectedSymptoms] = useState({});
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [categorizedSymptoms, setCategorizedSymptoms] = useState({});
+
+  useEffect(() => {
+    const fetchSymptoms = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/diseases`);
+        /* Expected backend format example:
+           {
+             "Respiratory": ["cough","breathlessness"],
+             "Skin": ["itching","rash"]
+           }
+           Or flat array: [{ category: "...", symptom: "..." }, ...]
+        */
+        // Support both grouped format and flat DB rows
+        if (Array.isArray(res.data)) {
+          const grouped = {};
+          res.data.forEach((row) => {
+            const category = row.category || "Other";
+            if (!grouped[category]) grouped[category] = [];
+            grouped[category].push(row.symptom);
+          });
+          setCategorizedSymptoms(grouped);
+        } else {
+          setCategorizedSymptoms(res.data || {});
+        }
+      } catch (err) {
+        console.error("Failed to load symptoms from backend:", err?.response?.data || err.message);
+      }
+    };
+
+    fetchSymptoms();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -120,10 +86,12 @@ export const Form = () => {
   };
 
   const toggleCategory = (category) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      [category]: !prev[category],
-    }));
+    setExpandedCategories((prev) => {
+      const isCurrentlyOpen = !!prev[category];
+      // If clicking an already open category, collapse it.
+      // Otherwise, open only this category and collapse all others.
+      return isCurrentlyOpen ? {} : { [category]: true };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -187,7 +155,12 @@ export const Form = () => {
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert(error);
+
+      const backendMessage = error?.response?.data?.error || error?.response?.data || error.message;
+
+      console.error("Backend response:", error?.response?.data);
+
+      alert(`Submission failed: ${backendMessage}`);
     }
   };
 

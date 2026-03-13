@@ -75,8 +75,14 @@ const LoginPop = ({ setShowLogin }) => {
       }
 
       if (res?.data?.user) {
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-        login(res.data.user);
+        const userData = {
+          ...res.data.user,
+          role: res.data.user?.role || "patient",
+        };
+
+        localStorage.setItem("user", JSON.stringify(userData));
+        console.log("User role:", userData.role);
+        login(userData);
 
         setShowLogin(false);
         navigate(redirectTo, { replace: true });

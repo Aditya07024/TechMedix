@@ -27,10 +27,12 @@ CREATE TABLE prescriptions (
   extracted_text TEXT,
   status prescription_status DEFAULT 'processing',
   uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  processed_at TIMESTAMP
+  processed_at TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX idx_prescriptions_user_id ON prescriptions(user_id);
+CREATE INDEX idx_prescriptions_is_deleted ON prescriptions(is_deleted);
 CREATE TABLE prescription_medicines (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   prescription_id UUID REFERENCES prescriptions(id) ON DELETE CASCADE,
@@ -39,18 +41,22 @@ CREATE TABLE prescription_medicines (
   frequency VARCHAR(100),
   duration VARCHAR(100),
   instructions TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX idx_pm_prescription_id ON prescription_medicines(prescription_id);
+CREATE INDEX idx_pm_is_deleted ON prescription_medicines(is_deleted);
 CREATE TABLE safety_reports (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   prescription_id UUID UNIQUE REFERENCES prescriptions(id) ON DELETE CASCADE,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   total_warnings INTEGER DEFAULT 0,
   risk_level risk_level,
-  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
+CREATE INDEX idx_safety_reports_is_deleted ON safety_reports(is_deleted);
 CREATE TABLE safety_warnings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   safety_report_id UUID REFERENCES safety_reports(id) ON DELETE CASCADE,
@@ -61,8 +67,10 @@ CREATE TABLE safety_warnings (
   description TEXT,
   recommendation TEXT,
   source VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
+CREATE INDEX idx_safety_warnings_is_deleted ON safety_warnings(is_deleted);
 CREATE TABLE agent_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   workflow_id UUID,
@@ -91,6 +99,7 @@ CREATE TABLE drug_interactions (
 );
 
 CREATE INDEX idx_interaction_pair ON drug_interactions(medicine_a, medicine_b);
+CREATE INDEX idx_interaction_severity ON drug_interactions(severity);
 CREATE TABLE medicines_master (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   generic_name VARCHAR(255),
@@ -112,6 +121,7 @@ CREATE TABLE price_data (
   in_stock BOOLEAN,
   last_updated TIMESTAMP
 );
+CREATE INDEX idx_price_data_medicine_price ON price_data(medicine_name, price);
 CREATE TABLE reminders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -122,7 +132,9 @@ CREATE TABLE reminders (
   is_active BOOLEAN DEFAULT true,
   created_by VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  next_scheduled TIMESTAMP
+  next_scheduled TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX idx_reminders_user ON reminders(user_id);
+CREATE INDEX idx_reminders_is_deleted ON reminders(is_deleted);

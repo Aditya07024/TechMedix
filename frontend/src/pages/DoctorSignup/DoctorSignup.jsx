@@ -12,6 +12,7 @@ const DoctorSignup = () => {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -22,14 +23,27 @@ const DoctorSignup = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setLoading(true);
     try {
       const res = await doctorApi.signup(formData);
-      setSuccess(res.data.message);
+
+      if (!res.data) {
+        throw new Error("Invalid response from server");
+      }
+
+      setSuccess(res.data.message || "Signup successful");
+
       setTimeout(() => {
         navigate("/doctor/login");
-      }, 2000);
+      }, 1500);
     } catch (err) {
-      setError(err.response?.data?.error || "Signup failed");
+      setError(
+        err.response?.data?.error ||
+        err.message ||
+        "Signup failed"
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -83,8 +97,8 @@ const DoctorSignup = () => {
             required
           />
         </div>
-        <button type="submit" className="signup-button">
-          Sign Up
+        <button type="submit" className="signup-button" disabled={loading}>
+          {loading ? "Creating account..." : "Sign Up"}
         </button>
         <p className="login-link">
           Already have an account?{" "}

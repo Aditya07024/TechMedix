@@ -1,0 +1,165 @@
+import {
+  bookAppointment,
+  cancelAppointment,
+  rescheduleAppointment,
+  getAppointmentById,
+  getDoctorAppointments,
+  getPatientAppointments,
+  updateAppointmentStatus,
+} from "../services/appointmentService.js";
+import { logAudit } from "../services/auditService.js";
+
+export async function createAppointment(req, res) {
+  try {
+    const {
+      patient_id,
+      doctor_id,
+      appointment_date,
+      slot_time,
+      share_history,
+      recording_consent_patient,
+    } = req.body;
+
+    const appointment = await bookAppointment({
+      patient_id,
+      doctor_id,
+      appointment_date,
+      slot_time,
+      share_history,
+      recording_consent_patient,
+    });
+
+    await logAudit({
+      user_id: patient_id,
+      action: "appointment_booked",
+      entity_id: appointment.id,
+      entity_type: "appointment",
+      details: { doctor_id, appointment_date, slot_time },
+    });
+
+    res.status(201).json({ success: true, data: appointment });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function cancelAppointmentHandler(req, res) {
+  try {
+    const { appointment_id } = req.params;
+    const { cancel_reason } = req.body;
+
+    const result = await cancelAppointment(appointment_id, cancel_reason);
+
+    await logAudit({
+      user_id: req.user?.id,
+      action: "appointment_cancelled",
+      entity_id: appointment_id,
+      entity_type: "appointment",
+      details: { cancel_reason },
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function rescheduleAppointmentHandler(req, res) {
+  try {
+    const { appointment_id } = req.params;
+    const { new_date, new_slot_time } = req.body;
+
+    const result = await rescheduleAppointment(
+      appointment_id,
+      new_date,
+      new_slot_time,
+    );
+
+    await logAudit({
+      user_id: req.user?.id,
+      action: "appointment_rescheduled",
+      entity_id: appointment_id,
+      entity_type: "appointment",
+      details: { new_date, new_slot_time },
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function getAppointment(req, res) {
+  try {
+    const { appointment_id } = req.params;
+    const appointment = await getAppointmentById(appointment_id);
+    res.json({ success: true, data: appointment });
+  } catch (error) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+}
+
+export async function getDoctorAppts(req, res) {
+  try {
+    const { doctor_id } = req.params;
+    const { date } = req.query;
+
+    if (req.user?.id !== doctor_id && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    const appointments = await getDoctorAppointments(doctor_id, date);
+    res.json({ success: true, data: appointments });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function getPatientAppts(req, res) {
+  try {
+    const { patient_id } = req.params;
+
+    if (req.user?.id !== patient_id && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    const appointments = await getPatientAppointments(patient_id);
+    res.json({ success: true, data: appointments });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}
+
+export async function updateApptStatus(req, res) {
+  try {
+    const { appointment_id } = req.params;
+    const { status } = req.body;
+
+    // only doctors or admins can change status
+    if (req.user?.role !== "doctor" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, error: "Unauthorized" });
+    }
+
+    // ensure doctor owns the appointment when role is doctor
+    if (req.user.role === "doctor") {
+      const appt = await getAppointmentById(appointment_id);
+      if (String(appt.doctor_id) !== String(req.user.id)) {
+        return res.status(403).json({ success: false, error: "You can only modify your own appointments" });
+      }
+    }
+
+    const result = await updateAppointmentStatus(appointment_id, status);
+
+    await logAudit({
+      user_id: req.user?.id,
+      action: "appointment_status_updated",
+      entity_id: appointment_id,
+      entity_type: "appointment",
+      details: { status },
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+}

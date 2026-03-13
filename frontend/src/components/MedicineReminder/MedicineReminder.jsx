@@ -34,21 +34,23 @@ const MedicineReminder = () => {
     return () => clearInterval(interval);
   }, [reminders]);
 
+  const toMinutesSinceMidnight = (time, period) => {
+    const [hours, minutes] = time.split(':').map(Number);
+
+    // Convert 12-hour input to 24-hour minutes
+    const hour12 = hours % 12; // 12 -> 0, otherwise same
+    const hour24 = period === 'PM' ? hour12 + 12 : hour12;
+
+    return hour24 * 60 + minutes;
+  };
+
   const checkReminders = () => {
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
-    
+
     reminders.forEach(reminder => {
-      const [hours, minutes] = reminder.time.split(':').map(Number);
-      let reminderMinutes = hours * 60 + minutes;
-      
-      // Convert to 24-hour format for PM times
-      if (reminder.period === 'PM' && hours !== 12) {
-        reminderMinutes += 12 * 60;
-      } else if (reminder.period === 'AM' && hours === 12) {
-        reminderMinutes = minutes; // 12 AM = 0 hours
-      }
-      
+      const reminderMinutes = toMinutesSinceMidnight(reminder.time, reminder.period);
+
       // Check if it's time for the reminder (within 1 minute)
       if (Math.abs(currentTime - reminderMinutes) <= 1) {
         // Check if not already taken today
@@ -118,6 +120,16 @@ const MedicineReminder = () => {
     const today = new Date().toDateString();
     return reminder.completed.includes(today);
   };
+
+  const getHourMinute = (time) => {
+    const [hourStr, minuteStr] = time.split(':');
+    return {
+      hour: Number(hourStr),
+      minute: Number(minuteStr),
+    };
+  };
+
+  const pad2 = (value) => String(value).padStart(2, '0');
 
   const formatTime = (time, period) => {
     return `${time} ${period}`;
@@ -227,12 +239,41 @@ const MedicineReminder = () => {
             </div>
             <div className="time-group">
               <div className="form-group">
-                <label>Time:</label>
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                />
+                <label>Hour:</label>
+                <select
+                  value={getHourMinute(time).hour}
+                  onChange={(e) => {
+                    const newHour = Number(e.target.value);
+                    const { minute } = getHourMinute(time);
+                    setTime(`${pad2(newHour)}:${pad2(minute)}`);
+                  }}
+                >
+                  {[...Array(12)].map((_, i) => {
+                    const hour = i + 1;
+                    return (
+                      <option key={hour} value={hour}>
+                        {pad2(hour)}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Minute:</label>
+                <select
+                  value={getHourMinute(time).minute}
+                  onChange={(e) => {
+                    const newMinute = Number(e.target.value);
+                    const { hour } = getHourMinute(time);
+                    setTime(`${pad2(hour)}:${pad2(newMinute)}`);
+                  }}
+                >
+                  {Array.from({ length: 60 }, (_, i) => pad2(i)).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
                 <label>Period:</label>

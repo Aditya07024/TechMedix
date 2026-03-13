@@ -1,15 +1,63 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-
+import cron from "node-cron";
+import multer from "multer";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, ".env") }); // Load from backend/.env
 
 import express from "express";
 const app = express();
+
+import http from "http";
+import { Server } from "socket.io";
+
+import {
+  registerQueueHandlers,
+  registerNotificationHandlers,
+} from "./socket/queueHandlers.js";
+import { startCronJobs } from "./cron/jobs.js";
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+startNotificationScheduler(io);
+startCronJobs(io);
+
+app.set("io", io);
+
+// Register Socket.IO handlers
+registerQueueHandlers(io);
+registerNotificationHandlers(io);
+
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id);
+
+  socket.on("join-doctor-room", (doctorId) => {
+    socket.join(`doctor-${doctorId}`);
+    console.log(`Socket joined doctor-${doctorId}`);
+  });
+
+  socket.on("join-patient-room", (patientId) => {
+    socket.join(`patient-${patientId}`);
+    console.log(`Socket joined patient-${patientId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
 import sql from "./config/database.js"; // Neon serverless SQL connection
 import axios from "axios";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import authRouter from "./routes/authRouter.js";
 import QRCode from "qrcode";
@@ -39,6 +87,35 @@ import priceRoutes from "./routes/priceRoutes.js";
 import { runPrescriptionMigration } from "./scripts/runPrescriptionMigration.js";
 import { runSafetyReportMigration } from "./scripts/runSafetyReportMigration.js";
 import { runPriceIntelligenceMigration } from "./scripts/runPriceIntelligenceMigration.js";
+import { initializeCompletSchema } from "./scripts/initCompleteSchema.js";
+import appointmentRoutes from "./routes/appointmentRoutes.js";
+import doctorScheduleRoutes from "./routes/doctorScheduleRoutes.js";
+import queueRoutes from "./routes/queueRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import { cancelExpiredAppointments } from "./services/cleanupService.js";
+import recordingRoutes from "./routes/recordingRoutes.js";
+import { sendAppointmentReminders } from "./services/notificationService.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import doctorDashboardRoutes from "./routes/doctorDashboardRoutes.js";
+import patientNotificationRoutes from "./routes/patientNotificationRoutes.js";
+import { startNotificationScheduler } from "./services/notificationScheduler.js";
+import doctorDelayRoutes from "./routes/doctorDelayRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import adminBranchRoutes from "./routes/adminBranchRoutes.js";
+import appointmentManagementRoutes from "./routes/appointmentManagementRoutes.js";
+import timelineManagementRoutes from "./routes/timelineManagementRoutes.js";
+import queueManagementRoutes from "./routes/queueManagementRoutes.js";
+import safetyManagementRoutes from "./routes/safetyManagementRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import prescriptionIntelligenceRoutes from "./routes/prescriptionIntelligenceRoutes.js";
+import notificationManagementRoutes from "./routes/notificationManagementRoutes.js";
+import appointmentApiRoutes from "./routes/appointmentApiRoutes.js";
+import prescriptionApiRoutes from "./routes/prescriptionApiRoutes.js";
+import queueApiRoutes from "./routes/queueApiRoutes.js";
+import timelineApiRoutes from "./routes/timelineApiRoutes.js";
+import notificationApiRoutes from "./routes/notificationApiRoutes.js";
+import scheduleApiRoutes from "./routes/scheduleApiRoutes.js";
+import healthRoutes from "./routes/healthRoutes.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -120,6 +197,20 @@ async function generateMedicalInsightsLocal(payload) {
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
 
+// Security middleware
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false, // Allow audio files to be accessed by frontend
+  }),
+);
+
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+  }),
+);
+
 // CORS configuration - allow all origins in development for mobile app compatibility
 // In production, restrict to specific origins
 app.use(
@@ -134,9 +225,9 @@ app.use(
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 app.use(cookieParser()); // Use cookie-parser middleware
+app.use("/uploads", express.static("uploads"));
 
 // Add multer for file uploads
-import multer from "multer";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -153,6 +244,11 @@ async function testConnection() {
   try {
     const result = await sql`SELECT NOW()`;
     console.log("✓ Connected to PostgreSQL (Neon):", result[0]);
+
+    // Initialize all database tables
+    await initializeCompletSchema();
+
+    // Run specialized migrations
     await runPrescriptionMigration();
     await runSafetyReportMigration();
     await runPriceIntelligenceMigration();
@@ -249,7 +345,7 @@ app.get("/api/reports/:id", async (req, res) => {
 });
 
 // Route to save EHR data and get AI insights
-app.post("/api/patientdata", async (req, res) => {
+app.post("/api/patientdata", authenticate, async (req, res) => {
   try {
     const { patientId, email, symptoms, ehr, medicines, prescription } =
       req.body;
@@ -314,7 +410,7 @@ app.post("/api/patientdata", async (req, res) => {
 });
 
 // Route to fetch EHR history for a patient
-app.get("/api/patientdata/:patientId", async (req, res) => {
+app.get("/api/patientdata/:patientId", authenticate, async (req, res) => {
   try {
     const { patientId } = req.params;
     const rows = await getPatientDataByPatientId(patientId);
@@ -327,7 +423,7 @@ app.get("/api/patientdata/:patientId", async (req, res) => {
 });
 
 // Route to fetch patient information by ID
-app.get("/api/patient/:id", async (req, res) => {
+app.get("/api/patient/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const row = await getPatientById(id);
@@ -529,7 +625,7 @@ const cleanPatientData = (data) => {
 };
 
 // New route for exporting patient data to Excel
-app.get("/api/patient/:id/excel", async (req, res) => {
+app.get("/api/patient/:id/excel", authenticate, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -618,13 +714,17 @@ app.get("/api/patient/:id/excel", async (req, res) => {
     res.status(500).json({ error: "Failed to generate Excel file." });
   }
 });
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/appointments-v2", appointmentManagementRoutes);
 
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+
+server.listen(PORT, () => {
+  console.log(`Server with Socket.io is running on port ${PORT}`);
+
   const key = process.env.GEMINI_API_KEY;
   if (key) {
     console.log(`✓ GEMINI_API_KEY loaded (length: ${key.length})`);
@@ -653,9 +753,71 @@ app.use("/api/prescriptions", prescriptionRoutes);
 app.use("/api/prescription", prescriptionRoutes); // frontend calls /prescription/upload
 app.use("/api", safetyRoutes);
 app.use("/api", priceRoutes);
+app.use("/api/schedule", doctorScheduleRoutes);
+app.use("/queue", queueRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/timeline", timelineManagementRoutes);
+app.use("/api/recordings", recordingRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/notifications-v2", notificationManagementRoutes);
+app.use("/api/doctor", doctorDashboardRoutes);
+app.use("/api/patient-notifications", patientNotificationRoutes);
+app.use("/api/doctor", doctorDelayRoutes);
+app.use("/api/queue-v2", queueManagementRoutes);
+app.use("/api/safety", safetyManagementRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/prescription-intelligence", prescriptionIntelligenceRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/health", healthRoutes);
+app.use("/api/admin", adminBranchRoutes);
 
+// New API Routes (Clean Architecture)
+app.use("/api/v2/appointments", appointmentApiRoutes);
+app.use("/api/v2/prescriptions", prescriptionApiRoutes);
+app.use("/api/v2/queue", queueApiRoutes);
+app.use("/api/v2/timeline", timelineApiRoutes);
+app.use("/api/v2/notifications", notificationApiRoutes);
+app.use("/api/v2/schedule", scheduleApiRoutes);
+
+app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
+  const { userId } = req.params;
+
+  const medicines = await sql`
+    SELECT 
+      pm.id,
+      pm.medicine_name,
+      pm.dosage,
+      pm.frequency,
+      pm.duration,
+      p.created_at
+    FROM prescription_medicines pm
+    JOIN prescriptions p
+    ON pm.prescription_id = p.id
+    WHERE p.user_id = ${userId}
+    ORDER BY p.created_at DESC
+  `;
+
+  res.json(medicines);
+});
+app.delete("/api/medicines/:id", authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ error: "Invalid medicine id" });
+  }
+
+  await sql`
+    DELETE FROM prescription_medicines
+    WHERE id = ${id}
+  `;
+
+  res.json({ success: true });
+});
 // Medicine search (by name or salt) for prescription "Compare with salt"
-app.get("/api/medicines/search", async (req, res) => {
+app.get("/api/medicines/search", authenticate, async (req, res) => {
   try {
     const q = (
       req.query.q ||
@@ -719,10 +881,11 @@ app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
         medicines: record.medicines,
         prescription: record.prescription,
         timestamp: record.timestamp,
-        aiInsights: record.aiInsights,
-        predictedDisease: record.predictedDisease,
-        confidence: record.confidence,
-        relatedSymptoms: record.relatedSymptoms,
+        // Remove AI insights and predictions from public response
+        // aiInsights: record.aiInsights,
+        // predictedDisease: record.predictedDisease,
+        // confidence: record.confidence,
+        // relatedSymptoms: record.relatedSymptoms,
       })),
     };
 
@@ -731,4 +894,114 @@ app.get("/api/public/patient-history/:uniqueCode", async (req, res) => {
     console.error("Error fetching public patient data:", error);
     res.status(500).json({ error: "Failed to retrieve public patient data." });
   }
+});
+
+app.get("/api/diseases", async (req, res) => {
+  const rows = await sql`SELECT category, symptom FROM diseases`;
+
+  const grouped = {};
+
+  rows.forEach((r) => {
+    if (!grouped[r.category]) grouped[r.category] = [];
+    grouped[r.category].push(r.symptom);
+  });
+
+  res.json(grouped);
+});
+
+// AI Pop Health Assistant Endpoint
+app.post("/aipop", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
+      return res.status(400).json({ error: "Invalid or missing prompt" });
+    }
+
+    let reply = "";
+
+    // Try local AI service first
+    try {
+      const localResponse = await axios.post(
+        "http://localhost:5005/insights",
+        {
+          symptoms: { query: prompt },
+          ehr: {},
+          medicines: [],
+          prescription: [],
+        },
+        { timeout: 5000 },
+      );
+      reply = localResponse.data.aiInsights || localResponse.data.reply || "";
+    } catch (localError) {
+      console.warn(
+        "Local AI service unavailable, falling back to LLM:",
+        localError.message,
+      );
+
+      // Fallback to OpenAI/LLM API if configured
+      if (apiKey && baseUrl) {
+        try {
+          const llmResponse = await axios.post(
+            `${baseUrl}/chat/completions`,
+            {
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are TechMedix AI Medical Assistant. Provide helpful health information and medical guidance. Be concise and user-friendly.",
+                },
+                {
+                  role: "user",
+                  content: prompt,
+                },
+              ],
+              temperature: 0.3,
+              max_tokens: 500,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              timeout: 10000,
+            },
+          );
+
+          reply =
+            llmResponse.data.choices?.[0]?.message?.content ||
+            "Unable to generate response";
+        } catch (llmError) {
+          console.error("LLM API error:", llmError.message);
+          reply =
+            "I'm having trouble processing your request right now. Please try again later.";
+        }
+      } else {
+        reply = "AI service is currently unavailable. Please check back soon.";
+      }
+    }
+
+    // Ensure we have a valid reply
+    if (!reply) {
+      reply =
+        "I couldn't generate a response. Please try rephrasing your question.";
+    }
+
+    res.json({ reply: reply.substring(0, 2000) }); // Limit response length
+  } catch (error) {
+    console.error("AiPop endpoint error:", error);
+    res.status(500).json({
+      error: "Failed to process AI request",
+      reply: "An error occurred. Please try again.",
+    });
+  }
+});
+
+// Global error handler (must be last middleware)
+app.use((err, req, res, next) => {
+  console.error("Unhandled Error:", err);
+  res.status(err.status || 500).json({
+    error: err.message || "Internal Server Error",
+  });
 });

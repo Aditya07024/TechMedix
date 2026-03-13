@@ -1,8 +1,12 @@
 import pkg from "pg";
 const { Client } = pkg;
 
-const connectionString =
-  "postgresql://neondb_owner:npg_5NjwcFtS0pDC@ep-shy-forest-a13g5h6x-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error("❌ DATABASE_URL is not set in environment variables");
+  process.exit(1);
+}
 
 const schema = `
 -- Drop existing tables if they exist (for fresh setup)
@@ -20,7 +24,8 @@ CREATE TABLE doctors (
   password VARCHAR(255) NOT NULL,
   specialty VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 -- Patients table
@@ -36,7 +41,8 @@ CREATE TABLE patients (
   medical_history TEXT,
   unique_code VARCHAR(10) UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 -- Medicines table
@@ -54,7 +60,8 @@ CREATE TABLE medicines (
   image TEXT DEFAULT 'https://img1.exportersindia.com/product_images/bc-full/2022/1/1169423/warfarin-sodium-tablets-1642579071-6164622.jpeg',
   link TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 -- Reports table
@@ -65,7 +72,8 @@ CREATE TABLE reports (
   file_name VARCHAR(255),
   file_type VARCHAR(100),
   ai_report TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 -- Patient Data (Health Records) table
@@ -92,7 +100,8 @@ CREATE TABLE patient_data (
   confidence NUMERIC,
   related_symptoms TEXT[],
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE
 );
 
 -- Create indexes for better performance
@@ -102,6 +111,11 @@ CREATE INDEX idx_doctors_email ON doctors(email);
 CREATE INDEX idx_medicines_name ON medicines(name);
 CREATE INDEX idx_patient_data_patient_id ON patient_data(patient_id);
 CREATE INDEX idx_reports_user_id ON reports(user_id);
+CREATE INDEX idx_doctors_is_deleted ON doctors(is_deleted);
+CREATE INDEX idx_patients_is_deleted ON patients(is_deleted);
+CREATE INDEX idx_medicines_is_deleted ON medicines(is_deleted);
+CREATE INDEX idx_reports_is_deleted ON reports(is_deleted);
+CREATE INDEX idx_patient_data_is_deleted ON patient_data(is_deleted);
 `;
 
 async function initializeDatabase() {

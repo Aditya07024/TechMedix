@@ -7,6 +7,9 @@ import adherenceAgent from "../agents/adherenceAgent.js";
 
 const workflowOrchestrator = {
   async execute({ prescriptionId, userId }) {
+    if (!prescriptionId) throw new Error("prescriptionId missing");
+    if (!userId) throw new Error("userId missing");
+
     const workflowId = uuid();
 
     const result = {
@@ -15,34 +18,56 @@ const workflowOrchestrator = {
       agents: {},
       warnings: [],
       status: "in_progress",
+      started_at: new Date(),
     };
 
-    /* ---------- AGENT 1 ---------- */
-    result.agents.extraction = await prescriptionAgent.execute({
-      prescriptionId,
-      userId,
-      workflowId,
-    });
+    try {
+      /* ---------- AGENT 1 (Extraction) ---------- */
+      result.agents.extraction = await prescriptionAgent.execute({
+        prescriptionId,
+        userId,
+        workflowId,
+      });
 
-    /* ---- AGENT 2 & 3 PARALLEL ---- */
-    const [safetyRes, priceRes] = await Promise.allSettled([
-      runSafetyAgent({ prescriptionId }),
-      runPriceAgent({ prescriptionId }),
-    ]);
+      /* ---- AGENT 2 & 3 PARALLEL ---- */
+      const [safetyRes, priceRes] = await Promise.allSettled([
+        runSafetyAgent({ prescriptionId, userId }),
+        runPriceAgent({ prescriptionId }),
+      ]);
 
-    result.agents.safety =
-      safetyRes.status === "fulfilled" ? safetyRes.value : null;
+      if (safetyRes.status === "fulfilled") {
+        result.agents.safety = safetyRes.value;
 
-    result.agents.price =
-      priceRes.status === "fulfilled" ? priceRes.value : null;
+        if (!safetyRes.value.safe_to_proceed) {
+          result.warnings.push("Safety risk detected");
+        }
+      } else {
+        result.agents.safety = null;
+        result.warnings.push("Safety agent failed");
+      }
 
-    /* ---------- AGENT 4 ---------- */
-    result.agents.adherence = await adherenceAgent.execute({
-      prescriptionId,
-    });
+      if (priceRes.status === "fulfilled") {
+        result.agents.price = priceRes.value;
+      } else {
+        result.agents.price = null;
+        result.warnings.push("Price agent failed");
+      }
 
-    result.status = "completed";
-    return result;
+      /* ---------- AGENT 4 (Adherence) ---------- */
+      result.agents.adherence = await adherenceAgent.execute({
+        prescriptionId,
+      });
+
+      result.status = "completed";
+      result.completed_at = new Date();
+
+      return result;
+    } catch (error) {
+      result.status = "failed";
+      result.error = error.message;
+      result.completed_at = new Date();
+      return result;
+    }
   },
 };
 

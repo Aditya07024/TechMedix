@@ -1,0 +1,54 @@
+
+
+.payment-page {
+  padding: 40px;
+  max-width: 500px;
+  margin: 60px auto;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  text-align: center;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.payment-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 30px;
+  color: #222;
+}
+
+.payment-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.payment-btn.online {
+  background: #1976d2;
+  color: white;
+}
+
+.payment-btn.online:hover {
+  background: #1565c0;
+}
+
+.payment-btn.cash {
+  background: #eeeeee;
+  color: #333;
+}
+
+.payment-btn.cash:hover {
+  background: #e0e0e0;
+}
+
+.payment-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

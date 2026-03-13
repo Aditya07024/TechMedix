@@ -15,13 +15,6 @@ export const authApi = {
   status: () => api.get("/auth/status"),
 };
 
-export const doctorApi = {
-  login: (data) => api.post("/auth/doctor/login", data),
-  signup: (data) => api.post("/auth/doctor/signup", data),
-  getPatientData: (uniqueCode) =>
-    api.get(`/api/doctor/patient-data/${uniqueCode}`),
-};
-
 export const medicineApi = {
   addMedicine: (data) => api.post("/new", data),
   getMedicine: (id) => api.get(`/medicines/${id}`),
@@ -49,8 +42,46 @@ export const patientApi = {
   deletePatient: (id) => api.delete(`/api/patient/${id}`),
 };
 
+export const paymentApi = {
+  createPayment: (data) => api.post("/api/payments/create", data),
+  createRazorpayOrder: (data) => api.post("/api/payments/create-order", data),
+  verifyRazorpayPayment: (data) => api.post("/api/payments/verify", data),
+  confirmPayment: (data) => api.post("/api/payments/confirm", data),
+  markCashPaid: (data) => api.post("/api/payments/mark-cash-paid", data),
+  getDoctorSummary: (doctorId) =>
+    api.get(`/api/payments/doctor/${doctorId}/summary`),
+};
+
 export const aiApi = {
   getAiPopResponse: (prompt) => api.post("/aipop", { prompt }),
 };
 
+export const doctorApi = {
+  login: (data) => api.post("/auth/doctor/login", data),
+  signup: (data) => api.post("/auth/doctor/signup", data),
+
+  // 👇 Get appointments
+  getDoctorAppointments: (doctorId) =>
+    api.get(`/api/appointments/doctor/${doctorId}`),
+  getProfile: () => api.get("/auth/doctor/profile"),
+  updateProfile: (data) => api.patch("/auth/doctor/profile", data),
+
+  // 👇 Update appointment status
+  updateAppointmentStatus: (appointmentId, status) =>
+    api.put(`/api/appointments/${appointmentId}/status`, { status }),
+
+  // 👇 Upload recording
+  uploadRecording: (formData) =>
+    api.post("/api/recordings", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+
+  // 👇 Get all recordings
+  getDoctorRecordings: (doctorId) =>
+    api.get(`/api/recordings/doctor/${doctorId}`),
+
+  // 👇 Patient data access
+  getPatientData: (uniqueCode) =>
+    api.get(`/api/doctor/patient-data/${uniqueCode}`),
+};
 export default api;

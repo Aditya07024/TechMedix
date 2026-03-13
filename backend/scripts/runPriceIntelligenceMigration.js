@@ -33,6 +33,7 @@ export async function runPriceIntelligenceMigration() {
       )`
     );
     await run(() => sql`CREATE INDEX IF NOT EXISTS idx_mp_name ON medicine_prices(medicine_name)`);
+    await run(() => sql`CREATE INDEX IF NOT EXISTS idx_mp_name_price ON medicine_prices(medicine_name, price)`);
     await run(() =>
       sql`CREATE TABLE IF NOT EXISTS price_history (
         id SERIAL PRIMARY KEY,
@@ -44,10 +45,11 @@ export async function runPriceIntelligenceMigration() {
       )`
     );
     await run(() => sql`CREATE INDEX IF NOT EXISTS idx_ph_med ON price_history(medicine_name)`);
+    await run(() => sql`CREATE INDEX IF NOT EXISTS idx_ph_name_recorded ON price_history(medicine_name, recorded_at DESC)`);
     await run(() =>
       sql`CREATE TABLE IF NOT EXISTS price_reports (
         id SERIAL PRIMARY KEY,
-        prescription_id UUID,
+        prescription_id INTEGER REFERENCES prescriptions(id) ON DELETE CASCADE,
         total_original_price DECIMAL(10,2) DEFAULT 0,
         total_replaced_price DECIMAL(10,2) DEFAULT 0,
         savings DECIMAL(10,2) DEFAULT 0,
@@ -57,14 +59,17 @@ export async function runPriceIntelligenceMigration() {
     await run(() =>
       sql`CREATE TABLE IF NOT EXISTS price_alerts (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL,
+        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
         medicine_name VARCHAR(255) NOT NULL,
         alert_type VARCHAR(50) NOT NULL,
         target_value DECIMAL(10,2),
         is_active BOOLEAN DEFAULT true,
+        is_deleted BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     );
+    await run(() => sql`CREATE INDEX IF NOT EXISTS idx_price_alerts_patient ON price_alerts(patient_id)`);
+    await run(() => sql`CREATE INDEX IF NOT EXISTS idx_price_alerts_is_deleted ON price_alerts(is_deleted)`);
 
     const platformCount = await sql`SELECT COUNT(*)::int as n FROM platforms`;
     if (platformCount[0]?.n === 0) {

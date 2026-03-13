@@ -352,6 +352,15 @@ export const Dashboard = () => {
           </div>
           <div className="button-div">
             <Link
+              to="/dashboard"
+              className="go-to-home-data-button"
+              style={{ marginTop: 16 }}
+            >
+              <button className="Documents-btn">
+                <p className="text">Home</p>
+              </button>
+            </Link>
+            <Link
               to="/form"
               className="add-new-data-button"
               style={{ marginTop: 16 }}
@@ -361,17 +370,8 @@ export const Dashboard = () => {
               </button>
             </Link>
 
-            <div className="qr-section">
-              <button className="qr-button" onClick={() => generateQR(user.id)}>
-                Generate QR
-              </button>
-              {qrData && (
-                <div className="qr-image">
-                  <img src={qrData} alt="Patient QR Code" />
-                  <p className="qr-text">Scan to open profile</p>
-                </div>
-              )}
-            </div>
+            
+            
           </div>
         </div>
 

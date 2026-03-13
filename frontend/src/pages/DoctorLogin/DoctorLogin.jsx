@@ -8,18 +8,40 @@ const DoctorLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
-      const res = await doctorApi.login({ email, password }); // Corrected API call
-      login(res.data.user); // Store doctor user data in context
-      navigate("/doctor/dashboard"); // Redirect to doctor dashboard
+      const res = await doctorApi.login({ email, password });
+
+      if (!res.data || !res.data.user) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Ensure role is doctor
+      if (res.data.user.role !== "doctor") {
+        throw new Error("Unauthorized access");
+      }
+
+      login(res.data.user);
+      // Store doctor UUID for API calls (backend uses UUID)
+      if (res.data.user?.id) {
+        localStorage.setItem("doctorId", res.data.user.id);
+      }
+      navigate("/doctor/dashboard");
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed");
+      setError(
+        err.response?.data?.error ||
+        err.message ||
+        "Login failed"
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,8 +70,8 @@ const DoctorLogin = () => {
             required
           />
         </div>
-        <button type="submit" className="login-button">
-          Login
+        <button type="submit" className="login-button" disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
         </button>
         <p className="signup-link">
           Don't have an account?{" "}
