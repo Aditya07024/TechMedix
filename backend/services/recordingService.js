@@ -69,7 +69,6 @@ export async function getPatientRecordings(patientId) {
     LEFT JOIN appointments a ON r.appointment_id = a.id
     JOIN doctors d ON r.doctor_id = d.id
     WHERE r.patient_id = ${patientId}
-      AND COALESCE(r.is_deleted, FALSE) = FALSE
     ORDER BY r.created_at DESC
   `;
 
@@ -90,9 +89,19 @@ export async function getDoctorRecordings(doctorId) {
     LEFT JOIN appointments a ON r.appointment_id = a.id
     JOIN patients p ON r.patient_id = p.id
     WHERE r.doctor_id = ${doctorId}
-      AND COALESCE(r.is_deleted, FALSE) = FALSE
     ORDER BY r.created_at DESC
   `;
 
   return recordings;
+}
+
+export async function getRecordingById(id) {
+  const rows = await sql`
+    SELECT id, doctor_id, patient_id, audio_url, duration, created_at
+    FROM recordings
+    WHERE id = ${id}
+      AND COALESCE(is_deleted, FALSE) = FALSE
+    LIMIT 1
+  `;
+  return rows[0] || null;
 }

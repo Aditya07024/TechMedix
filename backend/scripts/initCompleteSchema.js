@@ -166,6 +166,8 @@ export async function initializeCompletSchema() {
         is_deleted BOOLEAN DEFAULT FALSE
       );
     `;
+    // Ensure columns exist even if table was created earlier without them
+    await sql`ALTER TABLE recordings ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
 
     // 7️⃣ PATIENT DATA (EHR)
     await sql`

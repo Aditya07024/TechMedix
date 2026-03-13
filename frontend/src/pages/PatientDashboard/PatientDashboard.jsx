@@ -43,6 +43,32 @@ export default function PatientDashboard() {
   const [healthChatOpen, setHealthChatOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [recordings, setRecordings] = useState([]);
+  const handleDownloadRecording = async (rec) => {
+    try {
+      const res = await fetch(`/api/recordings/${rec.id}/download`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        alert(`Download failed: ${text}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `recording-${rec.id}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Download error: ${e.message}`);
+    }
+  };
   const fetchRecordings = async (pid) => {
     try {
       const recRes = await fetch(`/api/recordings/patient/${pid}`, {
@@ -657,6 +683,15 @@ export default function PatientDashboard() {
                       <span>{r.doctor_name || "-"}</span>
                     </div>
                     <audio controls src={r.file_url} style={{ width: "100%" }} />
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        onClick={() => handleDownloadRecording(r)}
+                        className="action-btn"
+                        style={{ padding: "6px 10px" }}
+                      >
+                        ⬇️ Download
+                      </button>
+                    </div>
                     <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 12, color: "#555" }}>
                       <div>
                         <strong>Date:</strong> {r.appointment_date ? new Date(r.appointment_date).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}

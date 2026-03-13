@@ -1017,7 +1017,11 @@ app.use("/api/v2/notifications", notificationApiRoutes);
 app.use("/api/v2/schedule", scheduleApiRoutes);
 
 app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
+  const reqId = `M${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
   const { userId } = req.params;
+  console.log(`[Medicines ${reqId}] GET /api/user/${userId}/medicines user=${req.user?.id} role=${req.user?.role}`);
 
   const medicines = await sql`
     SELECT 
@@ -1034,6 +1038,7 @@ app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
     ORDER BY p.created_at DESC
   `;
 
+  console.log(`[Medicines ${reqId}] rows=${medicines.length}`);
   res.json(medicines);
 });
 app.delete("/api/medicines/:id", authenticate, async (req, res) => {
