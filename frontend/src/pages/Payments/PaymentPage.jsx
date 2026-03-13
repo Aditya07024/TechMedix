@@ -215,10 +215,10 @@ export default function PaymentPage() {
               <p>
                 <strong>Doctor:</strong> Dr. {appointment.doctor_name}
               </p>
-              <p>
+              {/* <p>
                 <strong>Consultation Fee:</strong> ₹
                 {appointment.consultation_fee}
-              </p>
+              </p> */}
             </div>
           )}
           <button

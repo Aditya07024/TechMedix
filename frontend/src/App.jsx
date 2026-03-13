@@ -20,8 +20,6 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
 import DoctorLogin from "./pages/DoctorLogin/DoctorLogin";
 import DoctorSignup from "./pages/DoctorSignup/DoctorSignup";
-import DoctorDashboard from "./pages/DoctorDashboard/DoctorDashboard";
-
 import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions";
 import PatientDashboard from "./pages/PatientDashboard/PatientDashboard";
 import DoctorDashboardNew from "./pages/DoctorDashboardNew/DoctorDashboardNew";
@@ -31,6 +29,7 @@ import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
 import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
 import PaymentPage from "./pages/Payments/PaymentPage";
 import HealthMetrics from "./components/HealthMetrics/HealthMetrics";
+import HealthWallet from "./pages/HealthWallet/HealthWallet";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -87,6 +86,15 @@ const App = () => {
             }
           />
 
+          <Route
+            path="/health-wallet"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <HealthWallet />
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
           <Route path="/report-generator" element={<ReportGenerator />} />
@@ -96,17 +104,7 @@ const App = () => {
           <Route path="/doctor/signup" element={<DoctorSignup />} />
           <Route path="/payment/:appointmentId" element={<PaymentPage />} />
 
-          {/* 👨‍⚕️ DOCTOR DASHBOARD */}
-          <Route
-            path="/doctor/dashboard-v2"
-            element={
-              <ProtectedRoute requiredRole="doctor">
-                <DoctorDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ✨ NEW DOCTOR DASHBOARD V2 */}
+          {/* ✨ DOCTOR DASHBOARD */}
           <Route
             path="/doctor/dashboard"
             element={

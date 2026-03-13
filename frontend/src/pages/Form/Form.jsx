@@ -149,7 +149,7 @@ export const Form = () => {
 
       if (response.status === 201) {
         alert("Health data submitted successfully!");
-        navigate("/dashboard");
+        navigate("new/dashboard");
       } else {
         alert("Failed to submit health data.");
       }

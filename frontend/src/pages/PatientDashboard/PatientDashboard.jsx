@@ -204,6 +204,12 @@ export default function PatientDashboard() {
         >
           🔔 Notifications
         </button>
+        <button
+          className={`tab-btn ${activeTab === "wallet" ? "active" : ""}`}
+          onClick={() => (window.location.href = "/health-wallet")}
+        >
+          Wallet
+        </button>
       </div>
 
       <div className="dashboard-content">
@@ -251,33 +257,43 @@ export default function PatientDashboard() {
                 <p style={{ marginBottom: "6px", fontWeight: "600" }}>
                   Health Status
                 </p>
-                <div
-                  style={{
-                    width: "100%",
-                    background: "#eee",
-                    borderRadius: 8,
-                    height: 12,
-                    marginBottom: 6,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${Math.min(medicines.length * 20, 100)}%`,
-                      background:
-                        medicines.length > 3
-                          ? "#22c55e"
-                          : medicines.length > 1
-                            ? "#f59e0b"
-                            : "#ef4444",
-                      height: "100%",
-                      borderRadius: 8,
-                      transition: "width 300ms ease-in-out",
-                    }}
-                  />
-                </div>
-                <span style={{ fontSize: "12px", color: "#555" }}>
-                  {Math.min(medicines.length * 20, 100)}% Health Score
-                </span>
+                {(() => {
+                  const score = medicines.length
+                    ? Math.min(medicines.length * 20, 100)
+                    : 40; // baseline health status when no meds are listed
+                  const color =
+                    score > 70
+                      ? "#22c55e"
+                      : score > 40
+                      ? "#f59e0b"
+                      : "#ef4444";
+                  return (
+                    <>
+                      <div
+                        style={{
+                          width: "100%",
+                          background: "#eee",
+                          borderRadius: 8,
+                          height: 12,
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${score}%`,
+                            background: color,
+                            height: "100%",
+                            borderRadius: 8,
+                            transition: "width 300ms ease-in-out",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: "12px", color: "#555" }}>
+                        {score}% Health Score
+                      </span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
