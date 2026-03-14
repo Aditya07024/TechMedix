@@ -50,11 +50,16 @@ const HealthMetrics = ({ patientId }) => {
   };
 
   const formatValue = (value, unit) => {
-    if (unit === "count") return Math.round(value).toLocaleString();
-    if (unit === "hours") return value.toFixed(1);
-    if (unit === "kcal") return Math.round(value);
-    if (unit === "bpm") return Math.round(value);
-    return value.toFixed(1);
+    // Convert to number if string, handle null/undefined
+    const numValue = value === null || value === undefined ? 0 : parseFloat(value);
+    
+    if (isNaN(numValue)) return "N/A";
+    
+    if (unit === "count") return Math.round(numValue).toLocaleString();
+    if (unit === "hours") return numValue.toFixed(1);
+    if (unit === "kcal") return Math.round(numValue);
+    if (unit === "bpm") return Math.round(numValue);
+    return numValue.toFixed(1);
   };
 
   const getMetricIcon = (type) => {

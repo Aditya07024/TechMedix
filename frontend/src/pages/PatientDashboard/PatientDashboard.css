@@ -6,7 +6,11 @@
 
 .dark-mode .patient-dashboard {
   background:
-    radial-gradient(circle at top left, rgba(102, 126, 234, 0.14), transparent 28%),
+    radial-gradient(
+      circle at top left,
+      rgba(102, 126, 234, 0.14),
+      transparent 28%
+    ),
     linear-gradient(to bottom, #121826, #0b1220);
   color: #e5ecff;
 }
@@ -107,7 +111,6 @@
 }
 
 .stat-card {
-  
   background: white;
   padding: 25px;
   border-radius: 12px;
@@ -534,5 +537,61 @@
 
   .stat-card h3 {
     font-size: 2rem;
+  }
+
+  /* Health Metrics Tab Responsive */
+  .health-metrics-container {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .google-fit-section,
+  .google-fit-metrics-section {
+    width: 100%;
+  }
+}
+
+/* HEALTH METRICS TAB STYLES */
+.health-metrics-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.health-metrics-tab h2 {
+  color: #1f2937;
+  font-size: 1.8rem;
+  margin: 0 0 20px 0;
+}
+
+.health-metrics-container {
+  display: grid;
+  grid-template-columns: 35% 1fr;
+  gap: 30px;
+  align-items: start;
+}
+
+.google-fit-section {
+  /* Left side - Connect button */
+}
+
+.google-fit-metrics-section {
+  /* Right side - Metrics display */
+}
+
+@media (max-width: 1024px) {
+  .health-metrics-container {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .google-fit-section {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .google-fit-metrics-section {
+    width: 100%;
   }
 }

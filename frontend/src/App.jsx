@@ -31,6 +31,7 @@ import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails"
 import PaymentPage from "./pages/Payments/PaymentPage";
 import HealthMetrics from "./components/HealthMetrics/HealthMetrics";
 import HealthWallet from "./pages/HealthWallet/HealthWallet";
+import GoogleFitCallback from "./components/GoogleFitCallback/GoogleFitCallback";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -59,7 +60,7 @@ const App = () => {
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/health" element={<HealthMetrics />}/>
+          <Route path="/health" element={<HealthMetrics />} />
 
           {/* 🔥 PRESCRIPTION FLOW */}
           <Route path="/upload-prescription" element={<UploadPrescription />} />
@@ -95,6 +96,12 @@ const App = () => {
             }
           />
 
+          {/* 🏥 Google Fit OAuth Callback */}
+          <Route
+            path="/auth/google-fit/callback"
+            element={<GoogleFitCallback />}
+          />
+
           <Route path="/new" element={<AddMedicine />} />
           <Route path="/medicines/:id" element={<EditMedicine />} />
           <Route path="/report-generator" element={<ReportGenerator />} />
@@ -103,8 +110,6 @@ const App = () => {
           <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/doctor/signup" element={<DoctorSignup />} />
           <Route path="/payment/:appointmentId" element={<PaymentPage />} />
-
-          
 
           {/* ✨ NEW DOCTOR DASHBOARD V2 */}
           <Route

@@ -1,0 +1,144 @@
+/* Google Fit OAuth Callback Component */
+
+.google-fit-callback-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.callback-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  padding: 50px 40px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.callback-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Processing State */
+.callback-content.processing {
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #e0e0e0;
+  border-top: 5px solid #4285f4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.callback-content h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.callback-content p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Success State */
+.callback-content.success {
+  gap: 15px;
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  background: #d1e7dd;
+  border: 2px solid #0a3622;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #0a3622;
+  font-weight: bold;
+}
+
+.callback-content.success h2 {
+  color: #0a3622;
+}
+
+.callback-content.success p {
+  color: #0a3622;
+  opacity: 0.7;
+}
+
+/* Error State */
+.callback-content.error {
+  gap: 15px;
+}
+
+.error-icon {
+  width: 60px;
+  height: 60px;
+  background: #f8d7da;
+  border: 2px solid #721c24;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #721c24;
+  font-weight: bold;
+}
+
+.callback-content.error h2 {
+  color: #721c24;
+}
+
+.callback-content.error p {
+  color: #721c24;
+  opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .callback-card {
+    padding: 30px 20px;
+  }
+
+  .callback-content h2 {
+    font-size: 18px;
+  }
+
+  .callback-content p {
+    font-size: 12px;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+  }
+
+  .success-icon,
+  .error-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 28px;
+  }
+}

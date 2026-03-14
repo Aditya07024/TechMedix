@@ -117,6 +117,7 @@ import notificationApiRoutes from "./routes/notificationApiRoutes.js";
 import scheduleApiRoutes from "./routes/scheduleApiRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import healthWalletRoutes from "./routes/healthWalletRoutes.js";
+import googleFitRoutes from "./routes/googleFitRoutes.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -224,7 +225,9 @@ function analyzeVitals(ehr = {}) {
       findings.push("Tachycardia detected (>100 bpm).");
       signals.medium++;
     } else if (hr < 55) {
-      findings.push("Bradycardia detected (<55 bpm); verify if athletic baseline.");
+      findings.push(
+        "Bradycardia detected (<55 bpm); verify if athletic baseline.",
+      );
       signals.medium++;
     }
   }
@@ -243,7 +246,9 @@ function analyzeVitals(ehr = {}) {
   // Cholesterol
   if (chol != null) {
     if (chol >= 240) {
-      findings.push("High total cholesterol — lifestyle + lipid panel follow‑up.");
+      findings.push(
+        "High total cholesterol — lifestyle + lipid panel follow‑up.",
+      );
       signals.medium++;
     } else if (chol >= 200) {
       findings.push("Borderline cholesterol — monitor diet and recheck.");
@@ -252,13 +257,17 @@ function analyzeVitals(ehr = {}) {
 
   // Temperature
   if (temp != null && temp >= 38.0) {
-    findings.push("Fever present (≥38°C) — possible infection or inflammation.");
+    findings.push(
+      "Fever present (≥38°C) — possible infection or inflammation.",
+    );
     signals.medium++;
   }
 
   // SpO2
   if (spo2 != null && spo2 < 94) {
-    findings.push("Low SpO₂ (<94%) — evaluate respiratory status if symptomatic.");
+    findings.push(
+      "Low SpO₂ (<94%) — evaluate respiratory status if symptomatic.",
+    );
     signals.strong++;
   }
 
@@ -302,7 +311,7 @@ function guessCondition(ehr = {}, symptoms = {}) {
   let label = "No acute condition suspected";
   let conf = 0.35;
 
-  if ((s != null && d != null) && (s >= 140 || d >= 90)) {
+  if (s != null && d != null && (s >= 140 || d >= 90)) {
     label = "Hypertension";
     conf = 0.75;
     if (bmi != null && bmi >= 30) conf += 0.05;
@@ -354,7 +363,9 @@ async function generateMedicalInsightsLocal(payload) {
     lines.push("- Vitals within general ranges. Keep tracking health metrics.");
   }
   lines.push("");
-  lines.push(`ML Predicted Disease: ${guess.label} (Confidence: ${(guess.confidence * 100).toFixed(0)}%)`);
+  lines.push(
+    `ML Predicted Disease: ${guess.label} (Confidence: ${(guess.confidence * 100).toFixed(0)}%)`,
+  );
   if (guess.relatedSymptoms.length) {
     lines.push(`Related symptoms: ${guess.relatedSymptoms.join(", ")}`);
   }
@@ -488,7 +499,7 @@ app.post("/api/health-chat", authenticate, async (req, res) => {
       const local = await axios.post(
         "http://localhost:5005/insights",
         { chat: messages, context },
-        { timeout: 2000 }
+        { timeout: 2000 },
       );
       const text = local.data?.reply || local.data?.aiInsights;
       if (text) return res.json({ reply: String(text).slice(0, 2000) });
@@ -514,7 +525,10 @@ Rules:
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages.map((m) => ({ role: m.role, content: String(m.content || "") })),
+        ...messages.map((m) => ({
+          role: m.role,
+          content: String(m.content || ""),
+        })),
       ],
       temperature: 0.3,
       max_tokens: 700,
@@ -528,7 +542,9 @@ Rules:
       timeout: 10000,
     });
 
-    const reply = llm.data?.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+    const reply =
+      llm.data?.choices?.[0]?.message?.content ||
+      "Sorry, I couldn't generate a response.";
     res.json({ reply: reply.slice(0, 2000) });
   } catch (err) {
     console.error("health-chat error:", err.message);
@@ -606,10 +622,18 @@ app.post("/api/patientdata", authenticate, async (req, res) => {
 
     let ai = null;
     if (shouldRunAI) {
-      ai = await generateMedicalInsightsLocal({ symptoms, ehr, medicines, prescription });
+      ai = await generateMedicalInsightsLocal({
+        symptoms,
+        ehr,
+        medicines,
+        prescription,
+      });
     }
-    const aiInsights = ai?.text || "AI insights could not be generated at this time. Data saved successfully.";
-    let predictedDisease = ai?.predictedDisease || "Agent prediction unavailable";
+    const aiInsights =
+      ai?.text ||
+      "AI insights could not be generated at this time. Data saved successfully.";
+    let predictedDisease =
+      ai?.predictedDisease || "Agent prediction unavailable";
     let confidence = Number(ai?.confidence || 0);
     let relatedSymptoms = ai?.relatedSymptoms || [];
 
@@ -1011,6 +1035,8 @@ app.use("/api/prescription-intelligence", prescriptionIntelligenceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/health-wallet", healthWalletRoutes);
+app.use("/auth/google-fit", googleFitRoutes);
+app.use("/api/google-fit", googleFitRoutes);
 app.use("/api/admin", adminBranchRoutes);
 
 // New API Routes (Clean Architecture)
@@ -1026,7 +1052,9 @@ app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
     .toString(36)
     .slice(2, 7)}`;
   const { userId } = req.params;
-  console.log(`[Medicines ${reqId}] GET /api/user/${userId}/medicines user=${req.user?.id} role=${req.user?.role}`);
+  console.log(
+    `[Medicines ${reqId}] GET /api/user/${userId}/medicines user=${req.user?.id} role=${req.user?.role}`,
+  );
 
   const medicines = await sql`
     SELECT 

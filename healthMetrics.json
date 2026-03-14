@@ -1,0 +1,146 @@
+{
+  "status": "success",
+  "date": "2026-03-14",
+  "patientId": "5bc75d6f-ad20-495f-890c-70d6af8a3750",
+  "metrics": [
+    {
+      "id": "heart_rate_001",
+      "metricType": "heart_rate",
+      "value": 76,
+      "unit": "bpm",
+      "recordedAt": "2026-03-14T12:15:00Z",
+      "source": "Google Fit",
+      "sourceApp": "Noise Fit",
+      "status": "✓ Created"
+    },
+    {
+      "id": "steps_001",
+      "metricType": "steps",
+      "value": 0,
+      "unit": "steps",
+      "recordedAt": "2026-03-14T00:00:00Z",
+      "source": "Google Fit",
+      "status": "No valid data found",
+      "note": "Dataset returned empty points array"
+    },
+    {
+      "id": "sleep_001",
+      "metricType": "sleep_duration",
+      "value": 0,
+      "unit": "hours",
+      "recordedAt": "2026-03-14T00:00:00Z",
+      "source": "Google Fit",
+      "status": "No data found"
+    },
+    {
+      "id": "calories_001",
+      "metricType": "calories_burned",
+      "value": 0,
+      "unit": "kcal",
+      "recordedAt": "2026-03-14T12:13:07Z",
+      "source": "Google Fit",
+      "status": "Data too small to process",
+      "rawValue": 1.810763888888889e-11
+    }
+  ],
+  "summary": {
+    "totalMetricsRetrieves": 4,
+    "successfulMetrics": 1,
+    "metricsWithData": 1,
+    "metricsWithoutData": 3,
+    "syncDuration": "~2 seconds",
+    "lastSyncTime": "2026-03-14T12:20:00Z"
+  },
+  "googleFitResponse": {
+    "heartRate": {
+      "bucket": [
+        {
+          "startTimeMillis": "1773513000000",
+          "endTimeMillis": "1773599399999",
+          "dataset": [
+            {
+              "dataSourceId": "derived:com.google.heart_rate.summary:com.google.android.gms:aggregated",
+              "point": [
+                {
+                  "startTimeNanos": "1773520500000000000",
+                  "endTimeNanos": "1773520500000000000",
+                  "dataTypeName": "com.google.heart_rate.summary",
+                  "originDataSourceId": "raw:com.google.heart_rate.bpm:com.noisefit:noise_activity - Heart data",
+                  "value": [
+                    {
+                      "fpVal": 76,
+                      "mapVal": []
+                    },
+                    {
+                      "fpVal": 76,
+                      "mapVal": []
+                    },
+                    {
+                      "fpVal": 76,
+                      "mapVal": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "steps": {
+      "bucket": [
+        {
+          "startTimeMillis": "1773513000000",
+          "endTimeMillis": "1773599400000",
+          "dataset": [
+            {
+              "dataSourceId": "derived:com.google.step_count.delta:com.google.android.gms:aggregated",
+              "point": []
+            }
+          ]
+        }
+      ]
+    },
+    "sleep": {
+      "bucket": [
+        {
+          "startTimeMillis": "1773513000000",
+          "endTimeMillis": "1773599399999",
+          "dataset": [
+            {
+              "dataSourceId": "derived:com.google.sleep.segment:com.google.android.gms:merged",
+              "point": []
+            }
+          ]
+        }
+      ]
+    },
+    "calories": {
+      "bucket": [
+        {
+          "startTimeMillis": "1773513000000",
+          "endTimeMillis": "1773599399999",
+          "dataset": [
+            {
+              "dataSourceId": "derived:com.google.calories.expended:com.google.android.gms:aggregated",
+              "point": [
+                {
+                  "startTimeNanos": "1773520387016000000",
+                  "endTimeNanos": "1773520387016000001",
+                  "dataTypeName": "com.google.calories.expended",
+                  "originDataSourceId": "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
+                  "value": [
+                    {
+                      "fpVal": 1.810763888888889e-11,
+                      "mapVal": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

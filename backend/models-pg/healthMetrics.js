@@ -17,6 +17,17 @@ export const createHealthMetric = async (metricData) => {
       metadata, // JSON object for additional data
     } = metricData;
 
+    // Validate required fields
+    if (!patient_id) {
+      throw new Error("patient_id is required");
+    }
+    if (!metric_type) {
+      throw new Error("metric_type is required");
+    }
+    if (value === null || value === undefined) {
+      throw new Error("value is required");
+    }
+
     const result = await sql`
       INSERT INTO health_metrics (
         patient_id,
@@ -41,10 +52,20 @@ export const createHealthMetric = async (metricData) => {
       RETURNING *
     `;
 
+    if (!result || result.length === 0) {
+      throw new Error("Insert succeeded but no row returned");
+    }
+
+    console.log(
+      `[HEALTH-METRIC] ✓ Created ${metric_type} metric for patient ${patient_id}: ${value} ${unit}`,
+    );
     return result[0];
   } catch (error) {
-    console.error("Create health metric failed:", error);
-    return null;
+    console.error(
+      `[HEALTH-METRIC] ✗ Create health metric failed for ${metricData?.metric_type}:`,
+      error.message,
+    );
+    throw error; // Re-throw so caller knows there was an error
   }
 };
 
@@ -103,6 +124,9 @@ export const getLatestHealthMetrics = async (patientId) => {
 
 export const getHealthMetricsSummary = async (patientId, days = 7) => {
   try {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
     const result = await sql`
       SELECT
         metric_type,
@@ -114,7 +138,7 @@ export const getHealthMetricsSummary = async (patientId, days = 7) => {
       FROM health_metrics
       WHERE patient_id = ${patientId}
         AND is_deleted = FALSE
-        AND recorded_at >= NOW() - INTERVAL '${days} days'
+        AND recorded_at >= ${startDate}
       GROUP BY metric_type, unit
     `;
     return result;

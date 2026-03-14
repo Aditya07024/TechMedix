@@ -13,7 +13,6 @@ const MedicineReminder = () => {
     const savedReminders = localStorage.getItem('medicineReminders');
     if (savedReminders) {
       const parsedReminders = JSON.parse(savedReminders).map((reminder) => ({
-        completed: [],
         lastTriggeredOn: null,
         ...reminder,
         completed: Array.isArray(reminder.completed) ? reminder.completed : [],

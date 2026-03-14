@@ -18,6 +18,8 @@ import HealthMetrics from "../../components/HealthMetrics/HealthMetrics";
 import "./PatientDashboard.css";
 import HealthChat from "../../components/HealthChat/HealthChat";
 import HealthWallet from "../HealthWallet/HealthWallet";
+import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
+import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
 /**
  * PATIENT DASHBOARD
  * Central hub for patient - shows appointments, queue, prescriptions, timeline, notifications
@@ -43,6 +45,18 @@ export default function PatientDashboard() {
   const [healthChatOpen, setHealthChatOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [recordings, setRecordings] = useState([]);
+  const [metricsRefresh, setMetricsRefresh] = useState(0);
+
+  // Google Fit handlers
+  const handleGoogleFitConnected = () => {
+    setMetricsRefresh((prev) => prev + 1);
+    console.log("Google Fit connected successfully");
+  };
+
+  const handleGoogleFitDisconnected = () => {
+    setMetricsRefresh((prev) => prev + 1);
+    console.log("Google Fit disconnected");
+  };
   const handleDownloadRecording = async (rec) => {
     try {
       const res = await fetch(`/api/recordings/${rec.id}/download`, {
@@ -236,13 +250,19 @@ export default function PatientDashboard() {
   return (
     <div className="patient-dashboard">
       {healthChatOpen && (
-        <HealthChat open={healthChatOpen} onClose={() => setHealthChatOpen(false)} />
+        <HealthChat
+          open={healthChatOpen}
+          onClose={() => setHealthChatOpen(false)}
+        />
       )}
       <header className="dashboard-header">
         <h1>Welcome, {user?.name}</h1>
         <p className="patient-id">Patient ID: {user?.id}</p>
         <div style={{ marginLeft: "auto" }}>
-          <button className="action-btn" onClick={() => setHealthChatOpen(true)}>
+          <button
+            className="action-btn"
+            onClick={() => setHealthChatOpen(true)}
+          >
             💬 Health Chatbot
           </button>
         </div>
@@ -284,6 +304,12 @@ export default function PatientDashboard() {
           onClick={() => setActiveTab("queue")}
         >
           🚦 Queue
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "health" ? "active" : ""}`}
+          onClick={() => setActiveTab("health")}
+        >
+          💪 Health Metrics
         </button>
         <button
           className={`tab-btn`}
@@ -334,20 +360,16 @@ export default function PatientDashboard() {
                   </button>
                 )}
               </div>
-            <div className="stat-card">
-              <p style={{ marginBottom: "6px", fontWeight: "600" }}>
-                Health Status
-              </p>
+              <div className="stat-card">
+                <p style={{ marginBottom: "6px", fontWeight: "600" }}>
+                  Health Status
+                </p>
                 {(() => {
                   const score = medicines.length
                     ? Math.min(medicines.length * 20, 100)
                     : 40; // baseline health status when no meds are listed
                   const color =
-                    score > 70
-                      ? "#22c55e"
-                      : score > 40
-                      ? "#f59e0b"
-                      : "#ef4444";
+                    score > 70 ? "#22c55e" : score > 40 ? "#f59e0b" : "#ef4444";
                   return (
                     <>
                       <div
@@ -378,7 +400,7 @@ export default function PatientDashboard() {
               </div>
             </div>
 
-<div className="quick-actions">
+            <div className="quick-actions">
               <h3>Quick Actions</h3>
               <button
                 className="action-btn"
@@ -401,7 +423,9 @@ export default function PatientDashboard() {
             </div>
 
             <div className="stat-card">
-              <p style={{ fontWeight: "600", marginBottom: 6 }}>Wallet Balance</p>
+              <p style={{ fontWeight: "600", marginBottom: 6 }}>
+                Wallet Balance
+              </p>
               <h3>₹{Number(walletBalance).toFixed(2)}</h3>
               <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
                 Use at payment: Pay with Wallet
@@ -409,8 +433,6 @@ export default function PatientDashboard() {
             </div>
 
             <HealthMetrics patientId={user?.id} />
-
-            
           </div>
         )}
 
@@ -666,6 +688,27 @@ export default function PatientDashboard() {
           </div>
         )}
 
+        {/* HEALTH METRICS TAB - Google Fit Integration */}
+        {activeTab === "health" && (
+          <div className="tab-content health-metrics-tab">
+            <h2>Health Metrics & Google Fit</h2>
+            <div className="health-metrics-container">
+              {/* Google Fit Connect Section */}
+              <div className="google-fit-section">
+                <GoogleFitConnect
+                  onConnected={handleGoogleFitConnected}
+                  onDisconnected={handleGoogleFitDisconnected}
+                />
+              </div>
+
+              {/* Google Fit Metrics Display Section */}
+              <div className="google-fit-metrics-section">
+                <GoogleFitMetrics key={metricsRefresh} />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* NOTIFICATIONS TAB */}
         {activeTab === "notifications" && (
           <div className="tab-content notifications-tab">
@@ -678,24 +721,57 @@ export default function PatientDashboard() {
         {activeTab === "recordings" && (
           <div className="tab-content recordings-tab">
             <h2>Your Voice Notes</h2>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
               <p style={{ margin: 0 }}>Latest voice notes from your doctor.</p>
-              <button className="action-btn" onClick={() => fetchRecordings(user?.id)} style={{ padding: "6px 10px" }}>Refresh</button>
+              <button
+                className="action-btn"
+                onClick={() => fetchRecordings(user?.id)}
+                style={{ padding: "6px 10px" }}
+              >
+                Refresh
+              </button>
             </div>
             {recordings.length === 0 ? (
-              <p>No recordings yet. Your doctor’s voice notes will appear here.</p>
+              <p>
+                No recordings yet. Your doctor’s voice notes will appear here.
+              </p>
             ) : (
-              <div className="recordings-list" style={{ display: "grid", gap: 12 }}>
+              <div
+                className="recordings-list"
+                style={{ display: "grid", gap: 12 }}
+              >
                 {recordings.map((r) => (
                   <div
                     key={r.id}
-                    style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, background: "#fff" }}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: 12,
+                      background: "#fff",
+                    }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: 8,
+                      }}
+                    >
                       <strong>Doctor:</strong>
                       <span>{r.doctor_name || "-"}</span>
                     </div>
-                    <audio controls src={r.file_url} style={{ width: "100%" }} />
+                    <audio
+                      controls
+                      src={r.file_url}
+                      style={{ width: "100%" }}
+                    />
                     <div style={{ marginTop: 8 }}>
                       <button
                         onClick={() => handleDownloadRecording(r)}
@@ -705,13 +781,25 @@ export default function PatientDashboard() {
                         ⬇️ Download
                       </button>
                     </div>
-                    <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 12, color: "#555" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 12,
+                        marginTop: 8,
+                        fontSize: 12,
+                        color: "#555",
+                      }}
+                    >
                       <div>
-                        <strong>Date:</strong> {r.appointment_date ? new Date(r.appointment_date).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
+                        <strong>Date:</strong>{" "}
+                        {r.appointment_date
+                          ? new Date(r.appointment_date).toLocaleDateString()
+                          : new Date(r.created_at).toLocaleDateString()}
                       </div>
                       {r.slot_time && (
                         <div>
-                          <strong>Time:</strong> {String(r.slot_time).slice(0,5)}
+                          <strong>Time:</strong>{" "}
+                          {String(r.slot_time).slice(0, 5)}
                         </div>
                       )}
                     </div>
