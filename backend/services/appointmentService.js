@@ -173,14 +173,36 @@ export async function completeAppointment(appointmentId, followUpDate) {
 }
 
 export async function cancelAppointment(appointmentId, userRole, reason) {
+  const appointment = await sql`
+    SELECT id, status, is_deleted
+    FROM appointments
+    WHERE id = ${appointmentId}
+    LIMIT 1
+  `;
+
+  if (!appointment.length || appointment[0].is_deleted) {
+    throw new Error("Appointment not found");
+  }
+
+  if (appointment[0].status === "cancelled") {
+    return appointment[0];
+  }
+
+  if (["completed", "visited"].includes(appointment[0].status)) {
+    throw new Error("Completed appointments cannot be cancelled");
+  }
+
+  const cancelledBy = String(userRole || "patient").slice(0, 20);
+  const cancellationReason = reason || "Cancelled by user";
+
   const result = await sql`
     UPDATE appointments
     SET status = 'cancelled',
-        cancellation_reason = ${reason},
-        cancelled_by = ${userRole}
+        cancellation_reason = ${cancellationReason},
+        cancelled_by = ${cancelledBy}
     WHERE id = ${appointmentId}
-      AND status IN ('booked','arrived')
       AND is_deleted = FALSE
+      AND status NOT IN ('cancelled', 'completed', 'visited')
     RETURNING *
   `;
 
@@ -192,7 +214,7 @@ export async function cancelAppointment(appointmentId, userRole, reason) {
     action: "appointment_cancelled",
     table_name: "appointments",
     record_id: appointmentId,
-    metadata: { cancelled_by: userRole, reason },
+    metadata: { cancelled_by: cancelledBy, reason: cancellationReason },
   });
 
   return result[0];

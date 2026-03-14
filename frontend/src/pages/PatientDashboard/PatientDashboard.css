@@ -4,6 +4,13 @@
   padding: 20px;
 }
 
+.dark-mode .patient-dashboard {
+  background:
+    radial-gradient(circle at top left, rgba(102, 126, 234, 0.14), transparent 28%),
+    linear-gradient(to bottom, #121826, #0b1220);
+  color: #e5ecff;
+}
+
 .dashboard-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -35,6 +42,10 @@
   border-bottom: 2px solid #e0e0e0;
 }
 
+.dark-mode .dashboard-tabs {
+  border-bottom-color: rgba(148, 163, 184, 0.24);
+}
+
 .tab-btn {
   padding: 10px 20px;
   border: none;
@@ -48,6 +59,10 @@
   white-space: nowrap;
 }
 
+.dark-mode .tab-btn {
+  color: #a9b7d4;
+}
+
 .tab-btn:hover {
   color: #667eea;
 }
@@ -55,6 +70,11 @@
 .tab-btn.active {
   color: #667eea;
   border-bottom-color: #667eea;
+}
+
+.dark-mode .tab-btn.active {
+  color: #9cb2ff;
+  border-bottom-color: #7f98ff;
 }
 
 /* CONTENT */
@@ -98,9 +118,24 @@
     box-shadow 0.3s ease;
 }
 
+.dark-mode .stat-card,
+.dark-mode .quick-actions,
+.dark-mode .section,
+.dark-mode .appointment-card,
+.dark-mode .modal-card {
+  background: rgba(17, 24, 39, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+}
+
 .stat-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+}
+
+.dark-mode .stat-card:hover,
+.dark-mode .appointment-card:hover {
+  box-shadow: 0 20px 42px rgba(42, 92, 190, 0.24);
 }
 
 .stat-card h3 {
@@ -110,10 +145,29 @@
   font-weight: 700;
 }
 
+.dark-mode .stat-card h3,
+.dark-mode .quick-actions h3,
+.dark-mode .section h3,
+.dark-mode .apt-info h4,
+.dark-mode .modal-card h3 {
+  color: #f3f7ff;
+}
+
 .stat-card p {
   color: #666;
   margin: 10px 0 0 0;
   font-size: 0.95rem;
+}
+
+.dark-mode .stat-card p,
+.dark-mode .appointment-meta-row,
+.dark-mode .appointment-status-label,
+.dark-mode .modal-card label,
+.dark-mode .patient-id,
+.dark-mode .tab-content p,
+.dark-mode .tab-content h2,
+.dark-mode .prescriptions-section-header h3 {
+  color: #b8c4dd;
 }
 
 .quick-actions {
@@ -172,63 +226,127 @@
   padding-bottom: 15px;
 }
 
+.dark-mode .section h3 {
+  border-bottom-color: rgba(148, 163, 184, 0.16);
+}
+
 .appointments-list {
   display: grid;
-  gap: 15px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
 }
 
 .appointment-card {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  border: 2px solid #f0f0f0;
-  border-radius: 10px;
-  transition: all 0.3s ease;
+  align-items: flex-start;
+  min-height: 100%;
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1px solid #e7ebf3;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.dark-mode .appointment-card {
+  border-color: rgba(148, 163, 184, 0.14);
 }
 
 .appointment-card:hover {
   border-color: #667eea;
-  background: #f8f9ff;
+  box-shadow: 0 16px 36px rgba(102, 126, 234, 0.12);
+  transform: translateY(-2px);
+}
+
+.apt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
 }
 
 .apt-info h4 {
   margin: 0;
-  color: #333;
-  font-size: 1.1rem;
+  color: #1f2f52;
+  font-size: 1.45rem;
+  font-weight: 700;
 }
 
-.apt-info p {
-  margin: 5px 0;
-  color: #666;
-  font-size: 0.9rem;
+.appointment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.status {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.85rem;
+.appointment-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #55627c;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.appointment-meta-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+}
+
+.appointment-status-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.appointment-status-label {
+  color: #3d4c68;
+  font-size: 1rem;
   font-weight: 600;
 }
 
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
 .status.booked {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: #e6f1ff;
+  color: #1d63d8;
 }
 
 .status.arrived {
-  background: #fff3e0;
-  color: #f57c00;
+  background: #fff2df;
+  color: #d97706;
 }
 
 .status.in_progress {
-  background: #f3e5f5;
-  color: #7b1fa2;
+  background: #f1e7ff;
+  color: #7c3aed;
 }
 
 .status.completed {
-  background: #e8f5e9;
-  color: #388e3c;
+  background: #e8f8ee;
+  color: #15803d;
+}
+
+.status.visited {
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .status.cancelled {
@@ -238,36 +356,130 @@
 
 .apt-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-start;
+  align-self: stretch;
+  margin-top: auto;
 }
 
 .btn-reschedule,
 .btn-cancel {
-  padding: 8px 15px;
+  min-width: 118px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .btn-reschedule {
   background: #667eea;
   color: white;
+  box-shadow: 0 8px 18px rgba(102, 126, 234, 0.24);
 }
 
 .btn-reschedule:hover {
   background: #5568d3;
+  transform: translateY(-1px);
 }
 
 .btn-cancel {
   background: #ff6b6b;
   color: white;
+  box-shadow: 0 8px 18px rgba(255, 107, 107, 0.2);
 }
 
 .btn-cancel:hover {
   background: #ee5a52;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1100px) {
+  .appointments-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.prescriptions-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.prescriptions-section-header h3 {
+  margin: 0;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+.modal-card {
+  width: min(100%, 460px);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  border: 1px solid #e5e7eb;
+}
+
+.modal-card h3 {
+  margin: 0 0 18px;
+  color: #1f2f52;
+  font-size: 1.5rem;
+}
+
+.modal-card label {
+  display: block;
+  margin-bottom: 8px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.modal-card input {
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 1rem;
+  color: #1f2937;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.dark-mode .modal-card input {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #f3f7ff;
+}
+
+.modal-card input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 /* ERROR MESSAGE */
@@ -280,6 +492,12 @@
   border-left: 4px solid #c62828;
 }
 
+.dark-mode .error-message {
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+  border-left-color: #ef4444;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .dashboard-header h1 {
@@ -290,14 +508,28 @@
     flex-wrap: wrap;
   }
 
-  .appointment-card {
+  .appointments-list {
+    grid-template-columns: 1fr;
+  }
+
+  .prescriptions-section-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .modal-actions {
+    flex-direction: column;
   }
 
   .apt-actions {
     width: 100%;
     margin-top: 15px;
+    justify-content: flex-start;
+  }
+
+  .btn-reschedule,
+  .btn-cancel {
+    width: 100%;
   }
 
   .stat-card h3 {

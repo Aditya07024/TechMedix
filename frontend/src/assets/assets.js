@@ -15,6 +15,7 @@ import image2 from "./image2.png";
 import image3 from "./image3.png";
 import cross_icon from "./cross_icon.png";
 import chatgpt from "./chatgpt.png";
+import doctor_ai_icon from "./doctor-ai-icon.png";
 import female_avatar from "./female_avatar.jpg"
 import male_avatar from "./male_avatar.jpg"
 
@@ -49,6 +50,7 @@ export const assets = {
   male_avatar,
   female_avatar,
   // Icons
+  doctor_ai_icon,
   chatgpt,
   cross_icon,
   buscopan_forte_tab,

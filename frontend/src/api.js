@@ -42,6 +42,26 @@ export const patientApi = {
   deletePatient: (id) => api.delete(`/api/patient/${id}`),
 };
 
+export const healthWalletApi = {
+  listDocuments: () =>
+    api.get("/api/health-wallet/documents", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  uploadDocuments: (formData) =>
+    api.post("/api/health-wallet/documents", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    }),
+
+  deleteDocument: (id) =>
+    api.delete(`/api/health-wallet/documents/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+};
+
 export const paymentApi = {
   createPayment: (data) => api.post("/api/payments/create", data),
   createRazorpayOrder: (data) => api.post("/api/payments/create-order", data),

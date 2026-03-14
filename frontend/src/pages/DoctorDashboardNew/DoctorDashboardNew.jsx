@@ -4,6 +4,7 @@ import { appointmentAPI, queueAPI, analyticsAPI } from "../../api/techmedixAPI";
 import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
 import { Html5Qrcode } from "html5-qrcode";
 import { doctorApi, paymentApi } from "../../api";
+import headerImage from "../../assets/doctor-dashboard-hero.png";
 import "./DoctorDashboardNew.css";
 
 /**
@@ -358,86 +359,117 @@ export default function DoctorDashboardNew() {
   if (loading)
     return (
       <div className="doctor-dashboard">
-        <p>Loading...</p>
+        <div className="doctor-dashboard-shell doctor-dashboard-loading">
+          <p>Loading...</p>
+        </div>
       </div>
     );
 
   return (
     <div className="doctor-dashboard">
-      <header className="doc-header">
-        <h1>Welcome, Dr. {user?.name}</h1>
-        <p>Branch: {user?.branch_name || "N/A"}</p>
-        <div className="fee-management">
-          <label>Fee: ₹</label>
-          <input
-            type="number"
-            min={0}
-            step="1"
-            value={consultationFee}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "") { setConsultationFee(0); return; }
-              const n = Number(v);
-              if (!Number.isNaN(n) && n >= 0) setConsultationFee(n);
-            }}
-            disabled={profileLoading}
-          />
+      <div className="doctor-dashboard-shell">
+        <header className="doc-header">
+          <div className="doc-header-copy">
+            <span className="doc-header-kicker">Doctor workspace</span>
+            <h1>Welcome, Dr. {user?.name}</h1>
+            <p className="doc-header-description">
+              Review your patient flow, appointments, and daily performance from
+              one calm clinical workspace.
+            </p>
+
+            <div className="doc-hero-meta">
+              <div className="doc-meta-card">
+                <span className="meta-label">Branch</span>
+                <strong>{user?.branch_name || "N/A"}</strong>
+              </div>
+            </div>
+
+            <div className="fee-management">
+              <label>Consultation Fee</label>
+              <div className="fee-input-group">
+                <span className="fee-currency">₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={consultationFee}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setConsultationFee(0);
+                      return;
+                    }
+                    const n = Number(v);
+                    if (!Number.isNaN(n) && n >= 0) setConsultationFee(n);
+                  }}
+                  disabled={profileLoading}
+                />
+                <button
+                  onClick={async () => {
+                    try {
+                      await doctorApi.updateProfile({
+                        consultation_fee: Number(consultationFee),
+                      });
+                      alert("Consultation fee updated");
+                    } catch (err) {
+                      setError("Failed to update fee");
+                    }
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="doc-header-visual" aria-hidden="true">
+            <div className="doc-header-visual-frame">
+              <img src={headerImage} alt="" />
+            </div>
+          </div>
+        </header>
+
+        <div className="doc-tabs" role="tablist" aria-label="Doctor dashboard">
           <button
-            onClick={async () => {
-              try {
-                await doctorApi.updateProfile({ consultation_fee: Number(consultationFee) });
-                alert("Consultation fee updated");
-              } catch (err) {
-                setError("Failed to update fee");
-              }
-            }}
+            className={`tab-btn ${activeTab === "queue" ? "active" : ""}`}
+            onClick={() => setActiveTab("queue")}
           >
-            Save
+            🚦 Queue
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "appointments" ? "active" : ""}`}
+            onClick={() => setActiveTab("appointments")}
+          >
+            📅 Appointments
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "analytics" ? "active" : ""}`}
+            onClick={() => setActiveTab("analytics")}
+          >
+            📊 Analytics
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "earnings" ? "active" : ""}`}
+            onClick={() => setActiveTab("earnings")}
+          >
+            💰 Earnings
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "schedule" ? "active" : ""}`}
+            onClick={() => setActiveTab("schedule")}
+          >
+            🗓️ My Schedule
+          </button>
+
+          <button
+            className={`tab-btn ${activeTab === "scanner" ? "active" : ""}`}
+            onClick={() => setActiveTab("scanner")}
+          >
+            📷 Scan Patient
           </button>
         </div>
-      </header>
 
-      <div className="doc-tabs">
-        <button
-          className={`tab-btn ${activeTab === "queue" ? "active" : ""}`}
-          onClick={() => setActiveTab("queue")}
-        >
-          🚦 Queue
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "appointments" ? "active" : ""}`}
-          onClick={() => setActiveTab("appointments")}
-        >
-          📅 Appointments
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "analytics" ? "active" : ""}`}
-          onClick={() => setActiveTab("analytics")}
-        >
-          📊 Analytics
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "earnings" ? "active" : ""}`}
-          onClick={() => setActiveTab("earnings")}
-        >
-          💰 Earnings
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "schedule" ? "active" : ""}`}
-          onClick={() => setActiveTab("schedule")}
-        >
-          🗓️ My Schedule
-        </button>
-
-        <button
-          className={`tab-btn ${activeTab === "scanner" ? "active" : ""}`}
-          onClick={() => setActiveTab("scanner")}
-        >
-          📷 Scan Patient
-        </button>
-      </div>
-
-      <div className="doc-content">
+        <div className="doc-content">
         {error && <div className="error-message">{error}</div>}
 
         {/* QUEUE TAB */}
@@ -1125,6 +1157,7 @@ export default function DoctorDashboardNew() {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

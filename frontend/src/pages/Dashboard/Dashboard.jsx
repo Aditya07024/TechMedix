@@ -19,6 +19,19 @@ import { useAuth } from "../../context/AuthContext"; // Import useAuth
 import { patientDataApi } from "../../api"; // Import patientDataApi
 import HealthChat from "../../components/HealthChat/HealthChat";
 
+const METRIC_META = {
+  bloodPressure: { icon: "🩺", label: "Blood Pressure" },
+  heartRate: { icon: "❤️", label: "Heart Rate" },
+  glucose: { icon: "🧪", label: "Glucose" },
+  cholesterol: { icon: "🫀", label: "Cholesterol" },
+  temperature: { icon: "🌡️", label: "Temperature" },
+  spo2: { icon: "🫁", label: "SpO2" },
+  bmi: { icon: "⚖️", label: "BMI" },
+  weight: { icon: "🏋️", label: "Weight" },
+  sleep: { icon: "😴", label: "Sleep" },
+  steps: { icon: "👟", label: "Steps" },
+};
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -248,16 +261,25 @@ export const Dashboard = () => {
       : null;
 
   const latestMetrics = latestRecord?.ehr || {};
+  const getMetricMeta = (key) => {
+    const fallbackLabel = key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .trim();
+
+    return METRIC_META[key] || { icon: "📋", label: fallbackLabel };
+  };
 
   return (
     <div className="dashboard-container">
       <div className="dash-toolbar">
         <h2 className="dash-title">My Health Dashboard</h2>
-        <div className="dash-actions">
+        {/* <div className="dash-actions">
           <a href="/form" className="Documents-btn"><p className="text">➕ Add Data</p></a>
           <a href="/upload-prescription" className="Documents-btn"><p className="text">📄 Upload Prescription</p></a>
           <button onClick={() => setChatOpen(true)} className="Documents-btn"><p className="text">💬 Health Chatbot</p></button>
-        </div>
+        </div> */}
       </div>
       {chatOpen && <HealthChat open={chatOpen} onClose={() => setChatOpen(false)} />}
       <div className="dashboard-grid">
@@ -267,14 +289,14 @@ export const Dashboard = () => {
             <div className="top-section">
               <div className="border">
                 {user?.gender === "m" ||
-                user?.gender?.toLowerCase() === "male" ? (
+                user?.gender?.toUpperCase() === "male" ? (
                   <img
                     src={assets.male_avatar}
                     alt="Male Avatar"
                     className="avatar-img"
                   />
                 ) : user?.gender === "f" ||
-                  user?.gender?.toLowerCase() === "female" ? (
+                  user?.gender?.toUpperCase() === "female" ? (
                   <img
                     src={assets.female_avatar}
                     alt="Female Avatar"
@@ -333,29 +355,46 @@ export const Dashboard = () => {
 
             {Object.keys(latestMetrics).length > 0 ? (
               <ul className="metric-list">
-                {Object.entries(latestMetrics).map(([k, v]) =>
-                  k !== "bloodPressure" ? (
+                {Object.entries(latestMetrics).map(([k, v]) => {
+                  const metricMeta = getMetricMeta(k);
+
+                  return k !== "bloodPressure" ? (
                     <li
                       key={k}
+                      className="metric-card"
                       onMouseEnter={() => setHoveredMetric(k)}
                       onMouseLeave={() => setHoveredMetric(null)}
                     >
-                      <strong>{k}</strong>: {String(v)}
+                      <span className="metric-card-icon" aria-hidden="true">
+                        {metricMeta.icon}
+                      </span>
+                      <div className="metric-card-copy">
+                        <strong>{metricMeta.label}</strong>
+                        <span>{String(v)}</span>
+                      </div>
                     </li>
                   ) : (
                     <li
                       key={k}
+                      className="metric-card"
                       onMouseEnter={() =>
                         setHoveredMetric("bloodPressure.systolic")
                       }
                       onMouseLeave={() => setHoveredMetric(null)}
                     >
-                      <strong>Blood Pressure</strong>:{" "}
-                      {latestMetrics.bloodPressure?.systolic}/
-                      {latestMetrics.bloodPressure?.diastolic} mmHg
+                      <span className="metric-card-icon" aria-hidden="true">
+                        {metricMeta.icon}
+                      </span>
+                      <div className="metric-card-copy">
+                        <strong>{metricMeta.label}</strong>
+                        <span>
+                          {latestMetrics.bloodPressure?.systolic}/
+                          {latestMetrics.bloodPressure?.diastolic} mmHg
+                        </span>
+                      </div>
                     </li>
-                  )
-                )}
+                  );
+                })}
               </ul>
             ) : (
               <p>No metrics available</p>
@@ -364,12 +403,17 @@ export const Dashboard = () => {
           <div className="button-div">
             <button
               onClick={() => setChatOpen(true)}
-              className="Documents-btn"
+              className="Documents-btn chatbot-icon-btn"
+              aria-label="Open Health Chatbot"
               style={{ marginTop: 16 }}
             >
-              <p className="text">💬 Health Chatbot</p>
+              <img
+                src={assets.doctor_ai_icon}
+                alt=""
+                className="chatbot-icon-image"
+              />
             </button>
-            <Link
+            {/* <Link
               to="/dashboard"
               className="go-to-home-data-button"
               style={{ marginTop: 16 }}
@@ -377,7 +421,7 @@ export const Dashboard = () => {
               <button className="Documents-btn">
                 <p className="text">Home</p>
               </button>
-            </Link>
+            </Link> */}
             <Link
               to="/form"
               className="add-new-data-button"

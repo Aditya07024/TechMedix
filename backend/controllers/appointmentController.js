@@ -46,9 +46,17 @@ export async function createAppointment(req, res) {
 export async function cancelAppointmentHandler(req, res) {
   try {
     const { appointment_id } = req.params;
-    const { cancel_reason } = req.body;
+    const cancel_reason =
+      req.body?.cancel_reason ??
+      req.body?.cancellation_reason ??
+      req.body?.reason ??
+      "Cancelled by user";
 
-    const result = await cancelAppointment(appointment_id, req.user?.id, cancel_reason);
+    const result = await cancelAppointment(
+      appointment_id,
+      req.user?.role || "patient",
+      cancel_reason,
+    );
 
     await logAudit({
       user_id: req.user?.id,
