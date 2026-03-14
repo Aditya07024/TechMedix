@@ -12,7 +12,13 @@ const MedicineReminder = () => {
   useEffect(() => {
     const savedReminders = localStorage.getItem('medicineReminders');
     if (savedReminders) {
-      setReminders(JSON.parse(savedReminders));
+      const parsedReminders = JSON.parse(savedReminders).map((reminder) => ({
+        completed: [],
+        lastTriggeredOn: null,
+        ...reminder,
+        completed: Array.isArray(reminder.completed) ? reminder.completed : [],
+      }));
+      setReminders(parsedReminders);
     }
     
     // Request notification permission
@@ -25,13 +31,16 @@ const MedicineReminder = () => {
     localStorage.setItem('medicineReminders', JSON.stringify(reminders));
   }, [reminders]);
 
-  // Check for reminders every minute
   useEffect(() => {
-    const interval = setInterval(() => {
-      checkReminders();
-    }, 60000); // Check every minute
+    const timeouts = reminders.map((reminder) => scheduleReminder(reminder));
 
-    return () => clearInterval(interval);
+    return () => {
+      timeouts.forEach((timeoutId) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
+    };
   }, [reminders]);
 
   const toMinutesSinceMidnight = (time, period) => {
@@ -44,22 +53,49 @@ const MedicineReminder = () => {
     return hour24 * 60 + minutes;
   };
 
-  const checkReminders = () => {
+  const getNextReminderDate = (reminder) => {
     const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const reminderMinutes = toMinutesSinceMidnight(reminder.time, reminder.period);
+    const nextReminder = new Date(now);
 
-    reminders.forEach(reminder => {
-      const reminderMinutes = toMinutesSinceMidnight(reminder.time, reminder.period);
+    nextReminder.setHours(Math.floor(reminderMinutes / 60), reminderMinutes % 60, 0, 0);
 
-      // Check if it's time for the reminder (within 1 minute)
-      if (Math.abs(currentTime - reminderMinutes) <= 1) {
-        // Check if not already taken today
-        const today = new Date().toDateString();
-        if (!reminder.completed.includes(today)) {
-          showNotification(reminder);
+    const today = now.toDateString();
+    const alreadyHandledToday =
+      reminder.completed.includes(today) || reminder.lastTriggeredOn === today;
+
+    if (nextReminder <= now || alreadyHandledToday) {
+      nextReminder.setDate(nextReminder.getDate() + 1);
+    }
+
+    return nextReminder;
+  };
+
+  const triggerReminder = (reminderId) => {
+    setReminders((prev) =>
+      prev.map((reminder) => {
+        if (reminder.id !== reminderId) {
+          return reminder;
         }
-      }
-    });
+
+        const today = new Date().toDateString();
+        if (reminder.completed.includes(today) || reminder.lastTriggeredOn === today) {
+          return reminder;
+        }
+
+        showNotification(reminder);
+        return { ...reminder, lastTriggeredOn: today };
+      }),
+    );
+  };
+
+  const scheduleReminder = (reminder) => {
+    const nextReminder = getNextReminderDate(reminder);
+    const delay = Math.max(nextReminder.getTime() - Date.now(), 0);
+
+    return window.setTimeout(() => {
+      triggerReminder(reminder.id);
+    }, delay);
   };
 
   const showNotification = (reminder) => {
@@ -89,9 +125,10 @@ const MedicineReminder = () => {
       time,
       period,
       completed: [],
+      lastTriggeredOn: null,
       createdAt: new Date().toISOString()
     };
-    setReminders([...reminders, newReminder]);
+    setReminders((prev) => [...prev, newReminder]);
     setOpenDialog(false);
     setSelectedMedicine('');
     setDosage('');
@@ -106,7 +143,11 @@ const MedicineReminder = () => {
         const completed = reminder.completed.includes(today) 
           ? reminder.completed.filter(date => date !== today)
           : [...reminder.completed, today];
-        return { ...reminder, completed };
+        return {
+          ...reminder,
+          completed,
+          lastTriggeredOn: reminder.completed.includes(today) ? null : today,
+        };
       }
       return reminder;
     }));

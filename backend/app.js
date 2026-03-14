@@ -116,6 +116,7 @@ import timelineApiRoutes from "./routes/timelineApiRoutes.js";
 import notificationApiRoutes from "./routes/notificationApiRoutes.js";
 import scheduleApiRoutes from "./routes/scheduleApiRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
+import healthWalletRoutes from "./routes/healthWalletRoutes.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -498,10 +499,13 @@ app.post("/api/health-chat", authenticate, async (req, res) => {
       return res.status(503).json({ error: "AI service unavailable" });
     }
 
-    const systemPrompt = `You are TechMedix Health Assistant. Answer conversationally using the patient's context below. 
+    const systemPrompt = `You are TechMedix Health Assistant. Answer conversationally using the patient's context below.
 Context JSON: ${JSON.stringify(context)}
-Rules: 
-- Be helpful and concise.
+Rules:
+- You may only assist with health-related, medical, wellness, symptoms, medicines, reports, prescriptions, appointments, and patient-record questions.
+- If the user asks anything outside health context, reply only with: "I can only assist with your health related issues."
+- Do not answer out-of-context questions, even briefly.
+- Be helpful and concise for health-related questions.
 - Use the context when relevant; otherwise say you need more data.
 - Do not provide definitive diagnoses or prescribe; suggest seeking medical advice where appropriate.
 - If metrics are borderline, explain simply and suggest next steps.`;
@@ -1006,6 +1010,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/prescription-intelligence", prescriptionIntelligenceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/api/health-wallet", healthWalletRoutes);
 app.use("/api/admin", adminBranchRoutes);
 
 // New API Routes (Clean Architecture)

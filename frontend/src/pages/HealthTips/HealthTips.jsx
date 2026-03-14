@@ -1,12 +1,18 @@
 import React from "react";
 import "./HealthTips.css";
+import adhoMukhasanImage from "../../assets/adhomukhasan.jpeg";
+import balasanImage from "../../assets/balasan.jpeg";
+import bhujangasanImage from "../../assets/bhujangasan.jpeg";
+import sarvangasanImage from "../../assets/sarvangasan.jpeg";
+import tadasanaImage from "../../assets/tadasana.jpeg";
+import vrikaasanaImage from "../../assets/vrikaasana.jpeg";
 
 const yogaPoses = [
   {
     id: "tadasana",
     name: "Tadasana",
     englishName: "Mountain Pose",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: tadasanaImage,
     level: "Beginner",
     duration: "30-60 seconds",
     benefits: [
@@ -29,7 +35,7 @@ const yogaPoses = [
     id: "bhujangasana",
     name: "Bhujangasana",
     englishName: "Cobra Pose",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: bhujangasanImage,
     level: "Beginner",
     duration: "20-30 seconds",
     benefits: [
@@ -53,7 +59,7 @@ const yogaPoses = [
     id: "adho-mukha-svanasana",
     name: "Adho Mukha Svanasana",
     englishName: "Downward Dog",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: adhoMukhasanImage,
     level: "Beginner",
     duration: "30-60 seconds",
     benefits: [
@@ -76,7 +82,7 @@ const yogaPoses = [
     id: "balasana",
     name: "Balasana",
     englishName: "Child's Pose",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: balasanImage,
     level: "Beginner",
     duration: "1-3 minutes",
     benefits: [
@@ -99,7 +105,7 @@ const yogaPoses = [
     id: "vrikshasana",
     name: "Vrikshasana",
     englishName: "Tree Pose",
-    image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
+    image: vrikaasanaImage,
     level: "Beginner",
     duration: "20-30 seconds each side",
     benefits: [
@@ -122,7 +128,7 @@ const yogaPoses = [
     id: "sarvangasana",
     name: "Sarvangasana",
     englishName: "Shoulder Stand",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop",
+    image: sarvangasanImage,
     level: "Intermediate",
     duration: "30-60 seconds",
     benefits: [

@@ -286,12 +286,6 @@ export default function PatientDashboard() {
           🚦 Queue
         </button>
         <button
-          className={`tab-btn ${activeTab === "notifications" ? "active" : ""}`}
-          onClick={() => setActiveTab("notifications")}
-        >
-          🔔 Notifications
-        </button>
-        <button
           className={`tab-btn`}
           onClick={() => navigate("/health-wallet")}
         >
@@ -526,17 +520,28 @@ export default function PatientDashboard() {
                     <div key={apt.id} className="appointment-card">
                       <div className="apt-info">
                         <h4>{apt.doctor_name || "Dr. " + apt.doctor_id}</h4>
-                        <p>
-                          📅{" "}
-                          {new Date(apt.appointment_date).toLocaleDateString()}
-                        </p>
-                        <p>🕐 {apt.slot_time}</p>
-                        <p>
-                          Status:{" "}
+                        <div className="appointment-meta">
+                          <div className="appointment-meta-row">
+                            <span className="appointment-meta-icon">📅</span>
+                            <span>
+                              {new Date(
+                                apt.appointment_date,
+                              ).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="appointment-meta-row">
+                            <span className="appointment-meta-icon">🕐</span>
+                            <span>{apt.slot_time}</span>
+                          </div>
+                        </div>
+                        <div className="appointment-status-row">
+                          <span className="appointment-status-label">
+                            Status:
+                          </span>
                           <span className={`status ${apt.status}`}>
                             {apt.status}
                           </span>
-                        </p>
+                        </div>
                       </div>
                       <div className="apt-actions">
                         {apt.status === "booked" && (
@@ -572,7 +577,15 @@ export default function PatientDashboard() {
             <h2>Your Prescriptions</h2>
 
             <div style={{ marginBottom: "20px" }}>
-              <h3>Extracted Medicines</h3>
+              <div className="prescriptions-section-header">
+                <h3>Extracted Medicines</h3>
+                <button
+                  className="action-btn"
+                  onClick={() => navigate("/upload-prescription")}
+                >
+                  Upload Prescription
+                </button>
+              </div>
 
               {medicines.length === 0 ? (
                 <p>No medicines found</p>

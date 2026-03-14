@@ -80,9 +80,6 @@ const Navbar = ({ setShowLogin }) => {
           Health Tips
         </Link>
 
-        <a href="#Faq" onClick={() => setMenu("Faq")}>
-          FAQ
-        </a>
       </ul>
 
       <div className="navbar-right">
