@@ -367,7 +367,7 @@ async function generateMedicalInsightsLocal(payload) {
 }
 
 const apiKey = process.env.API_KEY;
-const baseUrl = process.env.BASE_URL || "http://localhost:8080"; // Set default to 8080
+const baseUrl = process.env.BASE_URL;
 
 // Security middleware
 app.use(
@@ -957,7 +957,7 @@ app.use("/api/appointments-v2", appointmentManagementRoutes);
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT;
 
 server.listen(PORT, () => {
   console.log(`Server with Socket.io is running on port ${PORT}`);

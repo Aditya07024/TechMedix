@@ -1,14 +1,17 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import os
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 import numpy as np
 import logging
 
 app = Flask(__name__)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:5173", "http://localhost:8080"],
+        "origins": [FRONTEND_URL],
         "methods": ["POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
@@ -24,7 +27,7 @@ logging.basicConfig(
     ]
 )
 
-l1 = ['back_pain', 'constipation', 'abdominal_pain', 'diarrhoea', 'mild_fever', 'yellow_urine',
+SYMPTOM_LIST = ['back_pain', 'constipation', 'abdominal_pain', 'diarrhoea', 'mild_fever', 'yellow_urine',
       'yellowing_of_eyes', 'acute_liver_failure', 'fluid_overload', 'swelling_of_stomach',
       'swelled_lymph_nodes', 'malaise', 'blurred_and_distorted_vision', 'phlegm', 'throat_irritation',
       'redness_of_eyes', 'sinus_pressure', 'runny_nose', 'congestion', 'chest_pain', 'weakness_in_limbs',
@@ -37,22 +40,22 @@ l1 = ['back_pain', 'constipation', 'abdominal_pain', 'diarrhoea', 'mild_fever', 
       'weakness_of_one_body_side', 'loss_of_smell', 'bladder_discomfort', 'foul_smell_of_urine',
       'continuous_feel_of_urine', 'passage_of_gases', 'internal_itching', 'toxic_look_(typhos)',
       'depression', 'irritability', 'muscle_pain', 'altered_sensorium', 'red_spots_over_body', 'belly_pain',
-      'abnormal_menstruation', 'dischromic _patches', 'watering_from_eyes', 'increased_appetite', 'polyuria',
+      'abnormal_menstruation', 'dischromic_patches', 'watering_from_eyes', 'increased_appetite', 'polyuria',
       'family_history', 'mucoid_sputum', 'rusty_sputum', 'lack_of_concentration', 'visual_disturbances',
       'receiving_blood_transfusion', 'receiving_unsterile_injections', 'coma', 'stomach_bleeding',
-      'distention_of_abdomen', 'history_of_alcohol_consumption', 'fluid_overload', 'blood_in_sputum',
+      'distention_of_abdomen', 'history_of_alcohol_consumption', 'blood_in_sputum',
       'prominent_veins_on_calf', 'palpitations', 'painful_walking', 'pus_filled_pimples', 'blackheads', 'scurring',
       'skin_peeling', 'silver_like_dusting', 'small_dents_in_nails', 'inflammatory_nails', 'blister',
       'red_sore_around_nose', 'yellow_crust_ooze']
 
-disease = ['Fungal infection', 'Allergy', 'GERD', 'Chronic cholestasis', 'Drug Reaction',
-           'Peptic ulcer diseae', 'AIDS', 'Diabetes', 'Gastroenteritis', 'Bronchial Asthma', 'Hypertension',
+DISEASE_LIST = ['Fungal infection', 'Allergy', 'GERD', 'Chronic cholestasis', 'Drug Reaction',
+           'Peptic ulcer disease', 'AIDS', 'Diabetes', 'Gastroenteritis', 'Bronchial Asthma', 'Hypertension',
            'Migraine', 'Cervical spondylosis',
            'Paralysis (brain hemorrhage)', 'Jaundice', 'Malaria', 'Chicken pox', 'Dengue', 'Typhoid', 'hepatitis A',
            'Hepatitis B', 'Hepatitis C', 'Hepatitis D', 'Hepatitis E', 'Alcoholic hepatitis', 'Tuberculosis',
            'Common Cold', 'Pneumonia', 'Dimorphic hemmorhoids(piles)',
-           'Heartattack', 'Varicoseveins', 'Hypothyroidism', 'Hyperthyroidism', 'Hypoglycemia', 'Osteoarthristis',
-           'Arthritis', '(vertigo) Paroymsal  Positional Vertigo', 'Acne', 'Urinary tract infection', 'Psoriasis',
+           'Heart attack', 'Varicose veins', 'Hypothyroidism', 'Hyperthyroidism', 'Hypoglycemia', 'Osteoarthritis',
+           'Arthritis', '(vertigo) Paroxysmal Positional Vertigo', 'Acne', 'Urinary tract infection', 'Psoriasis',
            'Impetigo']
 
 # Load and validate training data
@@ -61,8 +64,8 @@ try:
     logging.info("Successfully loaded Training.csv")
     
     # Validate symptoms against dataset columns
-    valid_columns = [symptom for symptom in l1 if symptom in df.columns]
-    missing = [symptom for symptom in l1 if symptom not in df.columns]
+    valid_columns = [symptom for symptom in SYMPTOM_LIST if symptom in df.columns]
+    missing = [symptom for symptom in SYMPTOM_LIST if symptom not in df.columns]
 
     if missing:
         logging.warning(f"⚠️ Warning: {len(missing)} symptoms missing from Training.csv:")
@@ -104,7 +107,7 @@ def predict_disease():
             return jsonify({'error': 'No symptoms provided'}), 400
         
         normalized = {
-            k.lower().strip(): v
+            k.strip(): v
             for k, v in symptoms.items()
         }
 

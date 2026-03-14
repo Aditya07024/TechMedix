@@ -100,7 +100,7 @@ router.post(
         console.log(`[RecordingUpload ${reqId}] Cloudinary not configured. Using local URL.`);
         // Fallback: serve from local uploads directory
         const normalizedPath = req.file.path.replace(/\\/g, "/");
-        fileUrl = `${process.env.BACKEND_URL || "http://localhost:8080"}/${normalizedPath}`;
+        fileUrl = `${process.env.BACKEND_URL}/${normalizedPath}`;
       }
 
       const recordingData = {
