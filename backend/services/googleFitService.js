@@ -41,7 +41,10 @@ export const refreshGoogleFitToken = async (refreshToken) => {
       expiresAt: new Date(expiry_date),
     };
   } catch (error) {
-    console.error("[GOOGLEFIT-REFRESH] Failed to refresh token:", error.message);
+    console.error(
+      "[GOOGLEFIT-REFRESH] Failed to refresh token:",
+      error.message,
+    );
     throw error;
   }
 };
@@ -482,10 +485,7 @@ export const getGoogleFitToken = async (patientId) => {
     const now = new Date();
 
     // If token is expired or expiring in next 5 minutes, refresh it
-    if (
-      expiresAt &&
-      expiresAt.getTime() - now.getTime() < 5 * 60 * 1000
-    ) {
+    if (expiresAt && expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
       console.log(
         "[GOOGLEFIT-TOKEN] Token expired or expiring soon, refreshing...",
       );
@@ -508,7 +508,9 @@ export const getGoogleFitToken = async (patientId) => {
           newExpiresAt,
         );
 
-        console.log("[GOOGLEFIT-TOKEN] Token refreshed and stored successfully");
+        console.log(
+          "[GOOGLEFIT-TOKEN] Token refreshed and stored successfully",
+        );
 
         return {
           google_fit_access_token: accessToken,

@@ -51,10 +51,11 @@ const HealthMetrics = ({ patientId }) => {
 
   const formatValue = (value, unit) => {
     // Convert to number if string, handle null/undefined
-    const numValue = value === null || value === undefined ? 0 : parseFloat(value);
-    
+    const numValue =
+      value === null || value === undefined ? 0 : parseFloat(value);
+
     if (isNaN(numValue)) return "N/A";
-    
+
     if (unit === "count") return Math.round(numValue).toLocaleString();
     if (unit === "hours") return numValue.toFixed(1);
     if (unit === "kcal") return Math.round(numValue);
