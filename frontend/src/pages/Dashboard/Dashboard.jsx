@@ -149,59 +149,89 @@ export const Dashboard = () => {
   // 🧮 Compute a simple health status score (0-100) from latest metrics
   const computeHealthScore = (metrics) => {
     if (!metrics) return 0;
-    let score = 0;
-    let count = 0;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const toNumber = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
 
-    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const scoreMetric = (
+      value,
+      idealMin,
+      idealMax,
+      warningMin,
+      warningMax,
+    ) => {
+      const num = toNumber(value);
+      if (num == null) return null;
+      if (num >= idealMin && num <= idealMax) return 100;
 
-    // Heart rate (resting) ideal ~60-100 bpm
-    if (typeof metrics.heartRate === "number") {
-      const hr = metrics.heartRate;
-      let s = 100;
-      if (hr < 50) s = clamp(50 + (hr / 50) * 50, 0, 100);
-      else if (hr > 110) s = clamp(100 - ((hr - 110) / 60) * 60, 0, 100);
-      score += s;
-      count++;
-    }
+      if (num < idealMin) {
+        if (num <= warningMin) return 35;
+        const ratio = (num - warningMin) / (idealMin - warningMin);
+        return Math.round(clamp(35 + ratio * 65, 35, 99));
+      }
 
-    // Blood pressure systolic ideal ~90-120
-    if (
-      metrics.bloodPressure &&
-      typeof metrics.bloodPressure.systolic === "number"
-    ) {
-      const sys = metrics.bloodPressure.systolic;
-      let s = 100;
-      if (sys < 90) s = clamp(50 + (sys / 90) * 50, 0, 100);
-      else if (sys > 140) s = clamp(100 - ((sys - 140) / 60) * 60, 0, 100);
-      score += s;
-      count++;
-    }
+      if (num >= warningMax) return 35;
+      const ratio = (warningMax - num) / (warningMax - idealMax);
+      return Math.round(clamp(35 + ratio * 65, 35, 99));
+    };
 
-    // Blood pressure diastolic ideal ~60-80
-    if (
-      metrics.bloodPressure &&
-      typeof metrics.bloodPressure.diastolic === "number"
-    ) {
-      const dia = metrics.bloodPressure.diastolic;
-      let s = 100;
-      if (dia < 60) s = clamp(50 + (dia / 60) * 50, 0, 100);
-      else if (dia > 90) s = clamp(100 - ((dia - 90) / 40) * 60, 0, 100);
-      score += s;
-      count++;
-    }
+    const scores = [];
 
-    // Blood sugar (fasting) ideal ~70-100
-    if (typeof metrics.bloodSugar === "number") {
-      const bs = metrics.bloodSugar;
-      let s = 100;
-      if (bs < 70) s = clamp(50 + (bs / 70) * 50, 0, 100);
-      else if (bs > 126) s = clamp(100 - ((bs - 126) / 100) * 60, 0, 100);
-      score += s;
-      count++;
-    }
+    const systolicScore = scoreMetric(
+      metrics?.bloodPressure?.systolic,
+      90,
+      120,
+      80,
+      160,
+    );
+    if (systolicScore != null) scores.push(systolicScore);
 
-    if (count === 0) return 0;
-    return Math.round(score / count);
+    const diastolicScore = scoreMetric(
+      metrics?.bloodPressure?.diastolic,
+      60,
+      80,
+      50,
+      100,
+    );
+    if (diastolicScore != null) scores.push(diastolicScore);
+
+    const heartRateScore = scoreMetric(metrics?.heartRate, 60, 100, 45, 130);
+    if (heartRateScore != null) scores.push(heartRateScore);
+
+    const glucoseScore = scoreMetric(metrics?.glucose, 70, 99, 55, 180);
+    if (glucoseScore != null) scores.push(glucoseScore);
+
+    const cholesterolScore = scoreMetric(
+      metrics?.cholesterol,
+      125,
+      200,
+      100,
+      280,
+    );
+    if (cholesterolScore != null) scores.push(cholesterolScore);
+
+    const temperatureScore = scoreMetric(
+      metrics?.temperature,
+      36.1,
+      37.2,
+      35,
+      39.5,
+    );
+    if (temperatureScore != null) scores.push(temperatureScore);
+
+    const spo2Score = scoreMetric(metrics?.spo2, 95, 100, 88, 100);
+    if (spo2Score != null) scores.push(spo2Score);
+
+    const bmiScore = scoreMetric(metrics?.bmi, 18.5, 24.9, 16, 35);
+    if (bmiScore != null) scores.push(bmiScore);
+
+    const sleepScore = scoreMetric(metrics?.sleep, 7, 9, 4, 12);
+    if (sleepScore != null) scores.push(sleepScore);
+
+    if (!scores.length) return 0;
+    return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
   };
 
   const handleDeleteRecord = async (recordId) => {
@@ -454,30 +484,35 @@ export const Dashboard = () => {
                   (() => {
                     const score = computeHealthScore(latestMetrics);
                     return (
-                      <div
-                        style={{
-                          width: "100%",
-                          background: "#eee",
-                          borderRadius: 8,
-                          height: 16,
-                        }}
-                      >
+                      <>
                         <div
                           style={{
-                            width: `${score}%`,
-                            background:
-                              score > 70
-                                ? "#22c55e"
-                                : score > 40
-                                ? "#f59e0b"
-                                : "#ef4444",
-                            height: "100%",
+                            width: "100%",
+                            background: "#eee",
                             borderRadius: 8,
-                            transition: "width 300ms ease-in-out",
+                            height: 16,
                           }}
-                          aria-label={`Health score ${score}`}
-                        />
-                      </div>
+                        >
+                          <div
+                            style={{
+                              width: `${score}%`,
+                              background:
+                                score > 70
+                                  ? "#22c55e"
+                                  : score > 40
+                                  ? "#f59e0b"
+                                  : "#ef4444",
+                              height: "100%",
+                              borderRadius: 8,
+                              transition: "width 300ms ease-in-out",
+                            }}
+                            aria-label={`Health score ${score}`}
+                          />
+                        </div>
+                        <p style={{ marginTop: 10, color: "#555" }}>
+                          {score}% Health Score
+                        </p>
+                      </>
                     );
                   })()
                 ) : (

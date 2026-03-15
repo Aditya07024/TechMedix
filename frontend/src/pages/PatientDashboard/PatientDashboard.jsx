@@ -46,6 +46,94 @@ export default function PatientDashboard() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [recordings, setRecordings] = useState([]);
   const [metricsRefresh, setMetricsRefresh] = useState(0);
+  const [ehrHistory, setEhrHistory] = useState([]);
+
+  const computeHealthScore = (metrics) => {
+    if (!metrics) return 0;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const toNumber = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const scoreMetric = (
+      value,
+      idealMin,
+      idealMax,
+      warningMin,
+      warningMax,
+    ) => {
+      const num = toNumber(value);
+      if (num == null) return null;
+      if (num >= idealMin && num <= idealMax) return 100;
+
+      if (num < idealMin) {
+        if (num <= warningMin) return 35;
+        const ratio = (num - warningMin) / (idealMin - warningMin);
+        return Math.round(clamp(35 + ratio * 65, 35, 99));
+      }
+
+      if (num >= warningMax) return 35;
+      const ratio = (warningMax - num) / (warningMax - idealMax);
+      return Math.round(clamp(35 + ratio * 65, 35, 99));
+    };
+
+    const scores = [];
+
+    const systolicScore = scoreMetric(
+      metrics?.bloodPressure?.systolic,
+      90,
+      120,
+      80,
+      160,
+    );
+    if (systolicScore != null) scores.push(systolicScore);
+
+    const diastolicScore = scoreMetric(
+      metrics?.bloodPressure?.diastolic,
+      60,
+      80,
+      50,
+      100,
+    );
+    if (diastolicScore != null) scores.push(diastolicScore);
+
+    const heartRateScore = scoreMetric(metrics?.heartRate, 60, 100, 45, 130);
+    if (heartRateScore != null) scores.push(heartRateScore);
+
+    const glucoseScore = scoreMetric(metrics?.glucose, 70, 99, 55, 180);
+    if (glucoseScore != null) scores.push(glucoseScore);
+
+    const cholesterolScore = scoreMetric(
+      metrics?.cholesterol,
+      125,
+      200,
+      100,
+      280,
+    );
+    if (cholesterolScore != null) scores.push(cholesterolScore);
+
+    const temperatureScore = scoreMetric(
+      metrics?.temperature,
+      36.1,
+      37.2,
+      35,
+      39.5,
+    );
+    if (temperatureScore != null) scores.push(temperatureScore);
+
+    const spo2Score = scoreMetric(metrics?.spo2, 95, 100, 88, 100);
+    if (spo2Score != null) scores.push(spo2Score);
+
+    const bmiScore = scoreMetric(metrics?.bmi, 18.5, 24.9, 16, 35);
+    if (bmiScore != null) scores.push(bmiScore);
+
+    const sleepScore = scoreMetric(metrics?.sleep, 7, 9, 4, 12);
+    if (sleepScore != null) scores.push(sleepScore);
+
+    if (!scores.length) return 0;
+    return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+  };
 
   // Google Fit handlers
   const handleGoogleFitConnected = () => {
@@ -144,6 +232,14 @@ export default function PatientDashboard() {
       }
       if (notifRes.status === "fulfilled") {
         setNotifications(notifRes.value.data.data || []);
+      }
+
+      try {
+        const ehrRes = await patientDataApi.getEHRHistory(user.id);
+        setEhrHistory(Array.isArray(ehrRes.data) ? ehrRes.data : []);
+      } catch (err) {
+        console.error("Failed to load patient data for health status:", err);
+        setEhrHistory([]);
       }
 
       try {
@@ -246,6 +342,14 @@ export default function PatientDashboard() {
         <p>Loading...</p>
       </div>
     );
+
+  const latestRecord =
+    ehrHistory && ehrHistory.length
+      ? ehrHistory
+          .slice()
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+      : null;
+  const latestMetrics = latestRecord?.ehr || null;
 
   return (
     <div className="patient-dashboard">
@@ -365,9 +469,9 @@ export default function PatientDashboard() {
                   Health Status
                 </p>
                 {(() => {
-                  const score = medicines.length
-                    ? Math.min(medicines.length * 20, 100)
-                    : 40; // baseline health status when no meds are listed
+                  const score = latestMetrics
+                    ? computeHealthScore(latestMetrics)
+                    : 0;
                   const color =
                     score > 70 ? "#22c55e" : score > 40 ? "#f59e0b" : "#ef4444";
                   return (
@@ -392,7 +496,9 @@ export default function PatientDashboard() {
                         />
                       </div>
                       <span style={{ fontSize: "12px", color: "#555" }}>
-                        {score}% Health Score
+                        {latestMetrics
+                          ? `${score}% Health Score`
+                          : "No patient data available"}
                       </span>
                     </>
                   );
