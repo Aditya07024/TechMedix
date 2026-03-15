@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./HealthMetrics.css";
+import { API_BASE_URL } from "../../utils/apiBase";
 
 const HealthMetrics = ({ patientId }) => {
   const [healthData, setHealthData] = useState({});
@@ -19,12 +20,12 @@ const HealthMetrics = ({ patientId }) => {
 
       // Load latest metrics and insights in parallel
       const [metricsRes, insightsRes] = await Promise.allSettled([
-        fetch(`/api/health/latest`, {
+        fetch(`${API_BASE_URL}/api/health/latest`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         }),
-        fetch(`/api/health/insights`, {
+        fetch(`${API_BASE_URL}/api/health/insights`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,

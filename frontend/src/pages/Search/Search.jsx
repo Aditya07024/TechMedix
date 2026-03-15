@@ -178,7 +178,7 @@ const Search = () => {
     setPriceInsights(null);
     try {
       const res = await fetch(
-        `/api/medicines/${encodeURIComponent(selectedProductData.name)}/price-insights`
+        `${API_URL}/api/medicines/${encodeURIComponent(selectedProductData.name)}/price-insights`
       );
       const data = await res.json();
       if (data?.success) setPriceInsights(data.data);

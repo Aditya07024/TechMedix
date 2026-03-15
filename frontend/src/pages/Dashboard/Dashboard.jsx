@@ -594,10 +594,7 @@ export const Dashboard = () => {
                         <li className="listitem" role="listitem">
                           <article className="article">
                             <h4>ML Predicted Disease:</h4>
-                            <p>
-                              {record.predictedDisease} (Confidence:{" "}
-                              {(record.confidence * 100).toFixed(2)}%)
-                            </p>
+                            <p>{record.predictedDisease}</p>
                           </article>
                         </li>
                       )}

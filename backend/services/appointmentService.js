@@ -321,14 +321,34 @@ export async function updateAppointmentStatus(appointmentId, status) {
     dbStatus = "completed"; // keep legacy value for analytics/queue
   }
 
-  const updated = await sql`
-    UPDATE appointments
-    SET status = ${dbStatus},
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = ${appointmentId}
-      AND is_deleted = FALSE
-    RETURNING *
-  `;
+  let updated;
+
+  try {
+    updated = await sql`
+      UPDATE appointments
+      SET status = ${dbStatus},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${appointmentId}
+        AND is_deleted = FALSE
+      RETURNING *
+    `;
+  } catch (error) {
+    const missingUpdatedAt =
+      error?.code === "42703" ||
+      String(error?.message || "").includes("updated_at");
+
+    if (!missingUpdatedAt) {
+      throw error;
+    }
+
+    updated = await sql`
+      UPDATE appointments
+      SET status = ${dbStatus}
+      WHERE id = ${appointmentId}
+        AND is_deleted = FALSE
+      RETURNING *
+    `;
+  }
 
   if (updated.length === 0) {
     throw new Error("Appointment not found");

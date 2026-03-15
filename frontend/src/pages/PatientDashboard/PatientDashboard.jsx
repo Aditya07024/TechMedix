@@ -772,15 +772,6 @@ export default function PatientDashboard() {
                       src={r.file_url}
                       style={{ width: "100%" }}
                     />
-                    <div style={{ marginTop: 8 }}>
-                      <button
-                        onClick={() => handleDownloadRecording(r)}
-                        className="action-btn"
-                        style={{ padding: "6px 10px" }}
-                      >
-                        ⬇️ Download
-                      </button>
-                    </div>
                     <div
                       style={{
                         display: "flex",

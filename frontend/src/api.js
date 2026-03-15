@@ -102,7 +102,7 @@ export const doctorApi = {
 
   // 👇 Update appointment status
   updateAppointmentStatus: (appointmentId, status) =>
-    api.put(`/api/appointments/${appointmentId}/status`, { status }),
+    api.patch(`/api/v2/appointments/${appointmentId}/status`, { status }),
 
   // 👇 Upload recording
   uploadRecording: (formData) =>

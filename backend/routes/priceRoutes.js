@@ -71,7 +71,6 @@ router.post(
  */
 router.get(
   "/medicines/:name/price-insights",
-  authenticate,
   async (req, res) => {
     try {
       const name = decodeURIComponent(req.params.name);
@@ -90,7 +89,6 @@ router.get(
  */
 router.get(
   "/medicines/:name/price-history",
-  authenticate,
   async (req, res) => {
     try {
       const name = decodeURIComponent(req.params.name);

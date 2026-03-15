@@ -599,6 +599,7 @@ export default function DoctorDashboardNew() {
                           Mark Payment Received
                         </button>
                       )}
+                    {/*
                     {apt.status === "booked" && (
                       <button
                         onClick={async () => {
@@ -617,6 +618,7 @@ export default function DoctorDashboardNew() {
                         Mark Visited
                       </button>
                     )}
+                    */}
                   </div>
                 ))
               )}

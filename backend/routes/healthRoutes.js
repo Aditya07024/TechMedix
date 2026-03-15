@@ -11,6 +11,67 @@ import {
 
 const router = express.Router();
 
+function toNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function buildFallbackInsights(latestMetrics = [], weeklySummary = {}) {
+  const byType = latestMetrics.reduce((acc, metric) => {
+    acc[metric.metric_type] = metric;
+    return acc;
+  }, {});
+
+  const insights = [];
+  const steps = toNumber(byType.steps?.value);
+  const heartRate = toNumber(byType.heart_rate?.value);
+  const sleepHours = toNumber(byType.sleep_duration?.value);
+  const calories = toNumber(byType.calories_burned?.value);
+
+  if (steps != null) {
+    if (steps < 4000) {
+      insights.push("Daily steps are low today. A short walk can improve activity levels.");
+    } else if (steps >= 8000) {
+      insights.push("Your step count looks strong today. Keep up the consistent activity.");
+    }
+  }
+
+  if (heartRate != null) {
+    if (heartRate > 100) {
+      insights.push("Heart rate is elevated. Rest, hydrate, and monitor if this continues.");
+    } else if (heartRate >= 60 && heartRate <= 90) {
+      insights.push("Heart rate is within a typical resting range.");
+    }
+  }
+
+  if (sleepHours != null) {
+    if (sleepHours < 6) {
+      insights.push("Sleep duration is shorter than ideal. Aim for more recovery tonight.");
+    } else if (sleepHours >= 7) {
+      insights.push("Sleep duration looks healthy. Good recovery supports overall wellness.");
+    }
+  }
+
+  if (calories != null && calories > 0) {
+    insights.push(`Calories burned recorded today: ${Math.round(calories)} kcal.`);
+  }
+
+  const avgSteps = toNumber(weeklySummary?.steps?.avg_value);
+  if (avgSteps != null) {
+    if (avgSteps < 5000) {
+      insights.push("Your 7-day average steps are below target. Gradual daily movement can help.");
+    } else {
+      insights.push("Your 7-day activity trend looks steady.");
+    }
+  }
+
+  if (!insights.length) {
+    insights.push("Health data received successfully. More tracked metrics will improve AI insights.");
+  }
+
+  return insights.slice(0, 5);
+}
+
 /*
   SYNC HEALTH METRICS FROM MOBILE APP
   POST /api/health/sync
@@ -240,13 +301,26 @@ router.get(
 
       if (aiResponse.ok) {
         const insights = await aiResponse.json();
-        res.json(insights);
-      } else {
-        res.json({ insights: ["AI insights temporarily unavailable"] });
+        return res.json(insights);
       }
+
+      return res.json({
+        insights: buildFallbackInsights(latestMetrics, weeklySummary),
+      });
     } catch (error) {
       console.error("Get health insights error:", error);
-      res.json({ insights: ["Unable to generate insights at this time"] });
+      try {
+        const patientId = req.user.id;
+        const latestMetrics = await getLatestHealthMetrics(patientId);
+        const weeklySummary = await getHealthMetricsSummary(patientId, 7);
+        return res.json({
+          insights: buildFallbackInsights(latestMetrics, weeklySummary),
+        });
+      } catch {
+        return res.json({
+          insights: ["Health data is available, but AI insights could not be generated right now."],
+        });
+      }
     }
   },
 );

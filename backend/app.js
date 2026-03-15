@@ -89,6 +89,7 @@ import { runPrescriptionMigration } from "./scripts/runPrescriptionMigration.js"
 import { runSafetyReportMigration } from "./scripts/runSafetyReportMigration.js";
 import { runPriceIntelligenceMigration } from "./scripts/runPriceIntelligenceMigration.js";
 import { initializeCompletSchema } from "./scripts/initCompleteSchema.js";
+import { runAppointmentMigration } from "./scripts/runAppointmentMigration.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import doctorScheduleRoutes from "./routes/doctorScheduleRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
@@ -194,6 +195,37 @@ function clamp(n, min, max) {
 function toNumber(x) {
   const n = Number(x);
   return Number.isFinite(n) ? n : null;
+}
+
+function getSelectedSymptoms(symptoms = {}) {
+  return Object.entries(symptoms || {})
+    .filter(([_, value]) => value === true || value === 1 || value === "1")
+    .map(([key]) => key);
+}
+
+function extractJsonObject(text = "") {
+  if (!text) return null;
+  const trimmed = String(text).trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  const fencedMatch = trimmed.match(/```json\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    try {
+      return JSON.parse(fencedMatch[1].trim());
+    } catch {}
+  }
+
+  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objectMatch?.[0]) {
+    try {
+      return JSON.parse(objectMatch[0]);
+    } catch {}
+  }
+
+  return null;
 }
 
 function analyzeVitals(ehr = {}) {
@@ -338,7 +370,65 @@ function guessCondition(ehr = {}, symptoms = {}) {
 }
 
 async function generateMedicalInsightsLocal(payload) {
-  // Try external service first if available; otherwise use local rules
+  const symptomList = getSelectedSymptoms(payload?.symptoms || {});
+  const promptContext = {
+    symptoms: symptomList,
+    ehr: payload?.ehr || {},
+    medicines: payload?.medicines || [],
+    prescription: payload?.prescription || [],
+  };
+
+  // Prefer configured LLM API so symptom changes produce fresh insights.
+  if (apiKey && baseUrl) {
+    try {
+      const llmPayload = {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a clinical support assistant. Generate patient-friendly health insights based on the provided symptoms and vitals. Return strict JSON with keys aiInsights, predictedDisease, confidence, relatedSymptoms. Keep aiInsights under 120 words. Do not include markdown.",
+          },
+          {
+            role: "user",
+            content: `Patient context: ${JSON.stringify(promptContext)}`,
+          },
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        max_tokens: 300,
+      };
+
+      const llm = await axios.post(`${baseUrl}/chat/completions`, llmPayload, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      });
+
+      const content = llm.data?.choices?.[0]?.message?.content || "";
+      const parsed = extractJsonObject(content);
+
+      if (parsed?.aiInsights) {
+        return {
+          text: String(parsed.aiInsights).slice(0, 2000),
+          predictedDisease:
+            parsed.predictedDisease || "Condition pattern identified",
+          confidence: Number(parsed.confidence ?? 0.7),
+          relatedSymptoms:
+            Array.isArray(parsed.relatedSymptoms) &&
+            parsed.relatedSymptoms.length > 0
+              ? parsed.relatedSymptoms
+              : symptomList,
+        };
+      }
+    } catch (e) {
+      console.warn("LLM insights fallback triggered:", e.message);
+    }
+  }
+
+  // Try local AI service second; otherwise use local rules
   try {
     const res = await axios.post("http://localhost:5005/insights", payload, {
       timeout: 2000,
@@ -371,13 +461,17 @@ async function generateMedicalInsightsLocal(payload) {
   );
   if (guess.relatedSymptoms.length) {
     lines.push(`Related symptoms: ${guess.relatedSymptoms.join(", ")}`);
+  } else if (symptomList.length) {
+    lines.push(`Related symptoms: ${symptomList.join(", ")}`);
   }
 
   return {
     text: lines.join("\n").slice(0, 2000),
     predictedDisease: guess.label,
     confidence: guess.confidence,
-    relatedSymptoms: guess.relatedSymptoms,
+    relatedSymptoms: guess.relatedSymptoms.length
+      ? guess.relatedSymptoms
+      : symptomList,
   };
 }
 
@@ -440,6 +534,7 @@ async function testConnection() {
     await runSafetyReportMigration();
     await runPriceIntelligenceMigration();
     await runMedicalScansMigration();
+    await runAppointmentMigration();
   } catch (err) {
     console.warn("⚠ Database connection warning:", err.message);
     console.warn(

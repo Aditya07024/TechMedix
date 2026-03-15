@@ -102,9 +102,10 @@ router.put(
 
       res.json({
         success: true,
-        appointment: updated[0],
+        appointment: updated,
       });
     } catch (err) {
+      console.error("Update appointment status failed:", err);
       res.status(500).json({ error: err.message });
     }
   },
