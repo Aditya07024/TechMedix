@@ -4,6 +4,14 @@ import sql from "../config/database.js";
   CREATE PATIENT DATA (Medical Record Entry)
 */
 export const createPatientData = async (data) => {
+  // Filter symptoms to only include selected ones (value === 1)
+  const selectedSymptoms = Object.entries(data.symptoms || {})
+    .filter(([_, value]) => value === 1)
+    .reduce((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+
   const result = await sql`
     INSERT INTO patient_data (
       patient_id,
@@ -32,7 +40,7 @@ export const createPatientData = async (data) => {
     VALUES (
       ${data.patientId},
       ${data.email},
-      ${data.symptoms},
+      ${JSON.stringify(selectedSymptoms)},
       ${data.bloodPressureSystolic},
       ${data.bloodPressureDiastolic},
       ${data.heartRate},
@@ -44,12 +52,12 @@ export const createPatientData = async (data) => {
       ${data.weight},
       ${data.sleep},
       ${data.steps},
-      ${data.medicines},
-      ${data.prescription},
+      ${JSON.stringify(data.medicines || [])},
+      ${JSON.stringify(data.prescription || [])},
       ${data.aiInsights},
       ${data.predictedDisease},
       ${data.confidence},
-      ${data.relatedSymptoms},
+      ${JSON.stringify(data.relatedSymptoms || [])},
       NOW(),
       FALSE
     )
@@ -58,7 +66,6 @@ export const createPatientData = async (data) => {
 
   return result[0];
 };
-
 
 /*
   GET BY RECORD ID
@@ -73,7 +80,6 @@ export const getPatientDataById = async (id) => {
   return result.length ? result[0] : null;
 };
 
-
 /*
   GET ALL DATA FOR PATIENT
 */
@@ -86,7 +92,6 @@ export const getPatientDataByPatientId = async (patientId) => {
     ORDER BY created_at DESC
   `;
 };
-
 
 /*
   SAFE UPDATE
@@ -121,7 +126,6 @@ export const updatePatientData = async (id, data) => {
   return result.length ? result[0] : null;
 };
 
-
 /*
   SOFT DELETE SINGLE RECORD
 */
@@ -136,7 +140,6 @@ export const deletePatientData = async (id) => {
   return result.length ? result[0] : null;
 };
 
-
 /*
   SOFT DELETE ALL DATA FOR PATIENT
 */
@@ -148,7 +151,6 @@ export const deletePatientDataByPatientId = async (patientId) => {
     WHERE patient_id = ${patientId}
   `;
 };
-
 
 /*
   GET BY EMAIL
