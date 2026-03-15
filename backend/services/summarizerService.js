@@ -8,6 +8,9 @@ import { pipeline } from "@xenova/transformers";
 const MEDICAL_NER_MODEL = "onnx-community/Medical-NER-ONNX";
 const MAX_CHARS_PER_CHUNK = 3000;
 const CHUNK_OVERLAP = 150;
+const shouldUseMedicalNer =
+  process.env.ENABLE_MEDICAL_NER === "true" ||
+  (process.env.NODE_ENV !== "production" && process.env.RENDER !== "true");
 
 let nerModel = null;
 let nerPromise = null;
@@ -15,6 +18,9 @@ let nerPromise = null;
 // ─── Model Loader ─────────────────────────────────────────────────────────────
 
 async function getNerModel() {
+  if (!shouldUseMedicalNer) {
+    return null;
+  }
   if (nerModel) return nerModel;
   if (!nerPromise) {
     console.log("📦 Loading Medical-NER-ONNX model...");
@@ -246,6 +252,9 @@ function normalizeLabel(raw) {
 
 async function nerExtract(text) {
   const model = await getNerModel();
+  if (!model) {
+    return [];
+  }
   const chunks = [];
   let start = 0;
   while (start < text.length) {
@@ -342,11 +351,15 @@ export async function summarizePrescription(ocrText) {
 
   // Step 3: NER supplement — catches anything regex missed
   let fromNer = [];
-  try {
-    fromNer = await nerExtract(correctedText);
-    console.log(`📌 NER extracted ${fromNer.length} medicine(s):`, fromNer.map(m => m.medicine_name));
-  } catch (err) {
-    console.warn("⚠ NER failed, relying on regex only:", err.message);
+  if (shouldUseMedicalNer) {
+    try {
+      fromNer = await nerExtract(correctedText);
+      console.log(`📌 NER extracted ${fromNer.length} medicine(s):`, fromNer.map(m => m.medicine_name));
+    } catch (err) {
+      console.warn("⚠ NER failed, relying on regex only:", err.message);
+    }
+  } else {
+    console.log("ℹ Medical NER disabled for this deployment; using regex extraction only.");
   }
 
   // Step 4: Regex results take priority (higher precision on OCR noise)
