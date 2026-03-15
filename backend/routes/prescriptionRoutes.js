@@ -13,6 +13,8 @@ import { runRiskAnalysis } from "../services/riskEngine.js";
 // ✅ IMPORT YOUR UPLOAD MIDDLEWARE
 import { uploadPrescription } from "../middleware/upload.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
+import cloudinary from "../config/cloudinary.js";
+import { createHealthWalletDocument } from "../models-pg/healthWalletDocument.js";
 
 
 const router = express.Router();
@@ -98,6 +100,7 @@ router.post(
   async (req, res) => {
     try {
       const { userId, patientId } = req.body;
+      let walletUploadResult = null;
 
       // ✅ VALIDATION
       if (!patientId || !req.file) {
@@ -136,6 +139,30 @@ if (String(req.user.id) !== String(userId)) {
       const prescriptionId = result[0].id;
       const workflowId = uuidv4();
 
+      const folder =
+        process.env.CLOUDINARY_HEALTH_WALLET_FOLDER || "techmedix/health-wallet";
+
+      walletUploadResult = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: "auto",
+        folder,
+        use_filename: true,
+        unique_filename: true,
+      });
+
+      await createHealthWalletDocument({
+        patient_id: req.user.id,
+        public_id: walletUploadResult.public_id,
+        file_url: walletUploadResult.secure_url,
+        file_name: req.file.originalname,
+        resource_type: walletUploadResult.resource_type || "raw",
+        format:
+          walletUploadResult.format ||
+          req.file.originalname.split(".").pop()?.toLowerCase() ||
+          null,
+        bytes: walletUploadResult.bytes || req.file.size,
+        mime_type: req.file.mimetype,
+      });
+
       // 🔥 AUTO-TRIGGER AGENT-1 (ASYNC)
       setImmediate(() => {
         prescriptionAgent.execute({
@@ -157,6 +184,16 @@ if (String(req.user.id) !== String(userId)) {
 
     } catch (err) {
       console.error("❌ Upload failed:", err);
+      if (walletUploadResult?.public_id) {
+        try {
+          await cloudinary.uploader.destroy(walletUploadResult.public_id, {
+            resource_type: walletUploadResult.resource_type || "raw",
+            invalidate: true,
+          });
+        } catch (cleanupErr) {
+          console.warn("⚠ Failed to cleanup uploaded wallet document:", cleanupErr.message);
+        }
+      }
       res.status(500).json({ error: "Upload failed" });
     }
   }

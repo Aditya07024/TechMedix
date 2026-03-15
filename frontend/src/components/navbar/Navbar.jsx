@@ -80,6 +80,17 @@ const Navbar = ({ setShowLogin }) => {
           Health Tips
         </Link>
 
+        {isAuthenticated && user?.role === "patient" && (
+          <>
+            <Link to="/xray-analyzer" onClick={() => setMenu("xray")}>
+              X‑Ray Analyzer
+            </Link>
+            <Link to="/xray-history" onClick={() => setMenu("xray-history")}>
+              My X‑Ray Scans
+            </Link>
+          </>
+        )}
+
       </ul>
 
       <div className="navbar-right">
@@ -147,7 +158,20 @@ const Navbar = ({ setShowLogin }) => {
                   overflow: "hidden",
                 }}
               >
-                
+                <Link
+                  to="/xray-analyzer"
+                  style={{ ...dropdownBtnStyle, display: "block", textDecoration: "none" }}
+                  onClick={() => setShowProfileMenu(false)}
+                >
+                  AI X‑Ray Analyzer
+                </Link>
+                <Link
+                  to="/xray-history"
+                  style={{ ...dropdownBtnStyle, display: "block", textDecoration: "none" }}
+                  onClick={() => setShowProfileMenu(false)}
+                >
+                  My X‑Ray Scans
+                </Link>
 
                 <button
                   style={{ ...dropdownBtnStyle, color: "red" }}

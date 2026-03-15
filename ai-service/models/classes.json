@@ -1,0 +1,14 @@
+{
+  "classes": [
+    "Normal",
+    "Pneumonia",
+    "COVID-19",
+    "Tuberculosis",
+    "Pneumothorax",
+    "Pleural Effusion",
+    "Atelectasis",
+    "Cardiomegaly",
+    "Nodule",
+    "Consolidation"
+  ]
+}
