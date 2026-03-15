@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { API_BASE_URL } from "../utils/apiBase";
 
 let queueSocket = null;
 let notificationSocket = null;
@@ -6,7 +7,7 @@ let notificationSocket = null;
 export function initQueueSocket() {
   if (queueSocket) return queueSocket;
 
-  queueSocket = io(`/queue`, {
+  queueSocket = io(`${API_BASE_URL}/queue`, {
     auth: {
       token: localStorage.getItem("token"),
     },
@@ -26,7 +27,7 @@ export function initQueueSocket() {
 export function initNotificationSocket() {
   if (notificationSocket) return notificationSocket;
 
-  notificationSocket = io(`/notifications`, {
+  notificationSocket = io(`${API_BASE_URL}/notifications`, {
     auth: {
       token: localStorage.getItem("token"),
     },

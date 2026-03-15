@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
 import axios from "axios";
+import { API_BASE_URL } from "../../utils/apiBase";
 
 /**
  * PATIENT QUEUE POSITION COMPONENT
@@ -20,13 +21,13 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
   // Initialize Socket.IO connection
   useEffect(() => {
     const newSocket = io(
-  import.meta.env.VITE_API_URL,
-  {
-    auth: {
-      token: localStorage.getItem("token"),
-    },
-  }
-);
+      API_BASE_URL,
+      {
+        auth: {
+          token: localStorage.getItem("token"),
+        },
+      },
+    );
 
     newSocket.on("connect", () => {
       console.log("Connected to queue service");
