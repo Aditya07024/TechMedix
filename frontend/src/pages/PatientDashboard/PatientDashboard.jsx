@@ -361,7 +361,7 @@ export default function PatientDashboard() {
       )}
       <header className="dashboard-header">
         <h1>Welcome, {user?.name}</h1>
-        <p className="patient-id">Patient ID: {user?.id}</p>
+        {/* <p className="patient-id">Patient ID: {user?.id}</p> */}
         <div style={{ marginLeft: "auto" }}>
           <button
             className="action-btn"
