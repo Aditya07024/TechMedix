@@ -112,7 +112,7 @@ export const Form = () => {
             systolic: formData.systolic,
             diastolic: formData.diastolic,
           },
-          heartRate: formData.heartRate,
+          // heartRate: formData.heartRate,
           glucose: formData.glucose,
           cholesterol: formData.cholesterol,
           temperature: formData.temperature,
@@ -171,7 +171,7 @@ export const Form = () => {
       { label: "Diastolic (mmHg)", name: "diastolic" }
     ],
     [
-      { label: "Heart Rate (bpm)", name: "heartRate" },
+      // { label: "Heart Rate (bpm)", name: "heartRate" },
       { label: "Blood Glucose (mg/dL)", name: "glucose" }
     ],
     [

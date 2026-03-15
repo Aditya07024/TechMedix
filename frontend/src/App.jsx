@@ -32,6 +32,8 @@ import PaymentPage from "./pages/Payments/PaymentPage";
 import HealthMetrics from "./components/HealthMetrics/HealthMetrics";
 import HealthWallet from "./pages/HealthWallet/HealthWallet";
 import GoogleFitCallback from "./components/GoogleFitCallback/GoogleFitCallback";
+import XRayAnalyzer from "./pages/XRayAnalyzer/XRayAnalyzer";
+import XRayHistory from "./pages/XRayHistory/XRayHistory";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -92,6 +94,22 @@ const App = () => {
             element={
               <ProtectedRoute requiredRole="patient">
                 <HealthWallet />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/xray-analyzer"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <XRayAnalyzer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/xray-history"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <XRayHistory />
               </ProtectedRoute>
             }
           />

@@ -118,6 +118,8 @@ import scheduleApiRoutes from "./routes/scheduleApiRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import healthWalletRoutes from "./routes/healthWalletRoutes.js";
 import googleFitRoutes from "./routes/googleFitRoutes.js";
+import xrayRoutes from "./routes/xrayRoutes.js";
+import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
@@ -436,6 +438,7 @@ async function testConnection() {
     await runPrescriptionMigration();
     await runSafetyReportMigration();
     await runPriceIntelligenceMigration();
+    await runMedicalScansMigration();
   } catch (err) {
     console.warn("⚠ Database connection warning:", err.message);
     console.warn(
@@ -1038,6 +1041,7 @@ app.use("/api/health-wallet", healthWalletRoutes);
 app.use("/auth/google-fit", googleFitRoutes);
 app.use("/api/google-fit", googleFitRoutes);
 app.use("/api/admin", adminBranchRoutes);
+app.use("/api/scan/xray", xrayRoutes);
 
 // New API Routes (Clean Architecture)
 app.use("/api/v2/appointments", appointmentApiRoutes);
