@@ -4,11 +4,18 @@
 import { pipeline } from "@xenova/transformers";
 
 const MODEL = "Xenova/flan-t5-base";
+const shouldUseLocalFlanModel =
+  process.env.ENABLE_LOCAL_FLAN_INTERACTIONS === "true" ||
+  (process.env.NODE_ENV !== "production" && process.env.RENDER !== "true");
 
 let generator = null;
 const interactionCache = new Map();
 
 async function getGenerator() {
+  if (!shouldUseLocalFlanModel) {
+    return null;
+  }
+
   if (!generator) {
     console.log("📦 Loading FLAN-T5 for interaction analysis (first run may download ~250MB)...");
     generator = await pipeline("text2text-generation", MODEL);
@@ -86,8 +93,25 @@ export async function analyzeInteractionAI(medA, medB) {
     return known;
   }
 
+  if (!shouldUseLocalFlanModel) {
+    const fallback = {
+      interaction_found: false,
+      severity: "low",
+      description: "",
+      mechanism: "",
+      recommendation:
+        "No cached AI model is enabled in this deployment. Consult your doctor or pharmacist for interaction concerns.",
+      confidence: 0,
+    };
+    interactionCache.set(cacheKey, fallback);
+    return fallback;
+  }
+
   try {
     const gen = await getGenerator();
+    if (!gen) {
+      throw new Error("Local FLAN interaction model disabled");
+    }
     const prompt = `Is there a clinically significant drug interaction between ${cleanA} and ${cleanB}? Answer yes or no with severity.`;
     const output = await gen(prompt, { max_new_tokens: 50, do_sample: false });
 

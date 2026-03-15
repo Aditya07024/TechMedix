@@ -8,6 +8,7 @@ dotenv.config({ path: path.join(__dirname, ".env") }); // Load from backend/.env
 
 import express from "express";
 const app = express();
+app.set("trust proxy", 1);
 
 import http from "http";
 import { Server } from "socket.io";
@@ -1096,7 +1097,7 @@ app.delete("/api/medicines/:id", authenticate, async (req, res) => {
   res.json({ success: true });
 });
 // Medicine search (by name or salt) for prescription "Compare with salt"
-app.get("/api/medicines/search", authenticate, async (req, res) => {
+app.get("/api/medicines/search", async (req, res) => {
   try {
     const q = (
       req.query.q ||
