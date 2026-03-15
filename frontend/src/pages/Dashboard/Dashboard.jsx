@@ -334,7 +334,7 @@ export const Dashboard = () => {
                   />
                 ) : (
                   <img
-                    src="/assets/default_avatar.jpg"
+                    src={assets.male_avatar}
                     alt="Default Avatar"
                     className="avatar-img"
                   />
