@@ -28,7 +28,7 @@ const DoctorLogin = () => {
         throw new Error("Unauthorized access");
       }
 
-      login(res.data.user);
+      login(res.data.user, res.data.token || null);
       // Store doctor UUID for API calls (backend uses UUID)
       if (res.data.user?.id) {
         localStorage.setItem("doctorId", res.data.user.id);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { initNotificationSocket } from "../../api/socketService";
 
 export default function NotificationCenter({ userId }) {
   const [notifications, setNotifications] = useState([]);
@@ -10,7 +11,7 @@ export default function NotificationCenter({ userId }) {
   useEffect(() => {
     fetchNotifications();
     // WebSocket connection for real-time notifications
-    const socket = window.io?.("/notifications");
+    const socket = initNotificationSocket();
     if (socket) {
       socket.emit("subscribe-user", userId);
       socket.on("notification", (notification) => {

@@ -34,7 +34,7 @@ const LoginPop = ({ setShowLogin }) => {
         const res = await authApi.google(response.access_token);
 
         localStorage.setItem("user", JSON.stringify(res.data.user));
-        login(res.data.user);
+        login(res.data.user, res.data.token || null);
 
         setShowLogin(false);
         navigate(redirectTo, { replace: true });
@@ -82,7 +82,7 @@ const LoginPop = ({ setShowLogin }) => {
 
         localStorage.setItem("user", JSON.stringify(userData));
         console.log("User role:", userData.role);
-        login(userData);
+        login(userData, res.data.token || null);
 
         setShowLogin(false);
         navigate(redirectTo, { replace: true });

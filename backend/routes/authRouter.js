@@ -102,6 +102,7 @@ router.post("/login", async (req, res) => {
   return res.json({
     ifLogin: true,
     role: user.role,
+    token,
     user: {
       id: user.id,
       email: user.email,
@@ -148,6 +149,7 @@ router.post("/login", async (req, res) => {
 
     return res.json({
       ifLogin: true,
+      token,
       user: safeUser,
       role: "patient",
     });
@@ -174,11 +176,17 @@ router.get("/logout", async (req, res) => {
   }
 });
 router.get("/status", (req, res) => {
-  const token = req.cookies?.token;
+  const tokenFromCookie = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const tokenFromHeader =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+  const token = tokenFromCookie || tokenFromHeader;
   if (!token) return res.json({ ifLogin: false });
   try {
-    jwt.verify(token, process.env.TOKEN_SECRET);
-    return res.json({ ifLogin: true });
+    const decoded = jwt.verify(token, process.env.TOKEN_SECRET);
+    return res.json({ ifLogin: true, role: decoded.role, user: decoded });
   } catch {
     return res.json({ ifLogin: false });
   }

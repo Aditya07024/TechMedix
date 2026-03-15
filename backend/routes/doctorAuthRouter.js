@@ -103,6 +103,7 @@ router.post("/login", async (req, res) => {
     return res.json({
       ifLogin: true,
       role: "doctor",
+      token,
       message: "Login successful",
       user: {
         id: doctor.id,

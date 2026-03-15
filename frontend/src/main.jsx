@@ -11,6 +11,10 @@ import { API_BASE_URL, toBackendUrl } from "./utils/apiBase";
 
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.withCredentials = true; // 🔥 VERY IMPORTANT
+const storedToken = localStorage.getItem("token");
+if (storedToken) {
+  axios.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
+}
 
 const nativeFetch = window.fetch.bind(window);
 

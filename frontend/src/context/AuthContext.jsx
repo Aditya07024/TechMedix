@@ -5,6 +5,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
+import axios from "axios";
 import { authApi } from "../api";
 
 const AuthContext = createContext(null);
@@ -14,10 +15,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const login = (userData) => {
+  const login = (userData, token = null) => {
     setIsAuthenticated(true);
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData)); // Store user data in localStorage
+    if (token) {
+      localStorage.setItem("token", token);
+      axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+    }
   };
 
   const logout = async () => {
@@ -27,6 +32,8 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    delete axios.defaults.headers.common.Authorization;
   };
 
   const refreshAuthStatus = useCallback(async () => {
@@ -37,12 +44,19 @@ export const AuthProvider = ({ children }) => {
       if (loggedIn) {
         const stored = localStorage.getItem("user");
         if (stored) setUser(JSON.parse(stored));
+        const token = localStorage.getItem("token");
+        if (token) {
+          axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+        }
       } else {
         setUser(null);
+        localStorage.removeItem("token");
+        delete axios.defaults.headers.common.Authorization;
       }
     } catch (_) {
       setIsAuthenticated(false);
       setUser(null);
+      delete axios.defaults.headers.common.Authorization;
     } finally {
       setLoading(false);
     }
