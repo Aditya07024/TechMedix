@@ -1112,6 +1112,15 @@ const retryAxios = async (url, data, config = {}, maxRetries = 3) => {
     }
   }
 };
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Server is running",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // app.use("/api/prescriptions", prescriptionSafetyRouter);
 app.use("/api/prescriptions", prescriptionRoutes);
 app.use("/api/prescription", prescriptionRoutes); // frontend calls /prescription/upload
