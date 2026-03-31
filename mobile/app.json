@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "TechMedix Mobile",
+    "slug": "techmedix-mobile-app",
+    "version": "1.0.0",
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f4faff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.techmedix.mobile"
+    },
+    "android": {
+      "package": "com.techmedix.mobile",
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "backgroundColor": "#f4faff"
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-barcode-scanner"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bf1a03a2-4b0c-4263-b6a4-df9a80154fbc"
+      }
+    },
+    "owner": "aditya07024"
+  }
+}

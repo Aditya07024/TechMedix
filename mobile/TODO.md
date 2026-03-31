@@ -1,0 +1,1 @@
+- [x] Step 1: Resize icon.png to 1024x1024 using sips&#10;- [x] Step 2: Verify new icon size&#10;- [x] Step 3: Create mobile/.gitignore with .expo/&#10;- [ ] Step 4: Update app.json splash config (optional)&#10;- [ ] Step 5: Run npx expo prebuild --clean&#10;- [ ] Step 6: Run eas build -p android --profile preview --clear-cache&#10;- [ ] Step 7: Mark complete
