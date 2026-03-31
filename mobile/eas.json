@@ -9,10 +9,16 @@
       }
     },
     "production": {
+      "android": {}
+    }
+  },
+
+  "submit": {
+    "production": {
       "android": {
-        "buildType": "apk"
+        "serviceAccountKeyPath": "./service-account.json",
+        "track": "internal"
       }
-    
+    }
   }
-}
 }
