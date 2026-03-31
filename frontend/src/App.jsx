@@ -51,7 +51,7 @@ const App = () => {
     <AuthProvider>
       {showLogin && <GoogleAuthWrapper />}
 
-      <div className="app">
+      <div className={location.pathname === "/" ? "app landing-app" : "app"}>
         {location.pathname !== "/" && <Navbar setShowLogin={setShowLogin} />}
 
         <Routes>

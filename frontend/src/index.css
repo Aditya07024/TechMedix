@@ -65,6 +65,10 @@ a {
   width: 80%;
   margin: auto;
 }
+
+.app.landing-app {
+  width: 100%;
+}
 @keyframes fadeIn {
   0% {
     opacity: 0;
