@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { Platform } from "react-native";
 
@@ -37,6 +38,11 @@ import {
 } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { api, toAbsoluteUrl } from "../../lib/api";
+import {
+  getNativeReminders,
+  removeNativeReminder,
+  scheduleNativeReminder,
+} from "../../native/reminderScheduler";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
 
 function formatCurrency(value) {
@@ -62,6 +68,15 @@ function formatDateTime(value) {
   return date.toLocaleString(undefined, {
     day: "numeric",
     month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatReminderTime(hour = 9, minute = 0) {
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+  return date.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -145,30 +160,168 @@ export function PatientDashboardScreen({ navigation }) {
   });
 
   const [reminders, setReminders] = useState({});
-
-  function toggleReminder(medicineId) {
-    setReminders((prev) => ({
-      ...prev,
-      [medicineId]: !prev[medicineId],
-    }));
-  }
-
-async function testReminder(medicineName) {
-  if (Platform.OS === "web") {
-    Alert.alert("Not Supported", "Reminders only work on mobile devices");
-    return;
-  }
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Medicine Reminder",
-      body: `Time to take ${medicineName}`,
-    },
-    trigger: { seconds: 60 },
+  const [timePickerState, setTimePickerState] = useState({
+    visible: false,
+    reminderId: "",
+    medicineName: "",
   });
 
-  Alert.alert("Test Set", "Reminder will trigger in 1 minute");
-}
+  useEffect(() => {
+    loadNativeReminders();
+  }, []);
+
+  function buildReminderId(medicineId) {
+    return `medicine-${medicineId}`;
+  }
+
+  async function ensureReminderPermissions() {
+    if (Platform.OS === "web") {
+      Alert.alert("Not Supported", "Reminders only work on mobile devices");
+      return false;
+    }
+
+    try {
+      await Notifications.setNotificationChannelAsync("medicine-reminders", {
+        name: "Medicine Reminders",
+        importance: Notifications.AndroidImportance.MAX,
+      });
+    } catch (_error) {
+      // Channel creation is Android-only and can fail silently on unsupported platforms.
+    }
+
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return true;
+
+    const requested = await Notifications.requestPermissionsAsync();
+    if (requested.granted) return true;
+
+    Alert.alert(
+      "Permission needed",
+      "Please allow notifications so TechMedix can send medicine reminders.",
+    );
+    return false;
+  }
+
+  async function loadNativeReminders() {
+    if (Platform.OS !== "android") return;
+
+    try {
+      const items = await getNativeReminders();
+      const nextState = {};
+
+      items.forEach((item) => {
+        const localId = String(item.id || "").replace(/^medicine-/, "");
+        if (!localId) return;
+        nextState[localId] = {
+          enabled: item.enabled !== false,
+          hour: item.hour ?? 9,
+          minute: item.minute ?? 0,
+        };
+      });
+
+      setReminders(nextState);
+    } catch (loadError) {
+      console.warn("Unable to load native reminders", loadError);
+    }
+  }
+
+  async function saveReminderSchedule(medicineId, medicineName, hour, minute) {
+    const hasPermission = await ensureReminderPermissions();
+    if (!hasPermission) return false;
+
+    if (Platform.OS === "android") {
+      await scheduleNativeReminder({
+        id: buildReminderId(medicineId),
+        title: "Medicine Reminder",
+        body: `Time to take ${medicineName}`,
+        hour,
+        minute,
+      });
+    } else {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Medicine Reminder",
+          body: `Time to take ${medicineName}`,
+        },
+        trigger: {
+          hour,
+          minute,
+          repeats: true,
+        },
+      });
+    }
+
+    setReminders((prev) => ({
+      ...prev,
+      [medicineId]: {
+        enabled: true,
+        hour,
+        minute,
+      },
+    }));
+
+    return true;
+  }
+
+  async function toggleReminder(medicineId, medicineName) {
+    const current = reminders[medicineId];
+
+    if (current?.enabled) {
+      if (Platform.OS === "android") {
+        await removeNativeReminder(buildReminderId(medicineId));
+      }
+
+      setReminders((prev) => {
+        const nextState = { ...prev };
+        delete nextState[medicineId];
+        return nextState;
+      });
+      return;
+    }
+
+    await saveReminderSchedule(
+      medicineId,
+      medicineName,
+      current?.hour ?? 9,
+      current?.minute ?? 0,
+    );
+  }
+
+  function openReminderTimePicker(medicineId, medicineName) {
+    setTimePickerState({
+      visible: true,
+      reminderId: String(medicineId),
+      medicineName,
+    });
+  }
+
+  async function handleReminderTimeChange(event, selectedDate) {
+    const { reminderId, medicineName } = timePickerState;
+
+    if (Platform.OS === "android") {
+      setTimePickerState((prev) => ({
+        ...prev,
+        visible: false,
+      }));
+    }
+
+    if (event?.type === "dismissed" || !selectedDate || !reminderId) return;
+
+    await saveReminderSchedule(
+      reminderId,
+      medicineName,
+      selectedDate.getHours(),
+      selectedDate.getMinutes(),
+    );
+
+    if (Platform.OS === "ios") {
+      setTimePickerState({
+        visible: false,
+        reminderId: "",
+        medicineName: "",
+      });
+    }
+  }
 
   async function loadDashboard(isRefresh = false) {
     if (!user?.id) return;
@@ -252,16 +405,17 @@ async function testReminder(medicineName) {
   const profile = homeData.profile || user || {};
 
   return (
-    <ScreenScroll
-      contentContainerStyle={styles.screenContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => loadDashboard(true)}
-          tintColor={colors.primary}
-        />
-      }
-    >
+    <>
+      <ScreenScroll
+        contentContainerStyle={styles.screenContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadDashboard(true)}
+            tintColor={colors.primary}
+          />
+        }
+      >
       <TopBar
         title={`Hello, ${(profile.name || "Patient").split(" ")[0]}`}
         subtitle="Patient Dashboard"
@@ -441,7 +595,8 @@ async function testReminder(medicineName) {
         {homeData.prescriptions.length ? (
           homeData.prescriptions.slice(0, 4).map((item, index) => {
             const id = item.medicine_id || item.id || index;
-            const isEnabled = reminders[id] || false;
+            const reminderConfig = reminders[String(id)];
+            const isEnabled = reminderConfig?.enabled || false;
 
             return (
               <View key={id} style={styles.listRow}>
@@ -456,20 +611,32 @@ async function testReminder(medicineName) {
 
                 <Switch
                   value={isEnabled}
-                  onValueChange={() => toggleReminder(id)}
+                  onValueChange={() =>
+                    toggleReminder(String(id), item.medicine_name)
+                  }
                 />
 
                 {isEnabled && (
-                  <TouchableOpacity
-                    onPress={() => testReminder(item.medicine_name)}
-                    style={{ marginLeft: 10 }}
-                  >
-                    <MaterialCommunityIcons
-                      name="clock-outline"
-                      size={22}
-                      color={colors.primary}
-                    />
-                  </TouchableOpacity>
+                  <View style={styles.reminderActions}>
+                    <Text style={styles.reminderTimeText}>
+                      {formatReminderTime(
+                        reminderConfig?.hour,
+                        reminderConfig?.minute,
+                      )}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        openReminderTimePicker(String(id), item.medicine_name)
+                      }
+                      style={styles.reminderScheduleButton}
+                    >
+                      <MaterialCommunityIcons
+                        name="clock-outline"
+                        size={18}
+                        color="#fff"
+                      />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             );
@@ -485,7 +652,9 @@ async function testReminder(medicineName) {
           <Text style={styles.blockTitle}>Add Custom Reminder</Text>
 
           <TouchableOpacity
-            onPress={() => testReminder("Custom Medicine")}
+            onPress={() =>
+              openReminderTimePicker("custom-manual", "Custom Medicine")
+            }
             style={{
               marginTop: 10,
               padding: 12,
@@ -528,7 +697,24 @@ async function testReminder(medicineName) {
           </Text>
         ))}
       </SurfaceCard>
-    </ScreenScroll>
+      </ScreenScroll>
+
+      {timePickerState.visible ? (
+        <DateTimePicker
+          value={new Date(
+            0,
+            0,
+            0,
+            reminders[timePickerState.reminderId]?.hour ?? 9,
+            reminders[timePickerState.reminderId]?.minute ?? 0,
+          )}
+          mode="time"
+          is24Hour={false}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={handleReminderTimeChange}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -2929,6 +3115,24 @@ const styles = StyleSheet.create({
   listMeta: {
     color: colors.onSurfaceVariant,
     fontSize: typography.bodySmall,
+  },
+  reminderActions: {
+    alignItems: "flex-end",
+    gap: 8,
+    marginLeft: 10,
+  },
+  reminderTimeText: {
+    color: colors.primary,
+    fontSize: typography.bodySmall,
+    fontWeight: "700",
+  },
+  reminderScheduleButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
   },
   sectionValue: {
     color: colors.onSurface,
