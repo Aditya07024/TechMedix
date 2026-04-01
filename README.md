@@ -199,7 +199,7 @@ AI Recommendation Engine
 - [x] Core MERN stack implementation
 - [x] Third-party medicine APIs integration
 - [x] AI-based recommendation system
-- [ ] Mobile app (React Native / Expo)
+- [x] Mobile app (React Native / Expo)
 - [ ] Multilingual support
 - [ ] Teleconsultation integration
 
