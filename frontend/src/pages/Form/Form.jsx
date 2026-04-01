@@ -103,24 +103,36 @@ export const Form = () => {
         return;
       }
 
+      const toIntOrNull = (value) => {
+        if (value === "" || value == null) return null;
+        const num = Number(value);
+        return Number.isFinite(num) ? Math.round(num) : null;
+      };
+
+      const toFloatOrNull = (value) => {
+        if (value === "" || value == null) return null;
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+      };
+
       const dataToSend = {
         patientId: user.id,
         email: user.email,
         symptoms: selectedSymptoms,
         ehr: {
           bloodPressure: {
-            systolic: formData.systolic,
-            diastolic: formData.diastolic,
+            systolic: toIntOrNull(formData.systolic),
+            diastolic: toIntOrNull(formData.diastolic),
           },
           // heartRate: formData.heartRate,
-          glucose: formData.glucose,
-          cholesterol: formData.cholesterol,
-          temperature: formData.temperature,
-          spo2: formData.spo2,
-          bmi: formData.bmi,
-          weight: formData.weight,
-          sleep: formData.sleep,
-          steps: formData.steps,
+          glucose: toIntOrNull(formData.glucose),
+          cholesterol: toIntOrNull(formData.cholesterol),
+          temperature: toFloatOrNull(formData.temperature),
+          spo2: toIntOrNull(formData.spo2),
+          bmi: toFloatOrNull(formData.bmi),
+          weight: toFloatOrNull(formData.weight),
+          sleep: toIntOrNull(formData.sleep),
+          steps: toIntOrNull(formData.steps),
         },
         medicines: [],
         prescription: [],
@@ -162,6 +174,49 @@ export const Form = () => {
 
       alert(`Submission failed: ${backendMessage}`);
     }
+  };
+
+  const handleFillDemoData = () => {
+    setFormData({
+      systolic: "118",
+      diastolic: "76",
+      heartRate: "72",
+      glucose: "94",
+      cholesterol: "178",
+      temperature: "36.8",
+      weight: "68",
+      bmi: "22.4",
+      spo2: "98",
+      sleep: "7",
+      steps: "8420",
+      hemoglobin: "14.1",
+      rbc: "4.8",
+      wbc: "6900",
+      platelets: "255000",
+      mood: "Calm",
+      stress: "3",
+      creatinine: "0.9",
+      bilirubin: "0.8",
+      alt: "24",
+      ast: "22",
+      calories: "2140",
+      diet: "Mixed balanced diet with mostly home-cooked meals",
+      medication: "Vitamin D3 once weekly, Cetirizine as needed",
+      allergies: "Dust allergy, no known drug allergy",
+      bloodType: "B+",
+      physicalActivityLevel: "Moderate",
+      sleepQuality: "8",
+    });
+
+    setSelectedSymptoms({
+      runny_nose: 1,
+      redness_of_eyes: 1,
+    });
+
+    setExpandedCategories({
+      Respiratory: true,
+      Eye: true,
+    });
   };
 
   // Group fields into pairs for 2-column layout
@@ -232,6 +287,16 @@ export const Form = () => {
       >
         <div className="form-heading text-2xl font-bold text-center mb-6">
           🩺 Health Form
+        </div>
+
+        <div className="form-actions-bar">
+          <button
+            type="button"
+            className="demo-fill-btn"
+            onClick={handleFillDemoData}
+          >
+            Fill Demo Data
+          </button>
         </div>
 
         {/* Render input fields in rows of 2 */}

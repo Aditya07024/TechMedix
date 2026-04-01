@@ -19,6 +19,44 @@ import { useAuth } from "../../context/AuthContext"; // Import useAuth
 import { patientDataApi } from "../../api"; // Import patientDataApi
 import HealthChat from "../../components/HealthChat/HealthChat";
 
+const NEW_DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getNewDashboardCacheKey = (patientId) =>
+  `new-dashboard-cache-${patientId}`;
+
+const readNewDashboardCache = (patientId) => {
+  if (!patientId) return null;
+
+  try {
+    const rawCache = sessionStorage.getItem(getNewDashboardCacheKey(patientId));
+    if (!rawCache) return null;
+
+    const parsedCache = JSON.parse(rawCache);
+    if (!parsedCache?.timestamp || !parsedCache?.data) return null;
+
+    return parsedCache;
+  } catch (error) {
+    console.error("Failed to read new dashboard cache:", error);
+    return null;
+  }
+};
+
+const writeNewDashboardCache = (patientId, data) => {
+  if (!patientId) return;
+
+  try {
+    sessionStorage.setItem(
+      getNewDashboardCacheKey(patientId),
+      JSON.stringify({
+        timestamp: Date.now(),
+        data,
+      }),
+    );
+  } catch (error) {
+    console.error("Failed to write new dashboard cache:", error);
+  }
+};
+
 const METRIC_META = {
   bloodPressure: { icon: "🩺", label: "Blood Pressure" },
   heartRate: { icon: "❤️", label: "Heart Rate" },
@@ -65,37 +103,73 @@ export const Dashboard = () => {
     }
     setUser(storedUser);
 
-    const fetchData = async () => {
+    const patientId = storedUser.id;
+    const cache = readNewDashboardCache(patientId);
+    const cacheIsFresh =
+      cache?.timestamp &&
+      Date.now() - cache.timestamp < NEW_DASHBOARD_CACHE_TTL_MS;
+
+    if (cache?.data) {
+      setUser(cache.data.user || storedUser);
+      setEhrHistory(Array.isArray(cache.data.ehrHistory) ? cache.data.ehrHistory : []);
+      setQrData(cache.data.qrData || null);
+      setLoading(false);
+    }
+
+    const fetchData = async ({ showLoader = true } = {}) => {
       try {
-        setLoading(true);
-        const patientId = storedUser.id;
+        if (showLoader) {
+          setLoading(true);
+        }
+
         const [patientRes, ehrRes] = await Promise.allSettled([
           axios.get(`${API_URL}/api/patient/${patientId}`),
           axios.get(`${API_URL}/api/patientdata/${patientId}`),
         ]);
 
+        let nextUser = storedUser;
         if (patientRes.status === "fulfilled" && patientRes.value?.data) {
-          setUser({ ...storedUser, ...patientRes.value.data });
+          nextUser = { ...storedUser, ...patientRes.value.data };
+          setUser(nextUser);
         }
+
+        let nextEhrHistory = [];
         if (ehrRes.status === "fulfilled" && Array.isArray(ehrRes.value.data)) {
-          setEhrHistory(ehrRes.value.data);
+          nextEhrHistory = ehrRes.value.data;
+          setEhrHistory(nextEhrHistory);
         }
+
+        writeNewDashboardCache(patientId, {
+          user: nextUser,
+          ehrHistory: nextEhrHistory,
+          qrData: qrData || null,
+        });
       } catch (err) {
         console.error(err);
         setError("Failed to fetch patient data.");
       } finally {
-        setLoading(false);
+        if (showLoader) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
+    if (!cacheIsFresh) {
+      fetchData({ showLoader: !cache?.data });
+    }
   }, [API_URL]);
 
   // 📱 Generate QR code (protected route)
   const generateQR = async (patientId) => {
     try {
       const res = await patientDataApi.generatePatientQR(patientId);
-      setQrData(res.data.qr);
+      const nextQrData = res.data.qr;
+      setQrData(nextQrData);
+      writeNewDashboardCache(patientId, {
+        user,
+        ehrHistory,
+        qrData: nextQrData,
+      });
     } catch (err) {
       console.error("QR generation error:", err);
       alert("Failed to generate QR code");
@@ -245,9 +319,13 @@ export const Dashboard = () => {
         await patientDataApi.deletePatientDataRecord(recordId);
         alert("Health record deleted successfully.");
         // Update EHR history in the state to reflect the deletion
-        setEhrHistory((prevEhrHistory) =>
-          prevEhrHistory.filter((record) => record._id !== recordId)
-        );
+        const nextEhrHistory = ehrHistory.filter((record) => record._id !== recordId);
+        setEhrHistory(nextEhrHistory);
+        writeNewDashboardCache(user?.id, {
+          user,
+          ehrHistory: nextEhrHistory,
+          qrData,
+        });
       } catch (err) {
         console.error("Error deleting health record:", err);
         setError(

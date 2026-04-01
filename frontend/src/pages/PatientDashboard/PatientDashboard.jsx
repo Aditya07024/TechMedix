@@ -13,13 +13,99 @@ import AppointmentBooking from "../../components/AppointmentBooking/AppointmentB
 import PatientQueuePosition from "../../components/PatientQueuePosition/PatientQueuePosition";
 import MedicalTimeline from "../../components/MedicalTimeline/MedicalTimeline";
 import NotificationCenter from "../../components/NotificationCenter/NotificationCenter";
-import PrescriptionView from "../../components/PrescriptionView/PrescriptionView";
 import HealthMetrics from "../../components/HealthMetrics/HealthMetrics";
 import "./PatientDashboard.css";
 import HealthChat from "../../components/HealthChat/HealthChat";
-import HealthWallet from "../HealthWallet/HealthWallet";
 import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
 import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
+import { assets } from "../../assets/assets";
+
+const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getDashboardCacheKey = (patientId) =>
+  `patient-dashboard-cache-${patientId}`;
+
+const readDashboardCache = (patientId) => {
+  if (!patientId) return null;
+
+  try {
+    const rawCache = sessionStorage.getItem(getDashboardCacheKey(patientId));
+    if (!rawCache) return null;
+
+    const parsedCache = JSON.parse(rawCache);
+    if (!parsedCache?.timestamp || !parsedCache?.data) return null;
+
+    return parsedCache;
+  } catch (error) {
+    console.error("Failed to read patient dashboard cache:", error);
+    return null;
+  }
+};
+
+const writeDashboardCache = (patientId, data) => {
+  if (!patientId) return;
+
+  try {
+    sessionStorage.setItem(
+      getDashboardCacheKey(patientId),
+      JSON.stringify({
+        timestamp: Date.now(),
+        data,
+      }),
+    );
+  } catch (error) {
+    console.error("Failed to write patient dashboard cache:", error);
+  }
+};
+
+const readMedicineReminders = () => {
+  try {
+    const rawReminders = localStorage.getItem("medicineReminders");
+    if (!rawReminders) return [];
+
+    const parsed = JSON.parse(rawReminders);
+    return Array.isArray(parsed)
+      ? parsed.map((reminder) => ({
+          ...reminder,
+          completed: Array.isArray(reminder.completed)
+            ? reminder.completed
+            : [],
+        }))
+      : [];
+  } catch (error) {
+    console.error("Failed to read medicine reminders:", error);
+    return [];
+  }
+};
+
+const writeMedicineReminders = (reminders) => {
+  try {
+    localStorage.setItem("medicineReminders", JSON.stringify(reminders));
+  } catch (error) {
+    console.error("Failed to write medicine reminders:", error);
+  }
+};
+
+const toReminderDate = (reminder) => {
+  const [hourValue = 0, minuteValue = 0] = String(reminder?.time || "00:00")
+    .split(":")
+    .map(Number);
+  const hour12 = hourValue % 12;
+  const hour24 = reminder?.period === "PM" ? hour12 + 12 : hour12;
+  const nextReminder = new Date();
+  nextReminder.setHours(hour24, minuteValue, 0, 0);
+
+  const today = new Date().toDateString();
+  const alreadyHandledToday =
+    reminder?.completed?.includes(today) ||
+    reminder?.lastTriggeredOn === today;
+
+  if (nextReminder <= new Date() || alreadyHandledToday) {
+    nextReminder.setDate(nextReminder.getDate() + 1);
+  }
+
+  return nextReminder;
+};
 /**
  * PATIENT DASHBOARD
  * Central hub for patient - shows appointments, queue, prescriptions, timeline, notifications
@@ -47,6 +133,7 @@ export default function PatientDashboard() {
   const [recordings, setRecordings] = useState([]);
   const [metricsRefresh, setMetricsRefresh] = useState(0);
   const [ehrHistory, setEhrHistory] = useState([]);
+  const [medicineReminders, setMedicineReminders] = useState([]);
 
   const computeHealthScore = (metrics) => {
     if (!metrics) return 0;
@@ -181,7 +268,19 @@ export default function PatientDashboard() {
       });
       if (recRes.ok) {
         const recData = await recRes.json();
-        setRecordings(Array.isArray(recData) ? recData : []);
+        const nextRecordings = Array.isArray(recData) ? recData : [];
+        setRecordings(nextRecordings);
+        writeDashboardCache(user?.id, {
+          appointments,
+          prescriptions,
+          medicines,
+          notifications,
+          walletBalance,
+          recordings: nextRecordings,
+          ehrHistory,
+          doctors,
+          qrData,
+        });
       } else {
         setRecordings([]);
       }
@@ -193,31 +292,50 @@ export default function PatientDashboard() {
 
   useEffect(() => {
     if (user?.id) {
-      loadDashboardData();
-      loadDoctors();
-      generateQR(user.id);
+      const cache = readDashboardCache(user.id);
+      const cacheIsFresh =
+        cache?.timestamp &&
+        Date.now() - cache.timestamp < DASHBOARD_CACHE_TTL_MS;
+
+      if (cache?.data) {
+        setAppointments(cache.data.appointments || []);
+        setPrescriptions(cache.data.prescriptions || []);
+        setMedicines(cache.data.medicines || []);
+        setNotifications(cache.data.notifications || []);
+        setWalletBalance(Number(cache.data.walletBalance || 0));
+        setRecordings(cache.data.recordings || []);
+        setEhrHistory(cache.data.ehrHistory || []);
+        setDoctors(cache.data.doctors || []);
+        setQrData(cache.data.qrData || null);
+        setLoading(false);
+      }
+
+      if (!cacheIsFresh) {
+        loadDashboardData({ showLoader: !cache?.data });
+      }
     }
   }, [user]);
 
-  const loadDoctors = async () => {
-    try {
-      const response = await fetch("/api/admin/doctors", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      const data = await response.json();
-      console.log("Doctors loaded:", data);
-      setDoctors(data.data || []);
-    } catch (err) {
-      console.error("Failed to load doctors:", err);
-      setDoctors([]); // Set empty array on error
-    }
-  };
+  useEffect(() => {
+    const syncReminders = () => {
+      setMedicineReminders(readMedicineReminders());
+    };
 
-  const loadDashboardData = async () => {
+    syncReminders();
+    window.addEventListener("focus", syncReminders);
+    window.addEventListener("storage", syncReminders);
+
+    return () => {
+      window.removeEventListener("focus", syncReminders);
+      window.removeEventListener("storage", syncReminders);
+    };
+  }, []);
+
+  const loadDashboardData = async ({ showLoader = true } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
       const [apptRes, prescRes, notifRes] = await Promise.allSettled([
         appointmentAPI.getByPatient(user.id),
         prescriptionAPI.getByPatient(user.id),
@@ -234,14 +352,17 @@ export default function PatientDashboard() {
         setNotifications(notifRes.value.data.data || []);
       }
 
+      let nextEhrHistory = [];
       try {
         const ehrRes = await patientDataApi.getEHRHistory(user.id);
-        setEhrHistory(Array.isArray(ehrRes.data) ? ehrRes.data : []);
+        nextEhrHistory = Array.isArray(ehrRes.data) ? ehrRes.data : [];
+        setEhrHistory(nextEhrHistory);
       } catch (err) {
         console.error("Failed to load patient data for health status:", err);
         setEhrHistory([]);
       }
 
+      let nextMedicines = [];
       try {
         const medRes = await fetch(`/api/user/${user.id}/medicines`, {
           headers: {
@@ -249,15 +370,35 @@ export default function PatientDashboard() {
           },
         });
         const medData = await medRes.json();
-        setMedicines(medData || []);
+        nextMedicines = Array.isArray(medData) ? medData : [];
+        setMedicines(nextMedicines);
       } catch (err) {
         console.error("Failed to load medicines:", err);
       }
 
       // Load recordings for this patient
-      await fetchRecordings(user.id);
+      let nextRecordings = [];
+      try {
+        const recRes = await fetch(`/api/recordings/patient/${user.id}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          credentials: "include",
+        });
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          nextRecordings = Array.isArray(recData) ? recData : [];
+          setRecordings(nextRecordings);
+        } else {
+          setRecordings([]);
+        }
+      } catch (err) {
+        console.error("Failed to load recordings:", err);
+        setRecordings([]);
+      }
 
       // Load wallet balance
+      let nextWalletBalance = 0;
       try {
         const wbRes = await fetch(`/api/payments/wallet/balance`, {
           headers: {
@@ -268,7 +409,8 @@ export default function PatientDashboard() {
         });
         const wbData = await wbRes.json();
         if (wbRes.ok) {
-          setWalletBalance(Number(wbData.balance || 0));
+          nextWalletBalance = Number(wbData.balance || 0);
+          setWalletBalance(nextWalletBalance);
         } else {
           console.warn("Wallet balance error:", wbData?.error);
           setWalletBalance(0);
@@ -277,10 +419,52 @@ export default function PatientDashboard() {
         console.error("Failed to load wallet balance:", err);
         setWalletBalance(0);
       }
+
+      let nextDoctors = [];
+      try {
+        const response = await fetch("/api/admin/doctors", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+        const data = await response.json();
+        console.log("Doctors loaded:", data);
+        nextDoctors = Array.isArray(data?.data) ? data.data : [];
+        setDoctors(nextDoctors);
+      } catch (err) {
+        console.error("Failed to load doctors:", err);
+        setDoctors([]);
+      }
+
+      let nextQrData = null;
+      try {
+        const qrRes = await patientDataApi.generatePatientQR(user.id);
+        nextQrData = qrRes.data?.qr || null;
+        setQrData(nextQrData);
+      } catch (err) {
+        console.error("QR generation error:", err);
+      }
+
+      writeDashboardCache(user.id, {
+        appointments:
+          apptRes.status === "fulfilled" ? apptRes.value.data.data || [] : [],
+        prescriptions:
+          prescRes.status === "fulfilled" ? prescRes.value.data.data || [] : [],
+        medicines: nextMedicines,
+        notifications:
+          notifRes.status === "fulfilled" ? notifRes.value.data.data || [] : [],
+        walletBalance: nextWalletBalance,
+        recordings: nextRecordings,
+        ehrHistory: nextEhrHistory,
+        doctors: nextDoctors,
+        qrData: nextQrData,
+      });
     } catch (err) {
       setError("Failed to load dashboard data: " + err.message);
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
     }
   };
 
@@ -290,7 +474,19 @@ export default function PatientDashboard() {
         appointmentId,
         "Patient requested cancellation",
       );
-      setAppointments(appointments.filter((a) => a.id !== appointmentId));
+      const updatedAppointments = appointments.filter((a) => a.id !== appointmentId);
+      setAppointments(updatedAppointments);
+      writeDashboardCache(user?.id, {
+        appointments: updatedAppointments,
+        prescriptions,
+        medicines,
+        notifications,
+        walletBalance,
+        recordings,
+        ehrHistory,
+        doctors,
+        qrData,
+      });
       alert("Appointment cancelled successfully");
     } catch (err) {
       alert("Failed to cancel appointment: " + err.message);
@@ -306,7 +502,19 @@ export default function PatientDashboard() {
         },
       });
 
-      setMedicines((prev) => prev.filter((m) => m.id !== medicineId));
+      const updatedMedicines = medicines.filter((m) => m.id !== medicineId);
+      setMedicines(updatedMedicines);
+      writeDashboardCache(user?.id, {
+        appointments,
+        prescriptions,
+        medicines: updatedMedicines,
+        notifications,
+        walletBalance,
+        recordings,
+        ehrHistory,
+        doctors,
+        qrData,
+      });
     } catch (err) {
       console.error("Failed to delete medicine:", err);
       alert("Failed to delete medicine");
@@ -329,7 +537,19 @@ export default function PatientDashboard() {
   const generateQR = async (patientId) => {
     try {
       const res = await patientDataApi.generatePatientQR(patientId);
-      setQrData(res.data.qr);
+      const nextQrData = res.data.qr;
+      setQrData(nextQrData);
+      writeDashboardCache(user?.id, {
+        appointments,
+        prescriptions,
+        medicines,
+        notifications,
+        walletBalance,
+        recordings,
+        ehrHistory,
+        doctors,
+        qrData: nextQrData,
+      });
     } catch (err) {
       console.error("QR generation error:", err);
       alert("Failed to generate QR code");
@@ -350,6 +570,85 @@ export default function PatientDashboard() {
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
       : null;
   const latestMetrics = latestRecord?.ehr || null;
+  const currentDateLabel = new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const unreadAlertsCount = notifications.filter(
+    (n) => n?.is_read === false || n?.isRead === false || n?.read === false,
+  ).length;
+  const nextReminder =
+    medicineReminders.length > 0
+      ? medicineReminders
+          .slice()
+          .sort((a, b) => toReminderDate(a) - toReminderDate(b))[0]
+      : null;
+  const nextReminderTime = nextReminder
+    ? toReminderDate(nextReminder).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : null;
+  const isReminderTakenToday = nextReminder
+    ? nextReminder.completed?.includes(new Date().toDateString())
+    : false;
+  const bookedAppointments = appointments.filter((a) => a.status === "booked");
+  const nextAppointment =
+    bookedAppointments.length > 0
+      ? bookedAppointments
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(`${a.appointment_date} ${a.slot_time || "00:00"}`) -
+              new Date(`${b.appointment_date} ${b.slot_time || "00:00"}`),
+          )[0]
+      : null;
+  const healthScore = latestMetrics ? computeHealthScore(latestMetrics) : 0;
+  const healthScoreColor =
+    healthScore > 70 ? "#90c976" : healthScore > 40 ? "#f2b84b" : "#ef6b6b";
+  const healthSummaryMessage = latestMetrics
+    ? healthScore > 70
+      ? "Heart rate is within a typical resting range."
+      : healthScore > 40
+        ? "A few metrics need attention. Keep tracking them."
+        : "Please review your latest health metrics with a doctor."
+    : "No patient data available yet.";
+  const patientInitial = (user?.name || "A").charAt(0).toUpperCase();
+  const patientFirstName = user?.name?.split(" ")[0] || "Patient";
+
+  const handleToggleReminderTaken = (reminderId) => {
+    const today = new Date().toDateString();
+    const updatedReminders = medicineReminders.map((reminder) => {
+      if (reminder.id !== reminderId) return reminder;
+
+      const completed = reminder.completed?.includes(today)
+        ? reminder.completed.filter((date) => date !== today)
+        : [...(reminder.completed || []), today];
+
+      return {
+        ...reminder,
+        completed,
+        lastTriggeredOn:
+          reminder.completed?.includes(today) ? null : today,
+      };
+    });
+
+    setMedicineReminders(updatedReminders);
+    writeMedicineReminders(updatedReminders);
+  };
+
+  const handleDeleteReminder = (reminderId) => {
+    const updatedReminders = medicineReminders.filter(
+      (reminder) => reminder.id !== reminderId,
+    );
+    setMedicineReminders(updatedReminders);
+    writeMedicineReminders(updatedReminders);
+  };
 
   return (
     <div className="patient-dashboard">
@@ -359,186 +658,232 @@ export default function PatientDashboard() {
           onClose={() => setHealthChatOpen(false)}
         />
       )}
-      <header className="dashboard-header">
-        <h1>Welcome, {user?.name}</h1>
-        {/* <p className="patient-id">Patient ID: {user?.id}</p> */}
-        <div style={{ marginLeft: "auto" }}>
+      <div className="patient-layout">
+        <aside className="patient-sidebar">
+          <div className="sidebar-avatar">{patientInitial}</div>
           <button
-            className="action-btn"
-            onClick={() => setHealthChatOpen(true)}
+            className={`sidebar-item ${activeTab === "home" ? "active" : ""}`}
+            onClick={() => setActiveTab("home")}
           >
-            💬 Health Chatbot
+            <span className="sidebar-icon">H</span>
+            <span className="sidebar-label">Home</span>
           </button>
-        </div>
-      </header>
+          <button
+            className={`sidebar-item ${activeTab === "appointments" ? "active" : ""}`}
+            onClick={() => setActiveTab("appointments")}
+          >
+            <span className="sidebar-icon">A</span>
+            <span className="sidebar-label">Appointments</span>
+          </button>
+          <button
+            className={`sidebar-item ${activeTab === "prescriptions" ? "active" : ""}`}
+            onClick={() => setActiveTab("prescriptions")}
+          >
+            <span className="sidebar-icon">P</span>
+            <span className="sidebar-label">Prescriptions</span>
+          </button>
+          <button className="sidebar-item" onClick={() => navigate("/new/dashboard")}>
+            <span className="sidebar-icon">R</span>
+            <span className="sidebar-label">Records</span>
+          </button>
+          <button
+            className={`sidebar-item ${activeTab === "recordings" ? "active" : ""}`}
+            onClick={() => setActiveTab("recordings")}
+          >
+            <span className="sidebar-icon">V</span>
+            <span className="sidebar-label">Recordings</span>
+          </button>
+          <button
+            className={`sidebar-item ${activeTab === "queue" ? "active" : ""}`}
+            onClick={() => setActiveTab("queue")}
+          >
+            <span className="sidebar-icon">Q</span>
+            <span className="sidebar-label">Queue</span>
+          </button>
+          <button
+            className={`sidebar-item ${activeTab === "health" ? "active" : ""}`}
+            onClick={() => setActiveTab("health")}
+          >
+            <span className="sidebar-icon">M</span>
+            <span className="sidebar-label">Metrics</span>
+          </button>
+          <button className="sidebar-item" onClick={() => navigate("/health-wallet")}>
+            <span className="sidebar-icon">W</span>
+            <span className="sidebar-label">Wallet</span>
+          </button>
+        </aside>
 
-      <div className="dashboard-tabs">
-        <button
-          className={`tab-btn ${activeTab === "home" ? "active" : ""}`}
-          onClick={() => setActiveTab("home")}
-        >
-          📊 Home
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "appointments" ? "active" : ""}`}
-          onClick={() => setActiveTab("appointments")}
-        >
-          📅 Appointments
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "prescriptions" ? "active" : ""}`}
-          onClick={() => setActiveTab("prescriptions")}
-        >
-          💊 Prescriptions
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "timeline" ? "active" : ""}`}
-          onClick={() => (window.location.href = "/new/dashboard")}
-        >
-          📜 Record
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "recordings" ? "active" : ""}`}
-          onClick={() => setActiveTab("recordings")}
-        >
-          🎧 Recordings
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "queue" ? "active" : ""}`}
-          onClick={() => setActiveTab("queue")}
-        >
-          🚦 Queue
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "health" ? "active" : ""}`}
-          onClick={() => setActiveTab("health")}
-        >
-          💪 Health Metrics
-        </button>
-        <button
-          className={`tab-btn`}
-          onClick={() => navigate("/health-wallet")}
-        >
-          Document Wallet
-        </button>
-      </div>
+        <div className="dashboard-content">
+          <header className="dashboard-header">
+            <h1>Welcome, {user?.name}</h1>
+            <p>{currentDateLabel}</p>
+          </header>
 
-      <div className="dashboard-content">
         {error && <div className="error-message">{error}</div>}
 
         {/* HOME TAB */}
         {activeTab === "home" && (
           <div className="tab-content home-tab">
-            <div className="stats-grid">
-              <div className="stat-card">
-                <h3>
-                  {appointments.filter((a) => a.status === "booked").length}
-                </h3>
-                <p>Total Appointments</p>
+            <div className="home-grid">
+              <div className="home-card qr-card">
+                <div className="home-card-title">Patient QR</div>
+                <div className="qr-body">
+                  {qrData ? (
+                    <img src={qrData} alt="Patient QR Code" className="qr-image-ui" />
+                  ) : (
+                    <button className="action-btn" onClick={() => generateQR(user.id)}>
+                      Generate QR
+                    </button>
+                  )}
+                  <p>Scan to open profile</p>
+                </div>
               </div>
-              <div className="stat-card">
-                <h3>{medicines.length}</h3>
-                <p>Active Prescriptions</p>
-              </div>
-              <div className="stat-card">
-                <p style={{ fontWeight: "600", marginBottom: "0px" }}>
-                  Patient QR
-                </p>
 
-                {qrData ? (
-                  <div className="qr-image">
-                    <img
-                      src={qrData}
-                      alt="Patient QR Code"
-                      style={{ width: "90px", height: "90px" }}
-                    />
-                    <p className="qr-text">Scan to open profile</p>
-                  </div>
+              <div className="home-card wallet-card">
+                <div className="home-card-title"> Wallet</div>
+                <h3>₹{Number(walletBalance).toFixed(2)}</h3>
+                <p>Available balance for care payments</p>
+                <span className="ready-pill">Ready</span>
+              </div>
+
+              <div className="home-card mini-card">
+                <div className="home-card-title">SCHEDULED CARE</div>
+                <h3>{bookedAppointments.length}</h3>
+                <p>Total appointments</p>
+              </div>
+
+              <div className="home-card mini-card">
+                <div className="home-card-title">PRESCRIPTIONS</div>
+                <h3>{medicines.length}</h3>
+                <p>Active</p>
+              </div>
+
+              <div className="home-card mini-card reminder-summary-card">
+                <div className="home-card-title">UNREAD ALERTS</div>
+                {nextReminder ? (
+                  <>
+                    <h3>{nextReminder.medicine}</h3>
+                    <p>
+                      {nextReminder.dosage} at {nextReminderTime}
+                    </p>
+                    <div className="reminder-summary-actions">
+                      <button
+                        className={`reminder-status-btn ${
+                          isReminderTakenToday ? "taken" : ""
+                        }`}
+                        onClick={() => handleToggleReminderTaken(nextReminder.id)}
+                      >
+                        {isReminderTakenToday ? "Taken" : "Not Taken"}
+                      </button>
+                      <button
+                        className="reminder-delete-btn"
+                        onClick={() => handleDeleteReminder(nextReminder.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </>
                 ) : (
-                  <button
-                    className="action-btn"
-                    onClick={() => generateQR(user.id)}
-                    style={{ fontSize: "12px", padding: "6px 10px" }}
-                  >
-                    Generate QR
-                  </button>
+                  <>
+                    <h3>{unreadAlertsCount}</h3>
+                    <p>No upcoming reminder. Notifications and reminders appear here.</p>
+                  </>
                 )}
               </div>
-              <div className="stat-card">
-                <p style={{ marginBottom: "6px", fontWeight: "600" }}>
-                  Health Status
-                </p>
-                {(() => {
-                  const score = latestMetrics
-                    ? computeHealthScore(latestMetrics)
-                    : 0;
-                  const color =
-                    score > 70 ? "#22c55e" : score > 40 ? "#f59e0b" : "#ef4444";
-                  return (
-                    <>
-                      <div
-                        style={{
-                          width: "100%",
-                          background: "#eee",
-                          borderRadius: 8,
-                          height: 12,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${score}%`,
-                            background: color,
-                            height: "100%",
-                            borderRadius: 8,
-                            transition: "width 300ms ease-in-out",
-                          }}
-                        />
-                      </div>
-                      <span style={{ fontSize: "12px", color: "#555" }}>
-                        {latestMetrics
-                          ? `${score}% Health Score`
-                          : "No patient data available"}
-                      </span>
-                    </>
-                  );
-                })()}
+
+              <div className="home-card mini-card health-card compact-health-card">
+                <div className="home-card-title">HEALTH SCORE</div>
+                <div className="score-track">
+                  <div style={{ width: `${healthScore}%`, background: healthScoreColor }} />
+                </div>
+                <span className="score-text">
+                  {latestMetrics ? `${healthScore}% overall score` : "No patient data available"}
+                </span>
               </div>
             </div>
 
-            <div className="quick-actions">
-              <h3>Quick Actions</h3>
-              <button
-                className="action-btn"
-                onClick={() => setActiveTab("appointments")}
-              >
-                📅 Book Appointment
+            <div className="home-actions">
+              <button className="action-btn" onClick={() => setActiveTab("appointments")}>
+                Book Appointment
               </button>
-              <button
-                className="action-btn"
-                onClick={() => (window.location.href = "/upload-prescription")}
-              >
-                💊 Upload Prescription
+              <button className="action-btn" onClick={() => navigate("/upload-prescription")}>
+                Upload Prescription
               </button>
-              <button
-                className="action-btn"
-                onClick={() => (window.location.href = "/form")}
-              >
-                📜 Add new Data
+              <button className="action-btn" onClick={() => navigate("/form")}>
+                Add New Data
+              </button>
+              <button className="action-btn" onClick={() => setHealthChatOpen(true)}>
+                Open Health Chat
               </button>
             </div>
 
-            <div className="stat-card">
-              <p style={{ fontWeight: "600", marginBottom: 6 }}>
-                Wallet Balance
-              </p>
-              <h3>₹{Number(walletBalance).toFixed(2)}</h3>
-              <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                Use at payment: Pay with Wallet
-              </p>
+            <div className="metrics-panel">
+              <HealthMetrics patientId={user?.id} />
             </div>
 
-            <HealthMetrics patientId={user?.id} />
+            <div className="home-lower-grid">
+              <div className="home-card activity-card">
+                <div
+                  className="activity-ring"
+                  style={{
+                    background: `conic-gradient(${healthScoreColor} ${Math.max(
+                      healthScore,
+                      4,
+                    )}%, #edf3e6 0)`,
+                  }}
+                >
+                  <div className="activity-ring-inner">{patientInitial}</div>
+                </div>
+                <p className="activity-label">your activity today</p>
+                <h2>{healthScore}%</h2>
+                <button className="ghost-link-btn" onClick={() => setActiveTab("health")}>
+                  View activity
+                </button>
+              </div>
+
+              <div className="home-card appointment-highlight-card">
+                <div className="home-card-title">Upcoming Appointment</div>
+                {nextAppointment ? (
+                  <>
+                    <h3>{nextAppointment.doctor_name || "Doctor Assigned"}</h3>
+                    <p>
+                      {new Date(nextAppointment.appointment_date).toLocaleDateString("en-GB")}
+                      {nextAppointment.slot_time ? ` at ${nextAppointment.slot_time}` : ""}
+                    </p>
+                    <div className="appointment-status-strip">
+                      <span>{nextAppointment.status}</span>
+                    </div>
+                    <button
+                      className="ghost-link-btn"
+                      onClick={() => setActiveTab("appointments")}
+                    >
+                      Manage appointment
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>No upcoming appointment booked yet.</p>
+                    <button
+                      className="ghost-link-btn"
+                      onClick={() => setActiveTab("appointments")}
+                    >
+                      Book appointment
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="home-card support-card">
+                <div className="home-card-title">Support Chat</div>
+                <div className="support-bubble">
+                  Hello mr/mrs {patientFirstName}! Need help?
+                </div>
+                <p>{healthSummaryMessage}</p>
+                <button className="ghost-link-btn" onClick={() => setHealthChatOpen(true)}>
+                  Open chat
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -849,44 +1194,19 @@ export default function PatientDashboard() {
                 No recordings yet. Your doctor’s voice notes will appear here.
               </p>
             ) : (
-              <div
-                className="recordings-list"
-                style={{ display: "grid", gap: 12 }}
-              >
+              <div className="recordings-list">
                 {recordings.map((r) => (
-                  <div
-                    key={r.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      padding: 12,
-                      background: "#fff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: 8,
-                      }}
-                    >
+                  <div key={r.id} className="recording-card">
+                    <div className="recording-card-header">
                       <strong>Doctor:</strong>
                       <span>{r.doctor_name || "-"}</span>
                     </div>
                     <audio
                       controls
                       src={r.file_url}
-                      style={{ width: "100%" }}
+                      className="recording-audio"
                     />
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 12,
-                        marginTop: 8,
-                        fontSize: 12,
-                        color: "#555",
-                      }}
-                    >
+                    <div className="recording-meta">
                       <div>
                         <strong>Date:</strong>{" "}
                         {r.appointment_date
@@ -906,7 +1226,20 @@ export default function PatientDashboard() {
             )}
           </div>
         )}
+        </div>
       </div>
+
+      <button
+        type="button"
+        className="doctor-ai-fab"
+        onClick={() => setHealthChatOpen(true)}
+        aria-label="Open Doctor AI chat"
+        title="Doctor AI"
+      >
+        <span className="doctor-ai-fab-icon">
+          <img src={assets.doctor_ai_icon} alt="" className="doctor-ai-fab-image" />
+        </span>
+      </button>
 
       {showRescheduleModal && (
         <div className="modal-overlay">

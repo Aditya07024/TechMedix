@@ -152,6 +152,17 @@
   transition: background-color 0.2s;
 }
 
+.login-popup-container .demo-login-btn {
+  background: #17324a;
+  color: #e8f4ff;
+  border: 1px solid #2f6b99;
+  margin-top: 8px;
+}
+
+.login-popup-container .demo-login-btn:hover {
+  background: #22496a;
+}
+
 button:hover {
   background-color: #2ab280;
 }

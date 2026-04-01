@@ -39,6 +39,29 @@
   text-transform: uppercase;
 }
 
+.form-actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
+.demo-fill-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #17324a, #2d6fa3);
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.demo-fill-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(23, 50, 74, 0.22);
+}
+
 /* Input Row Container */
 .input-row {
   display: flex;
@@ -246,6 +269,10 @@
   
   .form-heading {
     font-size: 1.5rem;
+  }
+
+  .form-actions-bar {
+    justify-content: center;
   }
 }
 

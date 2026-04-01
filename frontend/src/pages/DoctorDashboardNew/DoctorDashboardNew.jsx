@@ -13,6 +13,9 @@ import "./DoctorDashboardNew.css";
  */
 export default function DoctorDashboardNew() {
   const { user } = useAuth();
+  const doctorDisplayName = (user?.name || "Doctor")
+    .replace(/^dr\.?\s+/i, "")
+    .trim();
   const [activeTab, setActiveTab] = useState("queue");
   const [queue, setQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -371,7 +374,7 @@ export default function DoctorDashboardNew() {
         <header className="doc-header">
           <div className="doc-header-copy">
             <span className="doc-header-kicker">Doctor workspace</span>
-            <h1>Welcome, Dr. {user?.name}</h1>
+            <h1>Welcome, Dr. {doctorDisplayName}</h1>
             <p className="doc-header-description">
               Review your patient flow, appointments, and daily performance from
               one calm clinical workspace.

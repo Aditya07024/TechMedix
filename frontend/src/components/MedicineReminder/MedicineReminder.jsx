@@ -8,6 +8,7 @@ const MedicineReminder = () => {
   const [dosage, setDosage] = useState('');
   const [time, setTime] = useState('08:00');
   const [period, setPeriod] = useState('AM');
+  const [hasLoadedReminders, setHasLoadedReminders] = useState(false);
 
   useEffect(() => {
     const savedReminders = localStorage.getItem('medicineReminders');
@@ -19,6 +20,7 @@ const MedicineReminder = () => {
       }));
       setReminders(parsedReminders);
     }
+    setHasLoadedReminders(true);
     
     // Request notification permission
     if ('Notification' in window) {
@@ -27,8 +29,9 @@ const MedicineReminder = () => {
   }, []);
 
   useEffect(() => {
+    if (!hasLoadedReminders) return;
     localStorage.setItem('medicineReminders', JSON.stringify(reminders));
-  }, [reminders]);
+  }, [reminders, hasLoadedReminders]);
 
   useEffect(() => {
     const timeouts = reminders.map((reminder) => scheduleReminder(reminder));

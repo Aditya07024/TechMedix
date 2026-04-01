@@ -93,6 +93,65 @@ const LoginPop = ({ setShowLogin }) => {
     }
   };
 
+  const handleDemoPatientLogin = async () => {
+    setCurrState("Login");
+    setEmail("demo@gmail.com");
+    setPassword("1234589");
+    setError(null);
+
+    try {
+      let res;
+      try {
+        res = await authApi.login({
+          email: "demo@gmail.com",
+          password: "1234589",
+        });
+      } catch (loginError) {
+        if (loginError?.response?.status !== 401) {
+          throw loginError;
+        }
+
+        await authApi.signup({
+          name: "Demo Patient",
+          email: "demo@gmail.com",
+          password: "1234589",
+          age: "28",
+          gender: "Male",
+          phone: "9999999999",
+          bloodGroup: "B+",
+          medicalHistory: "No major medical history",
+        });
+
+        res = await authApi.login({
+          email: "demo@gmail.com",
+          password: "1234589",
+        });
+      }
+
+      if (res?.data?.user) {
+        const userData = {
+          ...res.data.user,
+          role: res.data.user?.role || "patient",
+        };
+
+        localStorage.setItem("user", JSON.stringify(userData));
+        login(userData, res.data.token || null);
+        setShowLogin(false);
+        navigate(redirectTo, { replace: true });
+      }
+    } catch (err) {
+      console.error(err);
+      const signupConflict =
+        err?.response?.status === 400 &&
+        String(err?.response?.data?.error || "").toLowerCase().includes("exists");
+      setError(
+        signupConflict
+          ? "Demo patient account exists, but the password does not match on the backend."
+          : err.response?.data?.error || "Demo patient login failed",
+      );
+    }
+  };
+
   return (
     <div className="pop">
       {/* ---------------- LEFT SIDE ---------------- */}
@@ -205,6 +264,16 @@ const LoginPop = ({ setShowLogin }) => {
             <button type="submit">
               {currState === "Sign Up" ? "Create Account" : "Login"}
             </button>
+
+            {currState === "Login" && (
+              <button
+                type="button"
+                className="demo-login-btn"
+                onClick={handleDemoPatientLogin}
+              >
+                Demo Patient Login
+              </button>
+            )}
 
             <p>
               {currState === "Login" ? (

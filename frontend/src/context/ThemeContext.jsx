@@ -1,21 +1,30 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 
 const ThemeContext = createContext();
+const THEME_STORAGE_KEY = "techmedix-dark-mode";
 
 export function ThemeProvider({ children }) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) === "true";
+    } catch (error) {
+      console.error("Failed to read theme preference:", error);
+      return false;
+    }
+  });
 
-  // Remove the system preference detection if you want to always start with light mode
   useEffect(() => {
-    // Just set initial light mode
-    document.body.classList.remove("dark-mode");
-  }, []);
+    document.body.classList.toggle("dark-mode", isDarkMode);
 
-  // Manual toggle
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, String(isDarkMode));
+    } catch (error) {
+      console.error("Failed to save theme preference:", error);
+    }
+  }, [isDarkMode]);
+
   const toggleTheme = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    document.body.classList.toggle("dark-mode", newTheme);
+    setIsDarkMode((prev) => !prev);
   };
 
   return (

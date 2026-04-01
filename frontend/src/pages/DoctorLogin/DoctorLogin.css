@@ -7,6 +7,10 @@
   font-family: "Arial", sans-serif;
 }
 
+.dark-mode .doctor-login-container {
+  background: linear-gradient(180deg, #0d1b2a 0%, #13283b 100%);
+}
+
 .doctor-login-form {
   background-color: #fff;
   padding: 40px;
@@ -17,10 +21,21 @@
   text-align: center;
 }
 
+.dark-mode .doctor-login-form {
+  background: #13283b;
+  border: 1px solid #274866;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
 .doctor-login-form h2 {
   margin-bottom: 30px;
   color: #333;
   font-size: 28px;
+}
+
+.dark-mode .doctor-login-form h2,
+.dark-mode .form-group label {
+  color: #e8f4ff;
 }
 
 .form-group {
@@ -44,6 +59,17 @@
   border-radius: 5px;
   font-size: 16px;
   box-sizing: border-box; /* Ensures padding doesn't increase total width */
+}
+
+.dark-mode .form-group input[type="email"],
+.dark-mode .form-group input[type="password"] {
+  background: #102235;
+  color: #e8f4ff;
+  border-color: #35597a;
+}
+
+.dark-mode .form-group input::placeholder {
+  color: #96b2c7;
 }
 
 .form-group input:focus {
@@ -74,10 +100,31 @@
   background-color: #0056b3;
 }
 
+.demo-login-button {
+  background-color: #17324a;
+  color: #e8f4ff;
+  padding: 12px 20px;
+  border: 1px solid #2f6b99;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.demo-login-button:hover {
+  background-color: #22496a;
+}
+
 .signup-link {
   margin-top: 20px;
   font-size: 14px;
   color: #555;
+}
+
+.dark-mode .signup-link {
+  color: #a9bfd1;
 }
 
 .signup-link span {

@@ -15,6 +15,12 @@
   border: 1px solid #e0e0e0;
 }
 
+.dark-mode .google-fit-card {
+  background: #13283b;
+  border-color: #274866;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
 .google-fit-header {
   display: flex;
   align-items: center;
@@ -22,6 +28,10 @@
   margin-bottom: 15px;
   padding-bottom: 15px;
   border-bottom: 2px solid #f0f0f0;
+}
+
+.dark-mode .google-fit-header {
+  border-bottom-color: #274866;
 }
 
 .google-fit-logo {
@@ -36,11 +46,24 @@
   font-weight: 600;
 }
 
+.dark-mode .google-fit-header h3,
+.dark-mode .info-section h4,
+.dark-mode .info-section strong {
+  color: #e8f4ff;
+}
+
 .google-fit-description {
   color: #6b7280;
   font-size: 14px;
   line-height: 1.6;
   margin: 15px 0;
+}
+
+.dark-mode .google-fit-description,
+.dark-mode .status-connected p,
+.dark-mode .status-disconnected p,
+.dark-mode .info-section li {
+  color: #b3c7d8;
 }
 
 /* Status Section */
@@ -49,6 +72,10 @@
   padding: 15px;
   background-color: #f9fafb;
   border-radius: 8px;
+}
+
+.dark-mode .status-section {
+  background-color: #102235;
 }
 
 .status-connected,
@@ -156,6 +183,12 @@
   border: 1px solid #d32f2f;
 }
 
+.dark-mode .btn-disconnect {
+  background-color: #1a3045;
+  color: #ff9f9f;
+  border-color: #e26161;
+}
+
 .btn-disconnect:hover:not(:disabled) {
   background-color: #ffebee;
   box-shadow: 0 2px 8px rgba(211, 47, 47, 0.15);
@@ -168,6 +201,11 @@
   padding: 15px;
   margin-top: 20px;
   border-left: 4px solid #4285f4;
+}
+
+.dark-mode .info-section {
+  background-color: #102235;
+  border-left-color: #4aa8e8;
 }
 
 .info-section h4 {

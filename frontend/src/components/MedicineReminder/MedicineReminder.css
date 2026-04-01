@@ -10,7 +10,7 @@
   align-items: center;
   margin-bottom: 30px;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(180deg, #2d5f98 0%, #2f6fa9 55%, #3ea0dc 100%);
   border-radius: 15px;
   color: white;
 }
@@ -254,15 +254,15 @@
   margin-bottom: 20px;
 }
 
-.form-group label {
+.medicine-reminder .form-group label {
   display: block;
   margin-bottom: 8px;
   color: #333;
   font-weight: 600;
 }
 
-.form-group input,
-.form-group select {
+.medicine-reminder .form-group input,
+.medicine-reminder .form-group select {
   width: 100%;
   padding: 12px;
   border: 2px solid #e0e0e0;
@@ -279,8 +279,8 @@
 }
 
 
-.form2-group input,
-.form2-group select {
+.medicine-reminder .form2-group input,
+.medicine-reminder .form2-group select {
   width: 100%;
   padding: 12px;
   border: 2px solid #e0e0e0;
@@ -290,29 +290,29 @@
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  /* background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); */
+  background-image: none;
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 10px 6px;
   margin-bottom: 10px;
 }
 
-.form-group input:focus {
+.medicine-reminder .form-group input:focus {
   outline: none;
   border-color: #667eea;
 }
 
-.time-group {
+.medicine-reminder .time-group {
   display: flex;
   gap: 15px;
   align-items: flex-end;
 }
 
-.time-group .form-group {
+.medicine-reminder .time-group .form-group {
   flex: 1;
 }
 
-.period-select {
+.medicine-reminder .period-select {
   width: 100%;
   padding: 12px;
   border: 2px solid #e0e0e0;
@@ -323,7 +323,19 @@
   transition: border-color 0.3s ease;
 }
 
-.period-select:focus {
+.medicine-reminder .time-group .form-group select {
+  background-color: #ffffff;
+  color: #1b2f42;
+  font-weight: 700;
+  border-color: #cfd8e3;
+}
+
+.medicine-reminder .time-group .form-group select option {
+  background: #ffffff;
+  color: #1b2f42;
+}
+
+.medicine-reminder .period-select:focus {
   outline: none;
   border-color: #667eea;
 }
@@ -406,4 +418,122 @@
     flex-direction: column;
     gap: 0;
   }
+}
+
+.dark-mode .medicine-reminder {
+  color: #e8f4ff;
+}
+
+.dark-mode .reminder-card,
+.dark-mode .empty-reminders,
+.dark-mode .dialog {
+  background: #13283b;
+  border-color: #274866;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.dark-mode .reminder-card.completed {
+  background: #193246;
+}
+
+.dark-mode .reminder-header-card h3,
+.dark-mode .reminder-details strong,
+.dark-mode .empty-reminders h3,
+.dark-mode .dialog h3,
+.dark-mode .medicine-reminder .form-group label,
+.dark-mode .medicine-reminder .form2-group label {
+  color: #e8f4ff;
+}
+
+.dark-mode .reminder-details p,
+.dark-mode .empty-reminders p {
+  color: #a9bfd1;
+}
+
+.dark-mode .dosage {
+  background: #17324a;
+  color: #8fd0ff;
+}
+
+.dark-mode .notification-info {
+  background: #15372b;
+  color: #9de4bf;
+}
+
+.dark-mode .medicine-reminder .form-group input,
+.dark-mode .medicine-reminder .form-group select,
+.dark-mode .medicine-reminder .form2-group input,
+.dark-mode .medicine-reminder .form2-group select,
+.dark-mode .medicine-reminder .period-select {
+  background-color: #102235;
+  color: #e8f4ff;
+  border-color: #35597a;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='%239eb8cf' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+}
+
+.dark-mode .medicine-reminder .form2-group input {
+  background-image: none;
+}
+
+.dark-mode .medicine-reminder .time-group .form-group select,
+.dark-mode .medicine-reminder .period-select {
+  background-color: #1b3348;
+  color: #f4fbff;
+  border-color: #4b7194;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background-image: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 12px;
+}
+
+.dark-mode .medicine-reminder .time-group .form-group select option,
+.dark-mode .medicine-reminder .period-select option {
+  background: #102235;
+  color: #e8f4ff;
+}
+
+.dark-mode .medicine-reminder .form-group input::placeholder,
+.dark-mode .medicine-reminder .form2-group input::placeholder {
+  color: #96b2c7;
+}
+
+.dark-mode .medicine-reminder .form-group input:focus,
+.dark-mode .medicine-reminder .form-group select:focus,
+.dark-mode .medicine-reminder .form2-group input:focus,
+.dark-mode .medicine-reminder .form2-group select:focus,
+.dark-mode .medicine-reminder .period-select:focus {
+  outline: none;
+  border-color: #6db9ff;
+  box-shadow: 0 0 0 3px rgba(77, 154, 225, 0.16);
+}
+
+.dark-mode .notification-note {
+  background: #17324a;
+  color: #8fd0ff;
+}
+
+.dark-mode .dialog-actions button:first-child {
+  background: #1b3348;
+  color: #d6e8f7;
+}
+
+.dark-mode .dialog-actions button:first-child:hover {
+  background: #274866;
+}
+
+.dark-mode .dialog-actions .add-btn {
+  background: linear-gradient(180deg, #3976d8 0%, #5e79e8 100%);
+}
+
+.dark-mode .delete-button {
+  background: transparent;
+  color: #ff8f8f;
+  border-color: #ff6b6b;
+}
+
+.dark-mode .delete-button:hover {
+  background: #a52d2d;
+  color: #fff5f5;
 }

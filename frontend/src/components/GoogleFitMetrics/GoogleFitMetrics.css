@@ -8,6 +8,11 @@
   margin: 20px 0;
 }
 
+.dark-mode .google-fit-metrics-container {
+  background: #13283b;
+  border: 1px solid #274866;
+}
+
 .metrics-header {
   display: flex;
   justify-content: space-between;
@@ -17,11 +22,21 @@
   border-bottom: 2px solid #e0e0e0;
 }
 
+.dark-mode .metrics-header {
+  border-bottom-color: #274866;
+}
+
 .metrics-header h2 {
   margin: 0;
   font-size: 24px;
   color: #1f2937;
   font-weight: 700;
+}
+
+.dark-mode .metrics-header h2,
+.dark-mode .metric-value,
+.dark-mode .value {
+  color: #e8f4ff;
 }
 
 .header-actions {
@@ -130,6 +145,15 @@
   font-style: italic;
 }
 
+.dark-mode .last-sync-info,
+.dark-mode .loading-state p,
+.dark-mode .metric-info h4,
+.dark-mode .unit,
+.dark-mode .metric-timestamp,
+.dark-mode .empty-state {
+  color: #9eb8cf;
+}
+
 /* Loading State */
 .loading-state {
   display: flex;
@@ -182,10 +206,20 @@
   transition: all 0.3s ease;
 }
 
+.dark-mode .metric-card {
+  background: #102235;
+  border-color: #274866;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
 .metric-card:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   transform: translateY(-2px);
   border-color: #4285f4;
+}
+
+.dark-mode .metric-card:hover {
+  border-color: #4aa8e8;
 }
 
 .metric-icon {
@@ -233,6 +267,10 @@
   font-weight: 400;
 }
 
+.dark-mode .no-data {
+  color: #9eb8cf;
+}
+
 .metric-timestamp {
   margin: 0;
   font-size: 11px;
@@ -250,6 +288,11 @@
   background: #ecfdf5;
   border-radius: 4px;
   display: inline-block;
+}
+
+.dark-mode .metric-status {
+  background: #123b2d;
+  color: #74d7aa;
 }
 
 /* Active/Inactive States */

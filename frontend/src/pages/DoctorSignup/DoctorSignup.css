@@ -7,6 +7,10 @@
   font-family: "Arial", sans-serif;
 }
 
+.dark-mode .doctor-signup-container {
+  background: linear-gradient(180deg, #0d1b2a 0%, #13283b 100%);
+}
+
 .doctor-signup-form {
   background-color: #fff;
   padding: 40px;
@@ -17,10 +21,21 @@
   text-align: center;
 }
 
+.dark-mode .doctor-signup-form {
+  background: #13283b;
+  border: 1px solid #274866;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
 .doctor-signup-form h2 {
   margin-bottom: 30px;
   color: #333;
   font-size: 28px;
+}
+
+.dark-mode .doctor-signup-form h2,
+.dark-mode .form-group label {
+  color: #e8f4ff;
 }
 
 .form-group {
@@ -45,6 +60,18 @@
   border-radius: 5px;
   font-size: 16px;
   box-sizing: border-box;
+}
+
+.dark-mode .form-group input[type="text"],
+.dark-mode .form-group input[type="email"],
+.dark-mode .form-group input[type="password"] {
+  background: #102235;
+  color: #e8f4ff;
+  border-color: #35597a;
+}
+
+.dark-mode .form-group input::placeholder {
+  color: #96b2c7;
 }
 
 .form-group input:focus {
@@ -85,6 +112,10 @@
   margin-top: 20px;
   font-size: 14px;
   color: #555;
+}
+
+.dark-mode .login-link {
+  color: #a9bfd1;
 }
 
 .login-link span {
