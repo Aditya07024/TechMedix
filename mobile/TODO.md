@@ -1,0 +1,1 @@
+# Medicine Reminder Widget TODO&#10;&#10;## Steps:&#10;- [x] Step 1: Create MedicineReminderWidget.js&#10;- [x] Step 2: Add widget to PatientDashboardScreen in PatientScreens.js&#10;- [x] Step 3: Install deps (running)&#10;- [ ] Step 4: Update app.json for notifications&#10;- [ ] Step 5: Test&#10;- [ ] Step 6: Complete

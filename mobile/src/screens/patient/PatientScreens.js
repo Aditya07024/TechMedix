@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
+import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
+import { Platform } from "react-native";
+
 import {
   ActivityIndicator,
   Alert,
@@ -140,6 +143,32 @@ export function PatientDashboardScreen({ navigation }) {
     recordings: [],
     documents: [],
   });
+
+  const [reminders, setReminders] = useState({});
+
+  function toggleReminder(medicineId) {
+    setReminders((prev) => ({
+      ...prev,
+      [medicineId]: !prev[medicineId],
+    }));
+  }
+
+async function testReminder(medicineName) {
+  if (Platform.OS === "web") {
+    Alert.alert("Not Supported", "Reminders only work on mobile devices");
+    return;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Medicine Reminder",
+      body: `Time to take ${medicineName}`,
+    },
+    trigger: { seconds: 60 },
+  });
+
+  Alert.alert("Test Set", "Reminder will trigger in 1 minute");
+}
 
   async function loadDashboard(isRefresh = false) {
     if (!user?.id) return;
@@ -401,6 +430,75 @@ export function PatientDashboardScreen({ navigation }) {
         ) : (
           <Text style={styles.sectionMuted}>No medicines loaded yet.</Text>
         )}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <View style={styles.cardHeaderRow}>
+          <Text style={styles.blockTitle}>Medicine Reminders</Text>
+        </View>
+
+        {/* Current Prescription Only */}
+        {homeData.prescriptions.length ? (
+          homeData.prescriptions.slice(0, 4).map((item, index) => {
+            const id = item.medicine_id || item.id || index;
+            const isEnabled = reminders[id] || false;
+
+            return (
+              <View key={id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listTitle}>{item.medicine_name}</Text>
+                  <Text style={styles.listMeta}>
+                    {[item.dosage, item.frequency]
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </Text>
+                </View>
+
+                <Switch
+                  value={isEnabled}
+                  onValueChange={() => toggleReminder(id)}
+                />
+
+                {isEnabled && (
+                  <TouchableOpacity
+                    onPress={() => testReminder(item.medicine_name)}
+                    style={{ marginLeft: 10 }}
+                  >
+                    <MaterialCommunityIcons
+                      name="clock-outline"
+                      size={22}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.sectionMuted}>
+            No medicines available for reminders.
+          </Text>
+        )}
+
+        {/* Manual Add Reminder */}
+        <View style={{ marginTop: 12 }}>
+          <Text style={styles.blockTitle}>Add Custom Reminder</Text>
+
+          <TouchableOpacity
+            onPress={() => testReminder("Custom Medicine")}
+            style={{
+              marginTop: 10,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.primary,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>
+              + Add Manual Reminder
+            </Text>
+          </TouchableOpacity>
+        </View>
       </SurfaceCard>
 
       <SurfaceCard tone="low">
@@ -1890,9 +1988,6 @@ export function PatientRecordingsScreen({ navigation }) {
                   />
 
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
-                    <Text style={styles.audioTitle}>
-                      Tap to play
-                    </Text>
                     <Text style={styles.audioMeta}>
                       {isPlaying ? "Playing..." : "Ready"}
                     </Text>

@@ -18,16 +18,20 @@
     },
     "android": {
       "package": "com.techmedix.mobile",
+      "versionCode": 1,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#f4faff"
       },
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
-      "expo-barcode-scanner"
+      "expo-barcode-scanner",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

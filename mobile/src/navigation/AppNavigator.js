@@ -111,27 +111,37 @@ function PatientTabs() {
       <PatientTab.Screen
         name="Home"
         component={PatientDashboardScreen}
-        options={{ tabBarIcon: ({ focused }) => patientTabIcon("Home", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => patientTabIcon("Home", focused),
+        }}
       />
       <PatientTab.Screen
         name="Care"
         component={BookAppointmentScreen}
-        options={{ tabBarIcon: ({ focused }) => patientTabIcon("Care", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => patientTabIcon("Care", focused),
+        }}
       />
       <PatientTab.Screen
         name="Prescriptions"
         component={AnalyzePrescriptionScreen}
-        options={{ tabBarIcon: ({ focused }) => patientTabIcon("Prescriptions", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => patientTabIcon("Prescriptions", focused),
+        }}
       />
       <PatientTab.Screen
         name="Wallet"
         component={HealthWalletScreen}
-        options={{ tabBarIcon: ({ focused }) => patientTabIcon("Wallet", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => patientTabIcon("Wallet", focused),
+        }}
       />
       <PatientTab.Screen
         name="Profile"
         component={PatientProfileScreen}
-        options={{ tabBarIcon: ({ focused }) => patientTabIcon("Profile", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => patientTabIcon("Profile", focused),
+        }}
       />
     </PatientTab.Navigator>
   );
@@ -151,24 +161,31 @@ function DoctorTabs() {
       <DoctorTab.Screen
         name="Queue"
         component={QueueManagerScreen}
-        options={{ tabBarIcon: ({ focused }) => doctorTabIcon("Queue", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => doctorTabIcon("Queue", focused),
+        }}
       />
       <DoctorTab.Screen
         name="Appointments"
         component={DoctorAppointmentsScreen}
-        options={{ tabBarIcon: ({ focused }) => doctorTabIcon("Appointments", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => doctorTabIcon("Appointments", focused),
+        }}
       />
       <DoctorTab.Screen
         name="Schedule"
         component={DoctorScheduleScreen}
-        options={{ tabBarIcon: ({ focused }) => doctorTabIcon("Schedule", focused) }}
+        options={{
+          tabBarIcon: ({ focused }) => doctorTabIcon("Schedule", focused),
+        }}
       />
       <DoctorTab.Screen
         name="DoctorProfileTab"
         component={DoctorProfileScreen}
         options={{
           title: "Profile",
-          tabBarIcon: ({ focused }) => doctorTabIcon("DoctorProfileTab", focused),
+          tabBarIcon: ({ focused }) =>
+            doctorTabIcon("DoctorProfileTab", focused),
         }}
       />
     </DoctorTab.Navigator>
@@ -179,20 +196,38 @@ function PatientRootNavigator() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       <RootStack.Screen name="PatientApp" component={PatientTabs} />
-      <RootStack.Screen name="AppointmentPayment" component={AppointmentPaymentScreen} />
+      <RootStack.Screen
+        name="AppointmentPayment"
+        component={AppointmentPaymentScreen}
+      />
       <RootStack.Screen name="PaymentWallet" component={PaymentWalletScreen} />
-      <RootStack.Screen name="PrescriptionResults" component={PrescriptionResultsScreen} />
-      <RootStack.Screen name="MedicalTimeline" component={MedicalTimelineScreen} />
+      <RootStack.Screen
+        name="PrescriptionResults"
+        component={PrescriptionResultsScreen}
+      />
+      <RootStack.Screen
+        name="MedicalTimeline"
+        component={MedicalTimelineScreen}
+      />
       <RootStack.Screen name="AIHealthChat" component={AIHealthChatScreen} />
       <RootStack.Screen name="XRayAnalyzer" component={XRayAnalyzerScreen} />
       <RootStack.Screen name="XRayHistory" component={XRayHistoryScreen} />
       <RootStack.Screen name="PatientQueue" component={PatientQueueScreen} />
       <RootStack.Screen name="HealthMetrics" component={HealthMetricsScreen} />
       <RootStack.Screen name="Notifications" component={NotificationsScreen} />
-      <RootStack.Screen name="PatientRecordings" component={PatientRecordingsScreen} />
+      <RootStack.Screen
+        name="PatientRecordings"
+        component={PatientRecordingsScreen}
+      />
       <RootStack.Screen name="PatientQR" component={PatientQRScreen} />
-      <RootStack.Screen name="MedicineSearch" component={MedicineSearchScreen} />
-      <RootStack.Screen name="MedicineDetail" component={MedicineDetailScreen} />
+      <RootStack.Screen
+        name="MedicineSearch"
+        component={MedicineSearchScreen}
+      />
+      <RootStack.Screen
+        name="MedicineDetail"
+        component={MedicineDetailScreen}
+      />
     </RootStack.Navigator>
   );
 }
@@ -202,9 +237,18 @@ function DoctorRootNavigator() {
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       <RootStack.Screen name="DoctorApp" component={DoctorTabs} />
       <RootStack.Screen name="DoctorProfile" component={DoctorProfileScreen} />
-      <RootStack.Screen name="DoctorPatientLookup" component={DoctorPatientLookupScreen} />
-      <RootStack.Screen name="DoctorManualPrescription" component={DoctorManualPrescriptionScreen} />
-      <RootStack.Screen name="DoctorRecordingUpload" component={DoctorRecordingUploadScreen} />
+      <RootStack.Screen
+        name="DoctorPatientLookup"
+        component={DoctorPatientLookupScreen}
+      />
+      <RootStack.Screen
+        name="DoctorManualPrescription"
+        component={DoctorManualPrescriptionScreen}
+      />
+      <RootStack.Screen
+        name="DoctorRecordingUpload"
+        component={DoctorRecordingUploadScreen}
+      />
     </RootStack.Navigator>
   );
 }
@@ -212,7 +256,10 @@ function DoctorRootNavigator() {
 function AuthNavigator() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
-      <RootStack.Screen name="RoleSelection" component={LoginRoleSelectionScreen} />
+      <RootStack.Screen
+        name="RoleSelection"
+        component={LoginRoleSelectionScreen}
+      />
     </RootStack.Navigator>
   );
 }

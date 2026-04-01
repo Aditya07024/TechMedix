@@ -1106,7 +1106,9 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
         <Text style={styles.blockTitle}>📋 Recorded Voice Notes</Text>
         {(recordings || []).length ? (
           recordings.slice(0, 6).map((recording) => {
-            const recordingUrl = toAbsoluteUrl(recording.audio_url || recording.file_url);
+            const recordingUrl = toAbsoluteUrl(
+              recording.audio_url || recording.file_url,
+            );
             const isPlaying = playingRecordingId === recordingUrl;
             return (
               <View key={recording.id} style={styles.audioPlayerCard}>
@@ -1117,7 +1119,9 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
                     color={colors.primary}
                   />
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
-                    <Text style={styles.audioTitle}>Recording #{recording.id}</Text>
+                    <Text style={styles.audioTitle}>
+                      Recording #{recording.id}
+                    </Text>
                     <Text style={styles.audioMeta}>
                       {recording.patient_name || "Patient audio"}
                     </Text>
