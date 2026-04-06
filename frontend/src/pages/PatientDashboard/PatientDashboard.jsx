@@ -523,7 +523,10 @@ export default function PatientDashboard() {
 
   const handleCompareWithSalt = (medicineName) => {
     navigate("/search", {
-      state: { medicine: medicineName },
+      state: {
+        medicine: medicineName,
+        compareBySalt: true,
+      },
     });
   };
 

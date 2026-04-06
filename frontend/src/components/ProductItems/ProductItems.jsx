@@ -19,10 +19,10 @@ const ProductItems = ({ id, name, image, price, description, category }) => {
   };
 
   const handleProductClick = () => {
-    navigate("/view", {
+    navigate(`/medicines/${id}`, {
       state: {
         product: {
-          _id: id,
+          id,
           name,
           image,
           price,
@@ -36,7 +36,7 @@ const ProductItems = ({ id, name, image, price, description, category }) => {
   return (
     <div className="product-item">
       <div className="product-image" onClick={handleProductClick}>
-        <img src={image} alt={name} />
+        <img src={image || assets.image1} alt={name} />
       </div>
       <div className="product-item-info" onClick={handleProductClick}>
         <div className="product-item-name-rating">
@@ -44,7 +44,9 @@ const ProductItems = ({ id, name, image, price, description, category }) => {
           <img src={assets.rating_starts} alt="rating" />
         </div>
         <p className="product-item-desc">{description}</p>
-        <p className="product-item-price">${price}</p>
+        <p className="product-item-price">
+          {price != null ? `₹${price}` : "Price unavailable"}
+        </p>
       </div>
       <div className="wishlist">
         <button

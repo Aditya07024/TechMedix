@@ -8,7 +8,6 @@ import ProductView from "./pages/ProductView/ProductView";
 import Search from "./pages/Search/Search";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import AddMedicine from "./components/AddMedicine/AddMedicine";
-import EditMedicine from "./components/EditMedicine/EditMedicine";
 import Notfound from "./pages/Notfound/notfound";
 import Landingpage from "./pages/Landingpage/Landingpage";
 import MedicineReminder from "./components/MedicineReminder/MedicineReminder";
@@ -59,6 +58,7 @@ const App = () => {
           <Route path="/home" element={<Home />} />
           <Route path="/wishlist" element={<WishList />} />
           <Route path="/view" element={<ProductView />} />
+          <Route path="/medicines/:id" element={<ProductView />} />
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
           <Route path="/search" element={<Search />} />
@@ -121,7 +121,6 @@ const App = () => {
           />
 
           <Route path="/new" element={<AddMedicine />} />
-          <Route path="/medicines/:id" element={<EditMedicine />} />
           <Route path="/report-generator" element={<ReportGenerator />} />
           <Route path="/form" element={<Form />} />
 

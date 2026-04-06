@@ -17,6 +17,7 @@ import {
   registerQueueHandlers,
   registerNotificationHandlers,
 } from "./socket/queueHandlers.js";
+import { setSocketServer } from "./socket/socketServer.js";
 import { startCronJobs } from "./cron/jobs.js";
 
 const server = http.createServer(app);
@@ -27,6 +28,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+setSocketServer(io);
 startNotificationScheduler(io);
 startCronJobs(io);
 
@@ -81,6 +83,7 @@ import {
 } from "./models-pg/patientData.js";
 import { createReport, getReportById } from "./models-pg/report.js";
 import { searchMedicines } from "./models-pg/medicine.js";
+import { searchMedicinesInCsv } from "./services/medicineCsvService.js";
 import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 import safetyRoutes from "./routes/safetyRoutes.js";
@@ -121,6 +124,7 @@ import healthRoutes from "./routes/healthRoutes.js";
 import healthWalletRoutes from "./routes/healthWalletRoutes.js";
 import googleFitRoutes from "./routes/googleFitRoutes.js";
 import xrayRoutes from "./routes/xrayRoutes.js";
+import medicineRoutes from "./routes/medicine.routes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
@@ -1126,6 +1130,7 @@ app.use("/api/prescriptions", prescriptionRoutes);
 app.use("/api/prescription", prescriptionRoutes); // frontend calls /prescription/upload
 app.use("/api", safetyRoutes);
 app.use("/api", priceRoutes);
+app.use("/api", medicineRoutes);
 app.use("/api/schedule", doctorScheduleRoutes);
 app.use("/queue", queueRoutes);
 app.use("/api/payments", paymentRoutes);
@@ -1293,6 +1298,97 @@ app.get("/api/diseases", async (req, res) => {
   res.json(grouped);
 });
 
+function buildAiDoctorMedicineSuggestions(medicines) {
+  if (!Array.isArray(medicines) || medicines.length === 0) {
+    return "";
+  }
+
+  const lines = medicines.slice(0, 5).map((medicine, index) => {
+    const details = [
+      medicine.salt ? `Salt: ${medicine.salt}` : null,
+      medicine.price != null ? `Price: ₹${medicine.price}` : null,
+    ].filter(Boolean);
+
+    return `${index + 1}. ${medicine.name}${details.length ? ` (${details.join(" | ")})` : ""}`;
+  });
+
+  return `\n\nRelevant medicines from our database:\n${lines.join("\n")}\n\nThese are dataset suggestions only. Confirm with a doctor or pharmacist before taking any medicine.`;
+}
+
+async function findAiDoctorMedicineSuggestions(prompt) {
+  const rawPrompt = String(prompt ?? "").trim();
+  if (!rawPrompt) {
+    return [];
+  }
+
+  const candidateQueries = [];
+  candidateQueries.push(rawPrompt);
+
+  const normalizedPrompt = rawPrompt
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalizedPrompt && normalizedPrompt !== rawPrompt) {
+    candidateQueries.push(normalizedPrompt);
+  }
+
+  const filteredTokens = normalizedPrompt
+    .toLowerCase()
+    .split(" ")
+    .filter(
+      (token) =>
+        token.length > 2 &&
+        ![
+          "the",
+          "and",
+          "for",
+          "with",
+          "from",
+          "have",
+          "take",
+          "need",
+          "want",
+          "doctor",
+          "please",
+          "suggest",
+          "tablet",
+          "capsule",
+          "medicine",
+          "medicines",
+        ].includes(token),
+    );
+
+  if (filteredTokens.length > 0) {
+    candidateQueries.push(filteredTokens.slice(0, 6).join(" "));
+  }
+
+  const seenIds = new Set();
+  const suggestions = [];
+
+  for (const query of candidateQueries) {
+    if (!query) {
+      continue;
+    }
+
+    const matches = await searchMedicinesInCsv(query);
+    for (const match of matches) {
+      if (seenIds.has(match.id)) {
+        continue;
+      }
+
+      seenIds.add(match.id);
+      suggestions.push(match);
+
+      if (suggestions.length >= 5) {
+        return suggestions;
+      }
+    }
+  }
+
+  return suggestions;
+}
+
 // AI Pop Health Assistant Endpoint
 app.post("/aipop", async (req, res) => {
   try {
@@ -1303,6 +1399,7 @@ app.post("/aipop", async (req, res) => {
     }
 
     let reply = "";
+    const suggestedMedicines = await findAiDoctorMedicineSuggestions(prompt);
 
     // Try local AI service first
     try {
@@ -1372,7 +1469,12 @@ app.post("/aipop", async (req, res) => {
         "I couldn't generate a response. Please try rephrasing your question.";
     }
 
-    res.json({ reply: reply.substring(0, 2000) }); // Limit response length
+    const replyWithSuggestions = `${reply}${buildAiDoctorMedicineSuggestions(suggestedMedicines)}`;
+
+    res.json({
+      reply: replyWithSuggestions.substring(0, 2000),
+      medicines: suggestedMedicines,
+    });
   } catch (error) {
     console.error("AiPop endpoint error:", error);
     res.status(500).json({

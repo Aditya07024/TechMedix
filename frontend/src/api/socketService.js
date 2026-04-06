@@ -71,6 +71,18 @@ export function subscribeToNotifications(userId, handler) {
   return () => socket.off("notification", handler);
 }
 
+export function requestNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return Promise.resolve("unsupported");
+  }
+
+  if (window.Notification.permission !== "default") {
+    return Promise.resolve(window.Notification.permission);
+  }
+
+  return window.Notification.requestPermission();
+}
+
 export function emitQueueEvent(event, data) {
   const socket = initQueueSocket();
   socket.emit(event, data);

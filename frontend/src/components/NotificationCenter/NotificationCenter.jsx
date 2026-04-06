@@ -1,27 +1,49 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { initNotificationSocket } from "../../api/socketService";
+import {
+  requestNotificationPermission,
+  subscribeToNotifications,
+} from "../../api/socketService";
+import "./NotificationCenter.css";
 
 export default function NotificationCenter({ userId }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showPanel, setShowPanel] = useState(false);
+  const shownBrowserNotificationsRef = useRef(new Set());
 
   useEffect(() => {
-    fetchNotifications();
-    // WebSocket connection for real-time notifications
-    const socket = initNotificationSocket();
-    if (socket) {
-      socket.emit("subscribe-user", userId);
-      socket.on("notification", (notification) => {
-        setNotifications((prev) => [notification, ...prev]);
-        setUnreadCount((prev) => prev + 1);
-      });
-      return () => {
-        socket.disconnect();
-      };
+    if (!userId) {
+      setLoading(false);
+      return undefined;
     }
+
+    fetchNotifications();
+    requestNotificationPermission().catch((error) => {
+      console.error("Failed to request desktop notification permission", error);
+    });
+
+    const unsubscribe = subscribeToNotifications(userId, (notification) => {
+      let wasInserted = false;
+
+      setNotifications((prev) => {
+        const exists = prev.some((item) => item.id === notification.id);
+        if (exists) {
+          return prev;
+        }
+
+        wasInserted = true;
+        return [notification, ...prev];
+      });
+
+      if (wasInserted) {
+        setUnreadCount((prev) => prev + 1);
+        showDesktopNotification(notification);
+      }
+    });
+
+    return unsubscribe;
   }, [userId]);
 
   const fetchNotifications = async () => {
@@ -39,6 +61,41 @@ export default function NotificationCenter({ userId }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const showDesktopNotification = (notification) => {
+    if (
+      typeof window === "undefined" ||
+      !("Notification" in window) ||
+      window.Notification.permission !== "granted"
+    ) {
+      return;
+    }
+
+    const notificationKey = String(
+      notification?.id ??
+        `${notification?.title || "notification"}-${notification?.created_at || Date.now()}`,
+    );
+
+    if (shownBrowserNotificationsRef.current.has(notificationKey)) {
+      return;
+    }
+
+    shownBrowserNotificationsRef.current.add(notificationKey);
+
+    const desktopNotification = new window.Notification(
+      notification?.title || "New notification",
+      {
+        body: notification?.message || "You have a new update in TechMedix.",
+        tag: notificationKey,
+      },
+    );
+
+    desktopNotification.onclick = () => {
+      window.focus();
+      setShowPanel(true);
+      desktopNotification.close();
+    };
   };
 
   const markAsRead = async (notificationId) => {
@@ -93,6 +150,17 @@ export default function NotificationCenter({ userId }) {
               </button>
             )}
           </div>
+          {typeof window !== "undefined" &&
+            "Notification" in window &&
+            window.Notification.permission !== "granted" && (
+              <button
+                className="desktop-notification-btn"
+                onClick={() => requestNotificationPermission()}
+                type="button"
+              >
+                Enable Desktop Alerts
+              </button>
+            )}
 
           <div className="notification-list">
             {loading ? (

@@ -73,7 +73,13 @@ const PrescriptionDetails = () => {
   }, [prescriptionId, medicinesFromState]);
 
   const handleCompareWithSalt = (medicineName) => {
-    navigate("/search", { state: { medicine: medicineName, prescriptionId } });
+    navigate("/search", {
+      state: {
+        medicine: medicineName,
+        compareBySalt: true,
+        prescriptionId,
+      },
+    });
   };
 
   return (

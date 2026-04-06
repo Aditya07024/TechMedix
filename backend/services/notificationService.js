@@ -1,4 +1,5 @@
 import sql from "../config/database.js";
+import { emitUserNotification } from "../socket/socketServer.js";
 
 export async function sendAppointmentReminders(io) {
   const tomorrow = new Date();
@@ -19,41 +20,40 @@ export async function sendAppointmentReminders(io) {
   `;
 
   for (const appointment of appointments) {
-    const doctorMessage = `Reminder: ${appointment.patient_name} has appointment tomorrow at ${appointment.slot_time}`;
     const patientMessage = `Reminder: You have appointment with Dr. ${appointment.doctor_name} tomorrow at ${appointment.slot_time}`;
 
-    // ✅ Save Doctor Notification (safe insert)
-    await sql`
-      INSERT INTO notifications (user_type, user_id, message, is_read, created_at)
-      SELECT 'doctor', ${appointment.doctor_id}, ${doctorMessage}, false, NOW()
-      WHERE NOT EXISTS (
-        SELECT 1 FROM notifications
-        WHERE user_type = 'doctor'
-          AND user_id = ${appointment.doctor_id}
-          AND message = ${doctorMessage}
-          AND created_at >= CURRENT_DATE
+    // Store UUID-safe patient reminder in patient_notifications.
+    const patientNotification = await sql`
+      INSERT INTO patient_notifications (
+        patient_id,
+        prescription_id,
+        title,
+        message,
+        severity
       )
-    `;
-
-    // ✅ Save Patient Notification (safe insert)
-    await sql`
-      INSERT INTO notifications (user_type, user_id, message, is_read, created_at)
-      SELECT 'patient', ${appointment.patient_id}, ${patientMessage}, false, NOW()
+      SELECT
+        ${appointment.patient_id},
+        NULL,
+        'Appointment Reminder',
+        ${patientMessage},
+        'low'
       WHERE NOT EXISTS (
-        SELECT 1 FROM notifications
-        WHERE user_type = 'patient'
-          AND user_id = ${appointment.patient_id}
+        SELECT 1
+        FROM patient_notifications
+        WHERE patient_id = ${appointment.patient_id}
+          AND title = 'Appointment Reminder'
           AND message = ${patientMessage}
           AND created_at >= CURRENT_DATE
       )
+      RETURNING
+        id,
+        title,
+        message,
+        is_read,
+        created_at
     `;
-
-    // 🔔 Emit to Doctor Room
-    if (io) {
-      io.to(`doctor-${appointment.doctor_id}`).emit("appointmentReminder", {
-        type: "doctor",
-        message: doctorMessage,
-      });
+    if (patientNotification[0]) {
+      emitUserNotification(appointment.patient_id, patientNotification[0]);
     }
 
     // 🔔 Emit to Patient Room
@@ -72,6 +72,17 @@ export async function sendAppointmentReminders(io) {
 
 // Fetch notifications for a user
 export async function getUserNotifications(userType, userId) {
+  if (userType === "patient") {
+    const notifications = await sql`
+      SELECT id, title, message, is_read, created_at
+      FROM patient_notifications
+      WHERE patient_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+
+    return notifications;
+  }
+
   const notifications = await sql`
     SELECT id, message, is_read, created_at
     FROM notifications
@@ -101,6 +112,17 @@ export async function markNotificationAsRead(notificationId) {
 
 // Get unread count
 export async function getUnreadCount(userType, userId) {
+  if (userType === "patient") {
+    const result = await sql`
+      SELECT COUNT(*) as count
+      FROM patient_notifications
+      WHERE patient_id = ${userId}
+        AND is_read = false
+    `;
+
+    return Number(result[0].count);
+  }
+
   const result = await sql`
     SELECT COUNT(*) as count
     FROM notifications
@@ -119,7 +141,7 @@ export async function getNotificationsByUser(
   limit = 50,
 ) {
   let query = sql`
-    SELECT id, message, is_read, created_at, type
+    SELECT id, message, is_read, created_at, NULL::text AS type
     FROM notifications
     WHERE user_id = ${userId}
   `;
@@ -131,7 +153,7 @@ export async function getNotificationsByUser(
   query += sql` ORDER BY created_at DESC LIMIT ${limit}`;
 
   const notifications = await sql`
-    SELECT id, message, is_read, created_at, type
+    SELECT id, message, is_read, created_at, NULL::text AS type
     FROM notifications
     WHERE user_id = ${userId}
     ${is_read !== null ? sql`AND is_read = ${is_read === "true" || is_read === true}` : sql``}

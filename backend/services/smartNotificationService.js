@@ -1,4 +1,5 @@
 import sql from "../config/database.js";
+import { emitUserNotification } from "../socket/socketServer.js";
 
 /**
  * Create notification for user
@@ -37,6 +38,8 @@ export async function createNotification(
     )
     RETURNING *
   `;
+
+  emitUserNotification(userId, notification[0]);
 
   return notification[0];
 }

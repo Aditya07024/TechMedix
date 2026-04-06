@@ -1,4 +1,5 @@
 import sql from "../config/database.js";
+import { emitUserNotification } from "../socket/socketServer.js";
 import { logAudit } from "./auditService.js";
 
 /**
@@ -225,7 +226,7 @@ export async function requestRefill(prescriptionId, patientId) {
   `;
 
   // Create notification for doctor
-  await sql`
+  const notification = await sql`
     INSERT INTO notifications (
       user_id,
       type,
@@ -243,7 +244,12 @@ export async function requestRefill(prescriptionId, patientId) {
       'prescription',
       CURRENT_TIMESTAMP
     )
+    RETURNING *
   `;
+
+  if (notification[0]) {
+    emitUserNotification(prescription[0].doctor_id, notification[0]);
+  }
 
   return refilled[0];
 }

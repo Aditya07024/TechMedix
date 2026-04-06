@@ -1,149 +1,382 @@
-const API_URL = import.meta.env.VITE_API_URL;
-import React, { useState, useEffect, useContext } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
 import "./Search.css";
-import { StoreContext } from "../../context/StoreContext";
 import { assets } from "../../assets/assets";
-import axios from "axios";
 import Button from "@mui/material/Button";
+import { useLocation, useNavigate } from "react-router-dom";
 import Aipop from "../../components/AiPop/Aipop";
+import {
+  getMedicineById,
+  getMedicineFilters,
+  getMedicines,
+  getPriceInsights,
+  lookupMedicineWithAi,
+} from "../../api/medicineApi";
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+const initialFilters = {
+  chemical_class: "",
+  therapeutic_class: "",
+  action_class: "",
+  category: "",
+  habit_forming: "",
+};
 
 const Search = () => {
-  const [askAi, setAskAi] = useState(false);
   const location = useLocation();
-  const { product_list } = useContext(StoreContext);
-  const [medicine, setMedicine] = useState(location.state?.medicine || "");
-  const [solution, setSolution] = useState(location.state?.solution || "");
-  const prescriptionId = location.state?.prescriptionId;
+  const navigate = useNavigate();
+  const [askAi, setAskAi] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [saltSearchTerm, setSaltSearchTerm] = useState("");
+  const [appliedSaltQuery, setAppliedSaltQuery] = useState("");
+  const [filters, setFilters] = useState(initialFilters);
+  const [filterOptions, setFilterOptions] = useState({
+    chemical_class: [],
+    therapeutic_class: [],
+    action_class: [],
+    category: [],
+  });
+  const [medicines, setMedicines] = useState([]);
+  const [selectedMedicineId, setSelectedMedicineId] = useState(null);
+  const [selectedMedicine, setSelectedMedicine] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [filtersLoading, setFiltersLoading] = useState(true);
+  const [error, setError] = useState("");
   const [safetyLoading, setSafetyLoading] = useState(false);
   const [safetyResult, setSafetyResult] = useState(null);
   const [safetyError, setSafetyError] = useState(null);
   const [priceInsights, setPriceInsights] = useState(null);
   const [priceInsightsLoading, setPriceInsightsLoading] = useState(false);
-  const [priceCheckResult, setPriceCheckResult] = useState(null);
-  const [priceCheckLoading, setPriceCheckLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
-  const product = location.state?.product;
-  const [ifLogin, setIfLogin] = useState(false);
 
   useEffect(() => {
-    if (medicine || solution) {
-      handleSearch();
-    }
-    const checkLogin = async () => {
-      try {
-        const res = await axios.get(`${API_URL}/auth/status`, {
-          withCredentials: true,
-        });
-        setIfLogin(res.data.ifLogin); // update state
-      } catch (err) {
-        setIfLogin(false); // fallback
-      }
-    };
+    let isMounted = true;
 
-    checkLogin();
+    async function hydrateRouteSearch() {
+      const medicineFromRoute = location.state?.medicine;
+      const saltFromRoute = location.state?.salt;
+      const compareBySalt = Boolean(location.state?.compareBySalt);
+
+      const trimmedMedicine =
+        typeof medicineFromRoute === "string" ? medicineFromRoute.trim() : "";
+      const trimmedSalt =
+        typeof saltFromRoute === "string" ? saltFromRoute.trim() : "";
+
+      if (!trimmedMedicine && !trimmedSalt) {
+        return;
+      }
+
+      setPagination((current) => ({ ...current, page: 1 }));
+
+      if (trimmedMedicine) {
+        setSearchTerm(trimmedMedicine);
+      }
+
+      if (trimmedSalt) {
+        setSaltSearchTerm(trimmedSalt);
+      }
+
+      if (compareBySalt && trimmedMedicine) {
+        try {
+          const response = await getMedicines({
+            page: 1,
+            limit: 10,
+            search: trimmedMedicine,
+          });
+
+          if (!isMounted) {
+            return;
+          }
+
+          const matchedMedicine = response?.data?.[0] ?? null;
+          const matchedSalt = matchedMedicine?.salt?.trim() ?? trimmedSalt;
+
+          if (matchedMedicine?.id) {
+            setSelectedMedicineId(matchedMedicine.id);
+          }
+
+          if (matchedSalt) {
+            setSaltSearchTerm(matchedSalt);
+            setAppliedSaltQuery(matchedSalt);
+            setAppliedQuery("");
+            return;
+          }
+        } catch (fetchError) {
+          console.error("Failed to resolve medicine salt for comparison:", fetchError);
+        }
+      }
+
+      setAppliedQuery(trimmedMedicine);
+      setAppliedSaltQuery(trimmedSalt);
+    }
+
+    hydrateRouteSearch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.state]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFilterOptions() {
+      try {
+        setFiltersLoading(true);
+        const response = await getMedicineFilters();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setFilterOptions(
+          response?.data ?? {
+            chemical_class: [],
+            therapeutic_class: [],
+            action_class: [],
+            category: [],
+          },
+        );
+      } catch (fetchError) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Failed to load medicine filters:", fetchError);
+      } finally {
+        if (isMounted) {
+          setFiltersLoading(false);
+        }
+      }
+    }
+
+    loadFilterOptions();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!medicine && !solution) {
-      setError("Please enter either a medicine name or solution");
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMedicines() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await getMedicines({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: appliedQuery || undefined,
+          salt_search: appliedSaltQuery || undefined,
+          ...Object.fromEntries(
+            Object.entries(filters).filter(([, value]) => value !== ""),
+          ),
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        const list = response?.data ?? [];
+        const nextPagination = response?.pagination ?? pagination;
+
+        if (
+          list.length === 0 &&
+          appliedQuery &&
+          !appliedSaltQuery &&
+          !Object.values(filters).some(Boolean)
+        ) {
+          try {
+            const aiResponse = await lookupMedicineWithAi(appliedQuery);
+
+            if (!isMounted) {
+              return;
+            }
+
+            const aiMedicine = aiResponse?.data ?? null;
+
+            if (aiMedicine) {
+              setMedicines([aiMedicine]);
+              setSelectedMedicine(aiMedicine);
+              setSelectedMedicineId(aiMedicine.id);
+              setPagination((current) => ({
+                ...current,
+                page: 1,
+                limit: 1,
+                total: 1,
+                totalPages: 1,
+              }));
+              return;
+            }
+          } catch (aiError) {
+            console.error("AI fallback medicine lookup failed:", aiError);
+          }
+        }
+
+        setMedicines(list);
+        setPagination((current) => ({
+          ...current,
+          ...nextPagination,
+        }));
+
+        setSelectedMedicineId((currentId) => {
+          if (list.some((item) => item.id === currentId)) {
+            return currentId;
+          }
+
+          return list[0]?.id ?? null;
+        });
+      } catch (fetchError) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Failed to load medicines:", fetchError);
+        setError("Failed to fetch medicines.");
+        setMedicines([]);
+        setSelectedMedicineId(null);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadMedicines();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [appliedQuery, appliedSaltQuery, filters, pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    if (!selectedMedicineId) {
+      setSelectedMedicine(null);
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    if (typeof selectedMedicineId === "string" && selectedMedicineId.startsWith("ai:")) {
+      setDetailsLoading(false);
+      return;
+    }
 
-    try {
-      const response = await axios.get(`${API_URL}/api/medicines/search`, {
-        params: { medicine: medicine || "", solution: solution || "" },
-        withCredentials: true,
-      });
+    let isMounted = true;
 
-      const { medicineData, similarMedicines } = response.data;
-      const saltName =
-        medicineData?.salt ||
-        (similarMedicines.length > 0 ? similarMedicines[0].salt : "");
+    async function loadMedicineDetails() {
+      try {
+        setDetailsLoading(true);
+        const response = await getMedicineById(selectedMedicineId);
 
-      if (medicineData) {
-        setSelectedProduct(medicineData._id);
-        setSolution(saltName);
-        setSearchResults([medicineData, ...similarMedicines]);
-      } else if (similarMedicines?.length > 0) {
-        setSearchResults(similarMedicines);
-        setSelectedProduct(similarMedicines[0]._id);
-        setSolution(saltName);
-      } else {
-        setSearchResults([]);
-        setSelectedProduct(null);
-        setError("No medicines found");
+        if (!isMounted) {
+          return;
+        }
+
+        setSelectedMedicine(response?.data ?? null);
+      } catch (fetchError) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.error("Failed to load medicine details:", fetchError);
+        setSelectedMedicine(null);
+      } finally {
+        if (isMounted) {
+          setDetailsLoading(false);
+        }
       }
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to fetch medicine data");
-    } finally {
-      setLoading(false);
     }
+
+    loadMedicineDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMedicineId]);
+
+  const summaryMeta = useMemo(() => {
+    if (!selectedMedicine) {
+      return [];
+    }
+
+    return [
+      ["Salt", selectedMedicine.salt],
+      ["Category", selectedMedicine.category],
+      ["Chemical Class", selectedMedicine.chemical_class],
+      ["Therapeutic Class", selectedMedicine.therapeutic_class],
+      ["Action Class", selectedMedicine.action_class],
+      [
+        "Habit Forming",
+        typeof selectedMedicine.habit_forming === "boolean"
+          ? selectedMedicine.habit_forming
+            ? "Yes"
+            : "No"
+          : "",
+      ],
+    ].filter(([, value]) => value);
+  }, [selectedMedicine]);
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    setPagination((current) => ({ ...current, page: 1 }));
+    setAppliedQuery(searchTerm.trim());
+    setAppliedSaltQuery(saltSearchTerm.trim());
   };
 
-  const handleEditClick = () => {
-    if (selectedProductData?._id) {
-      navigate(`/medicines/${selectedProductData._id}`, {
-        state: { product: selectedProductData },
-      });
-    }
-  };
-  const handleDeleteClick = async () => {
-    if (!selectedProductData?._id) return;
-
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this medicine?"
-    );
-    if (!confirmDelete) return;
-
-    try {
-      await axios.delete(`${API_URL}/medicines/${selectedProductData._id}`);
-      alert("Medicine deleted successfully");
-      // Remove deleted item from the search results
-      setSearchResults((prev) =>
-        prev.filter((med) => med._id !== selectedProductData._id)
-      );
-      setSelectedProduct(null);
-    } catch (err) {
-      console.error("Failed to delete medicine:", err);
-      alert("Failed to delete medicine");
-    }
+  const handleFilterChange = (event) => {
+    const { name, value } = event.target;
+    setPagination((current) => ({ ...current, page: 1 }));
+    setFilters((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const selectedProductData = searchResults.find(
-    (item) => item._id === selectedProduct
-  );
+  const handleReset = () => {
+    setSearchTerm("");
+    setAppliedQuery("");
+    setSaltSearchTerm("");
+    setAppliedSaltQuery("");
+    setFilters(initialFilters);
+    setPagination((current) => ({ ...current, page: 1 }));
+    setSafetyResult(null);
+    setSafetyError(null);
+    setPriceInsights(null);
+  };
 
   const handleSafetyCheck = async () => {
     try {
       setSafetyLoading(true);
       setSafetyError(null);
       setSafetyResult(null);
+
       const user = JSON.parse(localStorage.getItem("user"));
       if (!user?.id) {
         setSafetyError("User not logged in");
         return;
       }
-      // Prefer checking by salt when available; fall back to product name
-      const candidate = (solution || selectedProductData?.name || medicine || "").trim();
+
+      const candidate = (
+        selectedMedicine?.salt ||
+        selectedMedicine?.name ||
+        appliedQuery ||
+        ""
+      ).trim();
+
       if (!candidate) {
         setSafetyError("Select a medicine first");
         return;
       }
 
-      const endpoint = prescriptionId
-        ? `/api/prescriptions/${prescriptionId}/safety-check`
-        : `/api/prescriptions/safety-check-latest`;
-
-      const res = await fetch(endpoint, {
+      const response = await fetch(`${API_URL}/api/prescriptions/safety-check-latest`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -152,69 +385,61 @@ const Search = () => {
         credentials: "include",
         body: JSON.stringify({ candidate_medicine: candidate }),
       });
-      const data = await res.json();
+
+      const data = await response.json();
       if (data?.success) {
         setSafetyResult(data.data);
       } else {
         setSafetyError(data?.error || "Safety check failed");
       }
-    } catch (err) {
+    } catch (fetchError) {
+      console.error("Safety check failed:", fetchError);
       setSafetyError("Failed to run safety check");
     } finally {
       setSafetyLoading(false);
     }
   };
 
-  const formatWarning = (w) => {
-    if (typeof w === "string") return w;
-    const parts = [w.medicine_1, w.medicine_2].filter(Boolean);
-    if (parts.length) return `${parts.join(" + ")}: ${w.description || ""}`;
-    return w.description || JSON.stringify(w);
+  const formatWarning = (warning) => {
+    if (typeof warning === "string") {
+      return warning;
+    }
+
+    const pair = [warning.medicine_1, warning.medicine_2].filter(Boolean);
+    if (pair.length > 0) {
+      return `${pair.join(" + ")}: ${warning.description || ""}`;
+    }
+
+    return warning.description || JSON.stringify(warning);
   };
 
-  const fetchPriceInsights = async () => {
-    if (!selectedProductData?.name) return;
-    setPriceInsightsLoading(true);
-    setPriceInsights(null);
+  const fetchInsights = async () => {
+    if (!selectedMedicine?.name) {
+      return;
+    }
+
     try {
-      const res = await fetch(
-        `${API_URL}/api/medicines/${encodeURIComponent(selectedProductData.name)}/price-insights`
-      );
-      const data = await res.json();
-      if (data?.success) setPriceInsights(data.data);
-    } catch (_) {
+      setPriceInsightsLoading(true);
+      setPriceInsights(null);
+      const response = await getPriceInsights(selectedMedicine.name);
+      if (response?.success) {
+        setPriceInsights(response.data);
+      }
+    } catch (fetchError) {
+      console.error("Failed to fetch price insights:", fetchError);
       setPriceInsights(null);
     } finally {
       setPriceInsightsLoading(false);
     }
   };
 
-  const handlePriceCheck = async () => {
-    if (!prescriptionId) return;
-    setPriceCheckLoading(true);
-    setPriceCheckResult(null);
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-      const res = await fetch(`/api/prescriptions/${prescriptionId}/price-check`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user?.id }),
-      });
-      const data = await res.json();
-      if (data?.success) setPriceCheckResult(data.data);
-    } catch (_) {
-      setPriceCheckResult(null);
-    } finally {
-      setPriceCheckLoading(false);
-    }
-  };
-
   return (
     <div className="search-page">
       {askAi && <Aipop setShowAiPop={setAskAi} />}
-      <div className="div-up">
+
+      <div className="search-top">
         <div className="search-section">
-          <h2>Search Medicines</h2>
+          <h2>Browse Medicine Database</h2>
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-inputs-container">
               <div className="search-input-group">
@@ -222,36 +447,106 @@ const Search = () => {
                 <input
                   type="text"
                   placeholder="Search by medicine name"
-                  value={medicine}
-                  onChange={(e) => setMedicine(e.target.value)}
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
                 />
               </div>
-              <span className="search-divider">or</span>
-              <div className="search-input-group">
+              {/* <div className="search-input-group">
                 <img src={assets.search_icon} alt="" className="search-icon" />
                 <input
                   type="text"
-                  placeholder="Search by solution"
-                  value={solution}
-                  onChange={(e) => setSolution(e.target.value)}
-                  readOnly={!!medicine}
+                  placeholder="Search by salt"
+                  value={saltSearchTerm}
+                  onChange={(event) => setSaltSearchTerm(event.target.value)}
                 />
-              </div>
-              <button
-                type="submit"
-                className="search-submit"
-                disabled={loading}
-              >
+              </div> */}
+              <button type="submit" className="search-submit" disabled={loading}>
                 {loading ? "Searching..." : "Search"}
+              </button>
+              <button
+                type="button"
+                className="search-reset"
+                onClick={handleReset}
+              >
+                Reset
               </button>
             </div>
           </form>
+
+          <div className="filters-panel">
+            <select
+              name="chemical_class"
+              value={filters.chemical_class}
+              onChange={handleFilterChange}
+              disabled={filtersLoading}
+            >
+              <option value="">All Chemical Classes</option>
+              {filterOptions.chemical_class.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="therapeutic_class"
+              value={filters.therapeutic_class}
+              onChange={handleFilterChange}
+              disabled={filtersLoading}
+            >
+              <option value="">All Therapeutic Classes</option>
+              {filterOptions.therapeutic_class.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="action_class"
+              value={filters.action_class}
+              onChange={handleFilterChange}
+              disabled={filtersLoading}
+            >
+              <option value="">All Action Classes</option>
+              {filterOptions.action_class.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="category"
+              value={filters.category}
+              onChange={handleFilterChange}
+              disabled={filtersLoading}
+            >
+              <option value="">All Categories</option>
+              {filterOptions.category.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="habit_forming"
+              value={filters.habit_forming}
+              onChange={handleFilterChange}
+            >
+              <option value="">Habit Forming: Any</option>
+              <option value="true">Habit Forming: Yes</option>
+              <option value="false">Habit Forming: No</option>
+            </select>
+          </div>
         </div>
+
         <div className="ai-div">
           <div className="heading-div">
-            <h1>Ask to AI Doctor about your medicine</h1>
+            <h1>Ask AI Doctor About Your Medicine</h1>
             <Button variant="outlined" onClick={() => setAskAi(true)}>
-              Click Here
+              Open AI Doctor
             </Button>
           </div>
         </div>
@@ -260,25 +555,68 @@ const Search = () => {
       <div className="search-results">
         {error && <div className="error-message">{error}</div>}
 
-        <h3>
-          Similar Medicines{" "}
-          {searchResults.length > 0 && `(${searchResults.length})`}
-        </h3>
+        <div className="results-header">
+          <h3>
+            Medicines {pagination.total ? `(${pagination.total})` : ""}
+          </h3>
+          <p>
+            {appliedSaltQuery
+              ? `Comparing by salt: ${appliedSaltQuery}`
+              : `Page ${pagination.page} of ${Math.max(pagination.totalPages, 1)}`}
+          </p>
+        </div>
+
         <div className="results-grid">
           <div className="grid-left">
-            {searchResults.length > 0 ? (
-              searchResults.map((item) => (
+            {loading ? (
+              <div className="no-results">
+                <p>Loading medicines...</p>
+              </div>
+            ) : medicines.length > 0 ? (
+              medicines.map((item) => (
                 <div
-                  key={item._id}
+                  key={item.id}
                   className={`medicine-item ${
-                    selectedProduct === item._id ? "selected" : ""
+                    selectedMedicineId === item.id ? "selected" : ""
                   }`}
-                  onClick={() => setSelectedProduct(item._id)}
+                  onClick={() => {
+                    setSelectedMedicineId(item.id);
+                    if (item.salt) {
+                      setSaltSearchTerm(item.salt);
+                    }
+                  }}
                 >
                   <div className="medicine-content">
+                    <img
+                      src={item.image || assets.image1}
+                      alt={item.name}
+                    />
                     <div className="medicine-info">
-                      <h4>{item.name}</h4>
-                      <p className="price">₹{item.price}</p>
+                      <h4
+                        className={
+                          item.name && item.name.length > 45
+                            ? "medicine-name compact"
+                            : "medicine-name"
+                        }
+                      >
+                        {item.name}
+                      </h4>
+                      <div className="medicine-tags">
+                        {item.is_ai_generated ? (
+                          <span className="tag">AI Suggested</span>
+                        ) : null}
+                        {item.category ? (
+                          <span className="tag">{item.category}</span>
+                        ) : null}
+                        {item.therapeutic_class ? (
+                          <span className="tag">
+                            THERAPEUTIC CLASS: {item.therapeutic_class}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="price">
+                        {item.price != null ? `₹${item.price}` : "Price unavailable"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -286,199 +624,300 @@ const Search = () => {
             ) : (
               <div className="no-results">
                 <img src={assets.search_icon} alt="" />
-                <p>No medicines found matching your search criteria</p>
+                <p>No medicines found matching your current search.</p>
               </div>
             )}
+
+            <div className="pagination-bar">
+              <button
+                type="button"
+                onClick={() =>
+                  setPagination((current) => ({
+                    ...current,
+                    page: Math.max(1, current.page - 1),
+                  }))
+                }
+                disabled={pagination.page <= 1 || loading}
+              >
+                Previous
+              </button>
+              <span>
+                {pagination.page} / {Math.max(pagination.totalPages, 1)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setPagination((current) => ({
+                    ...current,
+                    page: Math.min(
+                      Math.max(current.totalPages, 1),
+                      current.page + 1,
+                    ),
+                  }))
+                }
+                disabled={
+                  loading ||
+                  pagination.totalPages === 0 ||
+                  pagination.page >= pagination.totalPages
+                }
+              >
+                Next
+              </button>
+            </div>
           </div>
 
           <div className="grid-right">
-            {selectedProductData ? (
-              <div className="product-view">
-                <div className="product-view-container">
-                  <div className="product-view-left">
-                    <div className="product-view-img">
-                      <img
-                        src={selectedProductData.image}
-                        alt={selectedProductData.name}
-                      />
-                    </div>
-                  </div>
-                  <div className="product-view-right">
-                    <h1>{selectedProductData.name}</h1>
-                    <div className="product-view-price">
-                      <h2>₹{selectedProductData.price}</h2>
-                    </div>
-                    <div className="product-view-category">
-                      <span>Salt:</span> {solution}
-                    </div>
-                    {/* {ifLogin && (
-                      <div className="editanddeletebutton">
-                        <Button onClick={handleEditClick} variant="outlined">
-                          Edit Medicine
-                        </Button>
-                        <Button
-                          onClick={handleDeleteClick}
-                          variant="outlined"
-                          color="error"
-                        >
-                          Delete Medicine
-                        </Button>
-                      </div>
-                    )} */}
-                    <div className="product-view-price">
+            {detailsLoading ? (
+              <div className="no-product-selected">
+                <p>Loading medicine details...</p>
+              </div>
+            ) : selectedMedicine ? (
+              <div className="detail-card">
+                <div className="detail-hero">
+                  <img
+                    src={selectedMedicine.image || assets.image1}
+                    alt={selectedMedicine.name}
+                  />
+                  <div>
+                    <h1
+                      className={
+                        selectedMedicine.name &&
+                        selectedMedicine.name.length > 55
+                          ? "detail-title compact"
+                          : "detail-title"
+                      }
+                    >
+                      {selectedMedicine.name}
+                    </h1>
+                    <p className="detail-price">
+                      {selectedMedicine.price != null
+                        ? `₹${selectedMedicine.price}`
+                        : "Price unavailable"}
+                    </p>
+                    {selectedMedicine.link ? (
                       <a
-                        href={selectedProductData.link}
+                        href={selectedMedicine.link}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="buy-button"
                       >
-                        <button className="buy-button">Buy Now</button>
+                        Buy Now
                       </a>
-                    </div>
-                    <div className="safety-check-section">
-                      <button
-                        type="button"
-                        className="safety-check-btn"
-                        onClick={handleSafetyCheck}
-                        disabled={safetyLoading}
-                      >
-                        {safetyLoading ? "Running Safety Check..." : "Run Safety Check"}
-                      </button>
-                      {/* {prescriptionId && (
-                        <button
-                          type="button"
-                          className="price-check-btn"
-                          onClick={handlePriceCheck}
-                          disabled={priceCheckLoading}
-                        >
-                          {priceCheckLoading ? "Checking..." : "💰 Run Price Check"}
-                        </button>
-                      )} */}
-                      {!prescriptionId && (
-                        <p className="safety-hint">No open prescription found. We’ll use your latest prescription automatically.</p>
-                      )}
-                      {safetyError && (
-                        <p className="safety-error">{safetyError}</p>
-                      )}
-                      {safetyResult?.warnings?.length > 0 && (
-                        <div className="safety-warnings">
-                          <h4>⚠️ Safety Warnings</h4>
-                          <ul>
-                            {safetyResult.warnings.map((w, idx) => (
-                              <li key={idx}>{formatWarning(w)}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {safetyResult && (!safetyResult.warnings || safetyResult.warnings.length === 0) && (
-                        <p className="safety-safe">✅ No safety issues detected.</p>
-                      )}
-                      {priceCheckResult && (
-                        <div className="price-check-result">
-                          <h4>💰 Price Check Result</h4>
-                          <p>Original: ₹{priceCheckResult.total_original_price} → Best: ₹{priceCheckResult.total_replaced_price}</p>
-                          <p className="savings">Savings: ₹{priceCheckResult.savings}</p>
-                          {priceCheckResult.replacements?.length > 0 && (
-                            <ul>
-                              {priceCheckResult.replacements.map((r, i) => (
-                                <li key={i}>{r.original} → {r.replaced_with} (save ₹{r.savings})</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="price-insights-section">
-                      <button
-                        type="button"
-                        className="price-insights-btn"
-                        onClick={fetchPriceInsights}
-                        disabled={priceInsightsLoading}
-                      >
-                        {priceInsightsLoading ? "Loading..." : "📊 View Price Insights"}
-                      </button>
-                      {priceInsights && (
-                        <div className="price-insights-card">
-                          <div className="price-insight-row">
-                            <span className="insight-label">Trend:</span>
-                            <span className={`insight-value trend-${priceInsights.trend}`}>
-                              {priceInsights.trend === "rising" && "↗ Rising"}
-                              {priceInsights.trend === "falling" && "↘ Falling"}
-                              {priceInsights.trend === "stable" && "→ Stable"}
-                            </span>
-                          </div>
-                          <div className="price-insight-row">
-                            <span className="insight-label">Recommendation:</span>
-                            <span className={`insight-value rec-${priceInsights.recommendation}`}>
-                              {priceInsights.recommendation === "buy_now" && "✓ Good time to buy"}
-                              {priceInsights.recommendation === "wait" && "⏳ Consider waiting"}
-                              {priceInsights.recommendation === "monitor" && "👀 Monitor prices"}
-                            </span>
-                          </div>
-                          {priceInsights.avgPrice != null && (
-                            <div className="price-insight-row">
-                              <span className="insight-label">30-day avg:</span>
-                              <span className="insight-value">₹{priceInsights.avgPrice}</span>
-                            </div>
-                          )}
-                          {priceInsights.dataPoints > 0 && (
-                            <p className="insight-hint">Based on {priceInsights.dataPoints} data point(s)</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="product-view-info">
-                      <h3>Product Information</h3>
-                      {selectedProductData.medicine_desc && (
-                        <div className="info-section">
-                          <p>{selectedProductData.medicine_desc}</p>
-                        </div>
-                      )}
-                      {selectedProductData.benefits && (
-                        <div className="info-section">
-                          <h4>Benefits</h4>
-                          <p>{selectedProductData.benefits}</p>
-                        </div>
-                      )}
-                      {selectedProductData.sideeffects && (
-                        <div className="info-section">
-                          <h4>Side Effects</h4>
-                          <p>{selectedProductData.sideeffects}</p>
-                        </div>
-                      )}
-                      {selectedProductData.usage && (
-                        <div className="info-section">
-                          <h4>Usage Instructions</h4>
-                          <p>{selectedProductData.usage}</p>
-                        </div>
-                      )}
-                      {selectedProductData.working && (
-                        <div className="info-section">
-                          <h4>How it Works</h4>
-                          <p>{selectedProductData.working}</p>
-                        </div>
-                      )}
-                      {selectedProductData.safetyadvice && (
-                        <div className="info-section">
-                          <h4>Safety Advice</h4>
-                          <p>{selectedProductData.safetyadvice}</p>
-                        </div>
-                      )}
-                      {!selectedProductData.medicine_desc &&
-                        !selectedProductData.benefits &&
-                        !selectedProductData.sideeffects &&
-                        !selectedProductData.usage &&
-                        !selectedProductData.working &&
-                        !selectedProductData.safetyadvice && (
-                          <p>No detailed information available.</p>
-                        )}
-                    </div>
+                    ) : null}
                   </div>
+                </div>
+
+                {summaryMeta.length > 0 ? (
+                  <div className="detail-meta">
+                    {summaryMeta.map(([label, value]) => (
+                      <div className="detail-meta-item" key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {selectedMedicine.is_ai_generated ? (
+                  <div className="info-section">
+                    <h4>AI Fallback</h4>
+                    <p>
+                      {selectedMedicine.ai_disclaimer ||
+                        "This medicine was generated by AI because it was not found in the dataset. Verify it before use."}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="safety-check-section">
+                  <button
+                    type="button"
+                    className="safety-check-btn"
+                    onClick={handleSafetyCheck}
+                    disabled={safetyLoading}
+                  >
+                    {safetyLoading ? "Running Safety Check..." : "Run Safety Check"}
+                  </button>
+
+                  {safetyError && <p className="safety-error">{safetyError}</p>}
+
+                  {safetyResult?.warnings?.length > 0 ? (
+                    <div className="safety-warnings">
+                      <h4>Safety Warnings</h4>
+                      <ul>
+                        {safetyResult.warnings.map((warning, index) => (
+                          <li key={`${selectedMedicine.id}-warning-${index}`}>
+                            {formatWarning(warning)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {safetyResult &&
+                  (!safetyResult.warnings ||
+                    safetyResult.warnings.length === 0) ? (
+                    <p className="safety-safe">No safety issues detected.</p>
+                  ) : null}
+                </div>
+
+                <div className="price-insights-section">
+                  <button
+                    type="button"
+                    className="price-insights-btn"
+                    onClick={fetchInsights}
+                    disabled={priceInsightsLoading}
+                  >
+                    {priceInsightsLoading ? "Loading..." : "View Price Insights"}
+                  </button>
+
+                  {priceInsights ? (
+                    <div className="price-insights-card">
+                      <div className="price-insight-row">
+                        <span className="insight-label">Trend</span>
+                        <span className={`insight-value trend-${priceInsights.trend}`}>
+                          {priceInsights.trend}
+                        </span>
+                      </div>
+                      <div className="price-insight-row">
+                        <span className="insight-label">Recommendation</span>
+                        <span
+                          className={`insight-value rec-${priceInsights.recommendation}`}
+                        >
+                          {priceInsights.recommendation}
+                        </span>
+                      </div>
+                      {priceInsights.avgPrice != null ? (
+                        <div className="price-insight-row">
+                          <span className="insight-label">Average Price</span>
+                          <span className="insight-value">
+                            ₹{priceInsights.avgPrice}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="detail-sections">
+                  {selectedMedicine.info ? (
+                    <div className="info-section">
+                      <h4>Information</h4>
+                      <p>{selectedMedicine.info}</p>
+                    </div>
+                  ) : null}
+                  {selectedMedicine.benefits ? (
+                    <div className="info-section">
+                      <h4>Benefits</h4>
+                      <p>{selectedMedicine.benefits}</p>
+                    </div>
+                  ) : null}
+                  {selectedMedicine.usage ? (
+                    <div className="info-section">
+                      <h4>Usage</h4>
+                      <p>{selectedMedicine.usage}</p>
+                    </div>
+                  ) : null}
+                  {selectedMedicine.working ? (
+                    <div className="info-section">
+                      <h4>How It Works</h4>
+                      <p>{selectedMedicine.working}</p>
+                    </div>
+                  ) : null}
+                  {selectedMedicine.safetyadvice ? (
+                    <div className="info-section">
+                      <h4>Safety Advice</h4>
+                      <p>{selectedMedicine.safetyadvice}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="detail-pill-sections">
+                  {selectedMedicine.salts?.length ? (
+                    <div className="pill-section">
+                      <h4>Salts</h4>
+                      <div className="pill-list">
+                        {selectedMedicine.salts.map((item) => (
+                          <span key={`salt-${item}`} className="detail-pill">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedMedicine.uses?.length ? (
+                    <div className="pill-section">
+                      <h4>Uses</h4>
+                      <div className="pill-list">
+                        {selectedMedicine.uses.map((item) => (
+                          <span key={`use-${item}`} className="detail-pill">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedMedicine.side_effects?.length ? (
+                    <div className="pill-section">
+                      <h4>Side Effects</h4>
+                      <div className="pill-list">
+                        {selectedMedicine.side_effects.map((item) => (
+                          <span key={`effect-${item}`} className="detail-pill warning">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedMedicine.substitute_details?.length ? (
+                    <div className="pill-section">
+                      <h4>Substitutes</h4>
+                      <div className="substitute-link-list">
+                        {selectedMedicine.substitute_details.map((item) => (
+                          <button
+                            key={`substitute-${item.id}`}
+                            type="button"
+                            className="detail-pill substitute-link"
+                            onClick={() =>
+                              navigate(`/medicines/${item.id}`, {
+                                state: { product: item },
+                              })
+                            }
+                          >
+                            {item.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : selectedMedicine.substitutes?.length ? (
+                    <div className="pill-section">
+                      <h4>Substitutes</h4>
+                      <div className="substitute-link-list">
+                        {selectedMedicine.substitutes.map((item) => (
+                          <button
+                            key={`substitute-${item}`}
+                            type="button"
+                            className="detail-pill substitute-link"
+                            onClick={() =>
+                              navigate("/search", {
+                                state: { medicine: item },
+                              })
+                            }
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : (
               <div className="no-product-selected">
                 <img src={assets.search_icon} alt="" />
-                <p>Select a medicine to view details</p>
+                <p>Select a medicine to view full details.</p>
               </div>
             )}
           </div>

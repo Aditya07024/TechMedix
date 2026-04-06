@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { sendAppointmentReminders } from "../services/notificationService.js";
 import { cancelExpiredAppointments } from "../services/cleanupService.js";
 import sql from "../config/database.js";
+import { emitUserNotification } from "../socket/socketServer.js";
 
 export function startCronJobs(io) {
   // Send appointment reminders 1 hour before appointment (every 30 min)
@@ -31,7 +32,7 @@ export function startCronJobs(io) {
 
       for (const prescription of expiringSoon) {
         // Create notification
-        await sql`
+        const notification = await sql`
           INSERT INTO notifications (
             user_id,
             type,
@@ -49,7 +50,12 @@ export function startCronJobs(io) {
             'prescription',
             CURRENT_TIMESTAMP
           )
+          RETURNING *
         `;
+
+        if (notification[0]) {
+          emitUserNotification(prescription.patient_id, notification[0]);
+        }
       }
 
       console.log(`✅ Sent ${expiringSoon.length} refill reminders`);

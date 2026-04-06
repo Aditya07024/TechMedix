@@ -72,14 +72,9 @@ const Navbar = ({ setShowLogin }) => {
           💊 Reminders
         </Link>
 
-        {/* <a href="#buy-products" onClick={() => setMenu("buy-products")}>
-          Buy Products
-        </a> */}
-
         <Link to="/health-tips" onClick={() => setMenu("health-tips")}>
           Health Tips
         </Link>
-
       </ul>
 
       <div className="navbar-right">
