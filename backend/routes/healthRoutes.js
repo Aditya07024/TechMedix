@@ -276,6 +276,7 @@ router.get(
   async (req, res) => {
     try {
       const patientId = req.user.id;
+      const aiServiceUrl = process.env.AI_SERVICE_URL?.trim();
 
       // Get latest health metrics
       const latestMetrics = await getLatestHealthMetrics(patientId);
@@ -283,9 +284,15 @@ router.get(
       // Get 7-day summary
       const weeklySummary = await getHealthMetricsSummary(patientId, 7);
 
+      if (!aiServiceUrl) {
+        return res.json({
+          insights: buildFallbackInsights(latestMetrics, weeklySummary),
+        });
+      }
+
       // Call AI service for insights
       const aiResponse = await fetch(
-        `${process.env.AI_SERVICE_URL || "http://localhost:5005"}/health-insights`,
+        `${aiServiceUrl}/health-insights`,
         {
           method: "POST",
           headers: {
@@ -308,7 +315,7 @@ router.get(
         insights: buildFallbackInsights(latestMetrics, weeklySummary),
       });
     } catch (error) {
-      console.error("Get health insights error:", error);
+      console.warn("Health insights AI service unavailable:", error.message);
       try {
         const patientId = req.user.id;
         const latestMetrics = await getLatestHealthMetrics(patientId);

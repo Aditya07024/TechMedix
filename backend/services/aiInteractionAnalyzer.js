@@ -1,14 +1,13 @@
 // backend/services/aiInteractionAnalyzer.js
-// Uses local FLAN-T5 model for drug interaction analysis - no Gemini/API key required
-
-import { pipeline } from "@xenova/transformers";
+// Uses local FLAN-T5 model for drug interaction analysis when explicitly enabled.
 
 const MODEL = "Xenova/flan-t5-base";
 const shouldUseLocalFlanModel =
-  process.env.ENABLE_LOCAL_FLAN_INTERACTIONS === "true" ||
-  (process.env.NODE_ENV !== "production" && process.env.RENDER !== "true");
+  String(process.env.ENABLE_LOCAL_FLAN_INTERACTIONS || "").toLowerCase() ===
+  "true";
 
 let generator = null;
+let generatorPromise = null;
 const interactionCache = new Map();
 
 async function getGenerator() {
@@ -16,12 +15,30 @@ async function getGenerator() {
     return null;
   }
 
-  if (!generator) {
-    console.log("📦 Loading FLAN-T5 for interaction analysis (first run may download ~250MB)...");
-    generator = await pipeline("text2text-generation", MODEL);
-    console.log("✅ FLAN-T5 model loaded:", MODEL);
+  if (generator) {
+    return generator;
   }
-  return generator;
+
+  if (!generatorPromise) {
+    generatorPromise = import("@xenova/transformers")
+      .then(({ pipeline }) => {
+        console.log(
+          "📦 Loading FLAN-T5 for interaction analysis (first run may download ~250MB)...",
+        );
+        return pipeline("text2text-generation", MODEL);
+      })
+      .then((loadedGenerator) => {
+        generator = loadedGenerator;
+        console.log("✅ FLAN-T5 model loaded:", MODEL);
+        return generator;
+      })
+      .catch((error) => {
+        generatorPromise = null;
+        throw error;
+      });
+  }
+
+  return generatorPromise;
 }
 
 /**

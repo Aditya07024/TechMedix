@@ -1,16 +1,13 @@
 // backend/services/summarizerService.js
 // Hybrid: OCR correction → regex extraction → NER supplement
 // Handles noisy handwritten/printed prescription OCR accurately.
-// Fully offline — no API key required.
-
-import { pipeline } from "@xenova/transformers";
+// Fully offline when the optional NER model is enabled.
 
 const MEDICAL_NER_MODEL = "onnx-community/Medical-NER-ONNX";
 const MAX_CHARS_PER_CHUNK = 3000;
 const CHUNK_OVERLAP = 150;
 const shouldUseMedicalNer =
-  process.env.ENABLE_MEDICAL_NER === "true" ||
-  (process.env.NODE_ENV !== "production" && process.env.RENDER !== "true");
+  String(process.env.ENABLE_MEDICAL_NER || "").toLowerCase() === "true";
 
 let nerModel = null;
 let nerPromise = null;
@@ -23,10 +20,13 @@ async function getNerModel() {
   }
   if (nerModel) return nerModel;
   if (!nerPromise) {
-    console.log("📦 Loading Medical-NER-ONNX model...");
-    nerPromise = pipeline("token-classification", MEDICAL_NER_MODEL, {
-      aggregation_strategy: "simple",
-    })
+    nerPromise = import("@xenova/transformers")
+      .then(({ pipeline }) => {
+        console.log("📦 Loading Medical-NER-ONNX model...");
+        return pipeline("token-classification", MEDICAL_NER_MODEL, {
+          aggregation_strategy: "simple",
+        });
+      })
       .then((model) => {
         nerModel = model;
         console.log("✅ Medical NER model loaded:", MEDICAL_NER_MODEL);
@@ -359,7 +359,9 @@ export async function summarizePrescription(ocrText) {
       console.warn("⚠ NER failed, relying on regex only:", err.message);
     }
   } else {
-    console.log("ℹ Medical NER disabled for this deployment; using regex extraction only.");
+    console.log(
+      "ℹ Medical NER disabled. Set ENABLE_MEDICAL_NER=true to enable model-based extraction.",
+    );
   }
 
   // Step 4: Regex results take priority (higher precision on OCR noise)
