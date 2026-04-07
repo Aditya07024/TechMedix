@@ -390,13 +390,16 @@ export async function getMedicineByIdFromDb(id) {
     whereClauses.push("is_deleted = false");
   }
 
-  const rows = await sql`
-    SELECT
-      ${sql.unsafe(selectList)}
-    FROM medicines
-    WHERE ${sql.unsafe(whereClauses.join(" AND "), [id])}
-    LIMIT 1
-  `;
+  const rows = await sql.query(
+    `
+      SELECT
+        ${selectList}
+      FROM medicines
+      WHERE ${whereClauses.join(" AND ")}
+      LIMIT 1
+    `,
+    [id],
+  );
 
   const medicine = rows[0] ?? null;
   if (!medicine) {
