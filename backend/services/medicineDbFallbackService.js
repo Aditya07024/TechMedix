@@ -1,6 +1,8 @@
 import sql from "../config/database.js";
 
 let medicinesHasIsDeletedColumnPromise;
+let medicineColumnsPromise;
+const tableExistsPromiseCache = new Map();
 
 async function medicinesHasIsDeletedColumn() {
   if (!medicinesHasIsDeletedColumnPromise) {
@@ -21,6 +23,64 @@ async function medicinesHasIsDeletedColumn() {
   }
 
   return medicinesHasIsDeletedColumnPromise;
+}
+
+async function getMedicineColumns() {
+  if (!medicineColumnsPromise) {
+    medicineColumnsPromise = sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'medicines'
+    `
+      .then((rows) => new Set(rows.map((row) => row.column_name)))
+      .catch((error) => {
+        medicineColumnsPromise = null;
+        throw error;
+      });
+  }
+
+  return medicineColumnsPromise;
+}
+
+async function medicineHasColumn(columnName) {
+  const columns = await getMedicineColumns();
+  return columns.has(columnName);
+}
+
+async function tableExists(tableName) {
+  if (!tableExistsPromiseCache.has(tableName)) {
+    tableExistsPromiseCache.set(
+      tableName,
+      sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = ${tableName}
+        ) AS exists
+      `
+        .then((rows) => rows[0]?.exists === true)
+        .catch((error) => {
+          tableExistsPromiseCache.delete(tableName);
+          throw error;
+        }),
+    );
+  }
+
+  return tableExistsPromiseCache.get(tableName);
+}
+
+async function buildMedicineSelect(columns) {
+  const availableColumns = await getMedicineColumns();
+
+  return columns
+    .map((columnName) =>
+      availableColumns.has(columnName)
+        ? columnName
+        : `NULL AS ${columnName}`,
+    )
+    .join(",\n        ");
 }
 
 function normalizeText(value) {
@@ -69,28 +129,32 @@ async function buildSubstituteLookupQuery(names) {
     whereClauses.unshift("is_deleted = false");
   }
 
+  const selectList = await buildMedicineSelect([
+    "id",
+    "name",
+    "salt",
+    "chemical_class",
+    "habit_forming",
+    "therapeutic_class",
+    "action_class",
+    "working",
+    "safetyadvice",
+    "price",
+    "usage",
+    "image",
+    "link",
+    "info",
+    "benefits",
+    "sideeffects",
+    "category",
+    "created_at",
+    "updated_at",
+  ]);
+
   return {
     query: `
       SELECT DISTINCT ON (id)
-        id,
-        name,
-        salt,
-        chemical_class,
-        habit_forming,
-        therapeutic_class,
-        action_class,
-        working,
-        safetyadvice,
-        price,
-        usage,
-        image,
-        link,
-        info,
-        benefits,
-        sideeffects,
-        category,
-        created_at,
-        updated_at
+        ${selectList}
       FROM medicines
       WHERE ${whereClauses.join(" AND ")}
       ORDER BY id, name ASC
@@ -120,8 +184,36 @@ export async function getMedicinesFromDb({
 }) {
   const clauses = [];
   const params = [];
+  const [
+    hasIsDeletedColumn,
+    hasSaltColumn,
+    hasChemicalClassColumn,
+    hasTherapeuticClassColumn,
+    hasActionClassColumn,
+    hasCategoryColumn,
+    hasHabitFormingColumn,
+    selectList,
+  ] = await Promise.all([
+    medicinesHasIsDeletedColumn(),
+    medicineHasColumn("salt"),
+    medicineHasColumn("chemical_class"),
+    medicineHasColumn("therapeutic_class"),
+    medicineHasColumn("action_class"),
+    medicineHasColumn("category"),
+    medicineHasColumn("habit_forming"),
+    buildMedicineSelect([
+      "id",
+      "name",
+      "salt",
+      "therapeutic_class",
+      "price",
+      "image",
+      "category",
+      "habit_forming",
+    ]),
+  ]);
 
-  if (await medicinesHasIsDeletedColumn()) {
+  if (hasIsDeletedColumn) {
     clauses.push("is_deleted = false");
   }
 
@@ -135,35 +227,95 @@ export async function getMedicinesFromDb({
     clauses.push(`name ILIKE ${placeholder}`);
   }
 
-  if (saltSearch) {
+  if (saltSearch && hasSaltColumn) {
     const placeholder = pushParam(`%${saltSearch}%`);
     clauses.push(`salt ILIKE ${placeholder}`);
+  } else if (saltSearch) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
-  if (chemicalClass) {
+  if (chemicalClass && hasChemicalClassColumn) {
     const placeholder = pushParam(chemicalClass);
     clauses.push(`chemical_class = ${placeholder}`);
+  } else if (chemicalClass) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
-  if (therapeuticClass) {
+  if (therapeuticClass && hasTherapeuticClassColumn) {
     const placeholder = pushParam(therapeuticClass);
     clauses.push(`therapeutic_class = ${placeholder}`);
+  } else if (therapeuticClass) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
-  if (actionClass) {
+  if (actionClass && hasActionClassColumn) {
     const placeholder = pushParam(actionClass);
     clauses.push(`action_class = ${placeholder}`);
+  } else if (actionClass) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
-  if (category) {
+  if (category && hasCategoryColumn) {
     const placeholder = pushParam(category);
     clauses.push(`category = ${placeholder}`);
+  } else if (category) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
   const parsedHabitForming = parseBooleanFilter(habitForming);
-  if (parsedHabitForming !== null) {
+  if (parsedHabitForming !== null && hasHabitFormingColumn) {
     const placeholder = pushParam(parsedHabitForming);
     clauses.push(`habit_forming = ${placeholder}`);
+  } else if (parsedHabitForming !== null) {
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
 
   const whereClause = clauses.length > 0 ? clauses.join(" AND ") : "TRUE";
@@ -179,14 +331,7 @@ export async function getMedicinesFromDb({
   const rows = await sql.query(
     `
       SELECT
-        id,
-        name,
-        salt,
-        therapeutic_class,
-        price,
-        image,
-        category,
-        habit_forming
+        ${selectList}
       FROM medicines
       WHERE ${whereClause}
       ORDER BY name ASC, id ASC
@@ -208,6 +353,27 @@ export async function getMedicinesFromDb({
 }
 
 export async function getMedicineByIdFromDb(id) {
+  const selectList = await buildMedicineSelect([
+    "id",
+    "name",
+    "salt",
+    "chemical_class",
+    "habit_forming",
+    "therapeutic_class",
+    "action_class",
+    "working",
+    "safetyadvice",
+    "price",
+    "usage",
+    "image",
+    "link",
+    "info",
+    "benefits",
+    "sideeffects",
+    "category",
+    "created_at",
+    "updated_at",
+  ]);
   const whereClauses = ["id = $1"];
   if (await medicinesHasIsDeletedColumn()) {
     whereClauses.push("is_deleted = false");
@@ -215,25 +381,7 @@ export async function getMedicineByIdFromDb(id) {
 
   const rows = await sql`
     SELECT
-      id,
-      name,
-      salt,
-      chemical_class,
-      habit_forming,
-      therapeutic_class,
-      action_class,
-      working,
-      safetyadvice,
-      price,
-      usage,
-      image,
-      link,
-      info,
-      benefits,
-      sideeffects,
-      category,
-      created_at,
-      updated_at
+      ${sql.unsafe(selectList)}
     FROM medicines
     WHERE ${sql.unsafe(whereClauses.join(" AND "), [id])}
     LIMIT 1
@@ -244,31 +392,47 @@ export async function getMedicineByIdFromDb(id) {
     return null;
   }
 
+  const [hasSaltsTable, hasSubstitutesTable, hasSideEffectsTable, hasUsesTable] =
+    await Promise.all([
+      tableExists("medicine_salts"),
+      tableExists("medicine_substitutes"),
+      tableExists("medicine_side_effects"),
+      tableExists("medicine_uses"),
+    ]);
+
   const [salts, substitutes, sideEffects, uses] = await Promise.all([
-    sql`
-      SELECT salt_name
-      FROM medicine_salts
-      WHERE medicine_id = ${id}
-      ORDER BY salt_name ASC
-    `,
-    sql`
-      SELECT substitute_name
-      FROM medicine_substitutes
-      WHERE medicine_id = ${id}
-      ORDER BY substitute_name ASC
-    `,
-    sql`
-      SELECT side_effect
-      FROM medicine_side_effects
-      WHERE medicine_id = ${id}
-      ORDER BY id ASC
-    `,
-    sql`
-      SELECT "use"
-      FROM medicine_uses
-      WHERE medicine_id = ${id}
-      ORDER BY id ASC
-    `,
+    hasSaltsTable
+      ? sql`
+          SELECT salt_name
+          FROM medicine_salts
+          WHERE medicine_id = ${id}
+          ORDER BY salt_name ASC
+        `
+      : Promise.resolve([]),
+    hasSubstitutesTable
+      ? sql`
+          SELECT substitute_name
+          FROM medicine_substitutes
+          WHERE medicine_id = ${id}
+          ORDER BY substitute_name ASC
+        `
+      : Promise.resolve([]),
+    hasSideEffectsTable
+      ? sql`
+          SELECT side_effect
+          FROM medicine_side_effects
+          WHERE medicine_id = ${id}
+          ORDER BY id ASC
+        `
+      : Promise.resolve([]),
+    hasUsesTable
+      ? sql`
+          SELECT "use"
+          FROM medicine_uses
+          WHERE medicine_id = ${id}
+          ORDER BY id ASC
+        `
+      : Promise.resolve([]),
   ]);
 
   const substituteNames = [
@@ -298,8 +462,11 @@ export async function getMedicineByIdFromDb(id) {
 
 export async function searchMedicinesInDb(query) {
   const pattern = `%${query}%`;
+  const hasSaltColumn = await medicineHasColumn("salt");
   const clauses = [
-    `(name ILIKE $1 OR salt ILIKE $1)`,
+    hasSaltColumn
+      ? "(name ILIKE $1 OR salt ILIKE $1)"
+      : "(name ILIKE $1)",
   ];
 
   if (await medicinesHasIsDeletedColumn()) {
@@ -327,8 +494,22 @@ export async function searchMedicinesInDb(query) {
 }
 
 export async function getMedicineFiltersFromDb() {
+  const [
+    hasIsDeletedColumn,
+    hasChemicalClassColumn,
+    hasTherapeuticClassColumn,
+    hasActionClassColumn,
+    hasCategoryColumn,
+  ] = await Promise.all([
+    medicinesHasIsDeletedColumn(),
+    medicineHasColumn("chemical_class"),
+    medicineHasColumn("therapeutic_class"),
+    medicineHasColumn("action_class"),
+    medicineHasColumn("category"),
+  ]);
+
   const baseClauses = [];
-  if (await medicinesHasIsDeletedColumn()) {
+  if (hasIsDeletedColumn) {
     baseClauses.push("is_deleted = false");
   }
 
@@ -339,38 +520,46 @@ export async function getMedicineFiltersFromDb() {
 
   const [chemicalClasses, therapeuticClasses, actionClasses, categories] =
     await Promise.all([
-      sql.query(
+      hasChemicalClassColumn
+        ? sql.query(
         `
           SELECT DISTINCT chemical_class
           FROM medicines
           WHERE ${buildWhereClause("chemical_class")}
           ORDER BY chemical_class ASC
         `,
-      ),
-      sql.query(
+      )
+        : Promise.resolve([]),
+      hasTherapeuticClassColumn
+        ? sql.query(
         `
           SELECT DISTINCT therapeutic_class
           FROM medicines
           WHERE ${buildWhereClause("therapeutic_class")}
           ORDER BY therapeutic_class ASC
         `,
-      ),
-      sql.query(
+      )
+        : Promise.resolve([]),
+      hasActionClassColumn
+        ? sql.query(
         `
           SELECT DISTINCT action_class
           FROM medicines
           WHERE ${buildWhereClause("action_class")}
           ORDER BY action_class ASC
         `,
-      ),
-      sql.query(
+      )
+        : Promise.resolve([]),
+      hasCategoryColumn
+        ? sql.query(
         `
           SELECT DISTINCT category
           FROM medicines
           WHERE ${buildWhereClause("category")}
           ORDER BY category ASC
         `,
-      ),
+      )
+        : Promise.resolve([]),
     ]);
 
   return {

@@ -15,6 +15,28 @@ dotenv.config();
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+let usersTableExistsPromise;
+
+async function usersTableExists() {
+  if (!usersTableExistsPromise) {
+    usersTableExistsPromise = sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'users'
+      ) AS exists
+    `
+      .then((rows) => rows[0]?.exists === true)
+      .catch((error) => {
+        usersTableExistsPromise = null;
+        throw error;
+      });
+  }
+
+  return usersTableExistsPromise;
+}
+
 // Google OAuth login
 
 
@@ -74,10 +96,12 @@ router.post("/login", async (req, res) => {
     }
 
     // 1️⃣ First check in users table (admin / future doctor roles)
-    const users = await sql`
-      SELECT * FROM users
-      WHERE email = ${email}
-    `;
+    const users = (await usersTableExists())
+      ? await sql`
+          SELECT * FROM users
+          WHERE email = ${email}
+        `
+      : [];
 
     if (users.length) {
   const user = users[0];
