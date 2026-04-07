@@ -11,8 +11,7 @@ import {
   getPriceInsights,
   lookupMedicineWithAi,
 } from "../../api/medicineApi";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL } from "../../utils/apiBase";
 
 const initialFilters = {
   chemical_class: "",
@@ -376,7 +375,7 @@ const Search = () => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/prescriptions/safety-check-latest`, {
+      const response = await fetch(`${API_BASE_URL}/api/prescriptions/safety-check-latest`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -3,8 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import symptomsList from "../../utils/symptomsList";
 import "./Form.css";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL } from "../../utils/apiBase";
 
 export const Form = () => {
   const navigate = useNavigate();
@@ -46,7 +45,7 @@ export const Form = () => {
   useEffect(() => {
     const fetchSymptoms = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/diseases`);
+        const res = await axios.get(`${API_BASE_URL}/api/diseases`);
         /* Expected backend format example:
            {
              "Respiratory": ["cough","breathlessness"],
@@ -155,7 +154,7 @@ export const Form = () => {
         sleepQuality: formData.sleepQuality,
       };
 
-      const response = await axios.post(`${API_URL}/api/patientdata`, dataToSend, {
+      const response = await axios.post(`${API_BASE_URL}/api/patientdata`, dataToSend, {
         withCredentials: true,
       });
 

@@ -1,4 +1,3 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import React, { useState } from "react";
 import "./SearchBar.css";
 import { useNavigate } from "react-router-dom";

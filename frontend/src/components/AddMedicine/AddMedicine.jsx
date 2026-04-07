@@ -1,9 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
+import { API_BASE_URL } from "../../utils/apiBase";
 export default function AddMedicine() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -28,7 +28,7 @@ export default function AddMedicine() {
     e.preventDefault();
 
     try {
-      await axios.post(`${API_URL}/new`, formData);
+      await axios.post(`${API_BASE_URL}/new`, formData);
       setFormData({
         name: '',
         price: '',

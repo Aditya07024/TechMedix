@@ -1,4 +1,3 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import React from 'react'
 import './BuyProducts.css'
 import { assets } from '../../assets/assets'

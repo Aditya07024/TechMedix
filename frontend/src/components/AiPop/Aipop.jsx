@@ -1,7 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import React, { useState } from 'react';
 import "./AiPop.css";
 import axios from 'axios';
+import { API_BASE_URL } from "../../utils/apiBase";
 
 const Aipop = ({ setShowAiPop, children }) => {
   const [input, setInput] = useState("");
@@ -12,7 +12,7 @@ const Aipop = ({ setShowAiPop, children }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/aipop`, {prompt: input});
+      const response = await axios.post(`${API_BASE_URL}/aipop`, {prompt: input});
       setOutput(response.data.reply);
       setInput("");
     } catch (error) {

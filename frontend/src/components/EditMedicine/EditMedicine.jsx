@@ -1,8 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import './EditMedicine.css';
+import { API_BASE_URL } from "../../utils/apiBase";
 export default function EditMedicine() {
   const { id } = useParams(); // get medicine id from URL
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ export default function EditMedicine() {
   useEffect(() => {
     async function fetchMedicine() {
       try {
-        const res = await axios.get(`${API_URL}/medicines/${id}`);
+        const res = await axios.get(`${API_BASE_URL}/medicines/${id}`);
         console.log(res.data)
         setFormData(res.data);
       } catch (err) {
@@ -48,7 +48,7 @@ export default function EditMedicine() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API_URL}/medicines/${id}`, formData);
+      await axios.put(`${API_BASE_URL}/medicines/${id}`, formData);
       alert('Medicine updated successfully!');
       navigate(`/home`);
     } catch (err) {

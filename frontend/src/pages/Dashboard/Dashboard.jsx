@@ -18,6 +18,7 @@ import { patientApi } from "../../api"; // Import patientApi
 import { useAuth } from "../../context/AuthContext"; // Import useAuth
 import { patientDataApi } from "../../api"; // Import patientDataApi
 import HealthChat from "../../components/HealthChat/HealthChat";
+import { API_BASE_URL } from "../../utils/apiBase";
 
 const NEW_DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -82,7 +83,6 @@ ChartJS.register(
 
 export const Dashboard = () => {
   const [qrData, setQrData] = useState(null);
-  const API_URL = import.meta.env.VITE_API_URL;
   const [ehrHistory, setEhrHistory] = useState([]);
   const [user, setUser] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -123,8 +123,8 @@ export const Dashboard = () => {
         }
 
         const [patientRes, ehrRes] = await Promise.allSettled([
-          axios.get(`${API_URL}/api/patient/${patientId}`),
-          axios.get(`${API_URL}/api/patientdata/${patientId}`),
+          axios.get(`${API_BASE_URL}/api/patient/${patientId}`),
+          axios.get(`${API_BASE_URL}/api/patientdata/${patientId}`),
         ]);
 
         let nextUser = storedUser;
@@ -157,7 +157,7 @@ export const Dashboard = () => {
     if (!cacheIsFresh) {
       fetchData({ showLoader: !cache?.data });
     }
-  }, [API_URL]);
+  }, []);
 
   // 📱 Generate QR code (protected route)
   const generateQR = async (patientId) => {

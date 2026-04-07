@@ -1,6 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL;
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE_URL } from "../../utils/apiBase";
 
 function Test() {
   const [medicines, setMedicines] = useState([]);
@@ -10,7 +10,7 @@ function Test() {
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
-        const response = await fetch(`${API_URL}/medicines`);
+        const response = await fetch(`${API_BASE_URL}/medicines`);
         if (!response.ok) {
           throw new Error('Failed to fetch medicines');
         }
