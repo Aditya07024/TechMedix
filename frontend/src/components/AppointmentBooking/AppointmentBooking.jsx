@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { scheduleAPI, appointmentAPI } from "../../api/techmedixAPI";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  ShieldCheck,
+} from "lucide-react";
+import { assets } from "../../assets/assets";
 import "./AppointmentBooking.css";
 
-export default function AppointmentBooking({ doctorId, patientId }) {
+export default function AppointmentBooking({
+  doctorId,
+  patientId,
+  doctorName,
+  doctorSpecialty,
+}) {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDates, setAvailableDates] = useState(new Set());
@@ -161,11 +174,19 @@ export default function AppointmentBooking({ doctorId, patientId }) {
     month: "long",
     year: "numeric",
   });
+  const selectedDateLabel = selectedDate
+    ? selectedDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+      })
+    : null;
+  const weekdayLabels = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+  const normalizedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
 
   const renderCalendar = () => {
     const days = [];
 
-    for (let i = 0; i < firstDay; i++) {
+    for (let i = 0; i < normalizedFirstDay; i++) {
       days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
     }
 
@@ -203,7 +224,12 @@ export default function AppointmentBooking({ doctorId, patientId }) {
   ============================ */
   return (
     <div className="appointment-booking-container">
-      <h2>📅 Book Appointment</h2>
+      <div className="booking-title-row">
+        <h2 className="booking-title">
+          <CalendarDays size={20} strokeWidth={2} />
+          <span>Book Appointment</span>
+        </h2>
+      </div>
 
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
@@ -213,87 +239,141 @@ export default function AppointmentBooking({ doctorId, patientId }) {
       ) : (
         <>
           {/* Calendar */}
-          <div className="calendar-header">
-            <button
-              onClick={() =>
-                setCurrentMonth(
-                  new Date(
-                    currentMonth.getFullYear(),
-                    currentMonth.getMonth() - 1,
-                  ),
-                )
-              }
-            >
-              ←
-            </button>
+          <div className="booking-panel">
+            <div className="booking-specialist-column">
+              <div className="booking-specialist-card">
+                <img
+                  src={assets.female_avatar}
+                  alt="Doctor avatar"
+                  className="booking-specialist-avatar"
+                />
+                <div className="booking-specialist-copy">
+                  <strong>{doctorName ? `Dr. ${doctorName}` : "Select specialist"}</strong>
+                  <span>{doctorSpecialty || "Doctor"}</span>
+                </div>
+                <ChevronRight size={18} strokeWidth={2} className="booking-specialist-chevron" />
+              </div>
 
-            <h3>{monthLabel}</h3>
+              <div className="booking-specialist-note">
+                <div className="booking-specialist-note-title">
+                  <ShieldCheck size={15} strokeWidth={2.2} />
+                  <span>Top rated care</span>
+                </div>
+                <p>
+                  Highly experienced in preventive cardiology and metabolic health.
+                  Patient-first approach with data-driven insights.
+                </p>
+              </div>
+            </div>
 
-            <button
-              onClick={() =>
-                setCurrentMonth(
-                  new Date(
-                    currentMonth.getFullYear(),
-                    currentMonth.getMonth() + 1,
-                  ),
-                )
-              }
-            >
-              →
-            </button>
+            <div className="booking-calendar-column">
+              <div className="calendar-header">
+                <h3>{monthLabel}</h3>
+
+                <div className="calendar-nav-buttons">
+                  <button
+                    className="nav-button"
+                    onClick={() =>
+                      setCurrentMonth(
+                        new Date(
+                          currentMonth.getFullYear(),
+                          currentMonth.getMonth() - 1,
+                        ),
+                      )
+                    }
+                  >
+                    <ChevronLeft size={18} strokeWidth={2.2} />
+                  </button>
+
+                  <button
+                    className="nav-button"
+                    onClick={() =>
+                      setCurrentMonth(
+                        new Date(
+                          currentMonth.getFullYear(),
+                          currentMonth.getMonth() + 1,
+                        ),
+                      )
+                    }
+                  >
+                    <ChevronRight size={18} strokeWidth={2.2} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="calendar-weekdays">
+                {weekdayLabels.map((day) => (
+                  <span key={day}>{day}</span>
+                ))}
+              </div>
+
+              <div className="calendar-grid">{renderCalendar()}</div>
+
+              <div className="slot-section">
+                <h3 className="slot-title">
+                  <Clock3 size={16} strokeWidth={2} />
+                  <span>
+                    {selectedDateLabel
+                      ? `Available Slots (${selectedDateLabel})`
+                      : "Available Slots"}
+                  </span>
+                </h3>
+
+                {selectedDate ? (
+                  slotsLoading ? (
+                    <p>Loading slots...</p>
+                  ) : availableSlots.length > 0 ? (
+                    <div className="slot-grid">
+                      {availableSlots
+                        .filter((slot) => slot.is_available)
+                        .map((slot, idx) => (
+                          <button
+                            key={idx}
+                            className={`slot-button ${
+                              selectedSlot?.start_time === slot.start_time
+                                ? "selected"
+                                : ""
+                            }`}
+                            onClick={() => setSelectedSlot(slot)}
+                          >
+                            {slot.start_time.slice(0, 5)}
+                          </button>
+                        ))}
+                    </div>
+                  ) : (
+                    <p>No available slots for this date</p>
+                  )
+                ) : (
+                  <p>Select an available date to view time slots.</p>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="calendar-grid">{renderCalendar()}</div>
+          <div className="booking-footer">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={shareHistory}
+                onChange={(e) => setShareHistory(e.target.checked)}
+              />
+              <span>
+                <ShieldCheck size={16} strokeWidth={2} />
+                Share health history with doctor
+              </span>
+            </label>
 
-          {/* Slots */}
-          {selectedDate && (
-            <div className="slot-section">
-              <h3>Select Time – {selectedDate.toLocaleDateString("en-IN")}</h3>
-
-              {slotsLoading ? (
-                <p>Loading slots...</p>
-              ) : availableSlots.length > 0 ? (
-                <div className="slot-grid">
-                  {availableSlots
-                    .filter((slot) => slot.is_available)
-                    .map((slot, idx) => (
-                      <button
-                        key={idx}
-                        className={`slot-button ${
-                          selectedSlot?.start_time === slot.start_time
-                            ? "selected"
-                            : ""
-                        }`}
-                        onClick={() => setSelectedSlot(slot)}
-                      >
-                        {slot.start_time} ({slot.duration_minutes} min)
-                      </button>
-                    ))}
-                </div>
-              ) : (
-                <p>No available slots for this date</p>
-              )}
+            <div className="booking-footer-actions">
+              <p>Booking for Initial Consultation ({selectedSlot?.duration_minutes || 45} mins)</p>
+              <button
+                className="book-button"
+                disabled={!selectedSlot || loading}
+                onClick={handleBookAppointment}
+              >
+                {loading ? "Processing..." : "Proceed to Payment"}
+              </button>
             </div>
-          )}
-
-          {/* Share history */}
-          <label>
-            <input
-              type="checkbox"
-              checked={shareHistory}
-              onChange={(e) => setShareHistory(e.target.checked)}
-            />
-            Share health history with doctor
-          </label>
-
-          {/* Book button */}
-          <button
-            className="book-button"
-            disabled={!selectedSlot || loading}
-            onClick={handleBookAppointment}
-          >
-            {loading ? "Processing..." : "Proceed to Payment"}
-          </button>
+          </div>
         </>
       )}
     </div>

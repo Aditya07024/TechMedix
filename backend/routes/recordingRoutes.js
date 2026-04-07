@@ -3,6 +3,7 @@ import {
   saveRecording,
   getPatientRecordings,
   getDoctorRecordings,
+  getRecordingById,
 } from "../services/recordingService.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import multer from "multer";
@@ -10,8 +11,14 @@ import fs from "fs";
 import path from "path";
 import cloudinary from "../config/cloudinary.js";
 import axios from "axios";
+import OpenAI from "openai";
+import { toFile } from "openai/uploads";
 
 const router = express.Router();
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || process.env.API_KEY,
+  baseURL: process.env.BASE_URL || undefined,
+});
 
 // Ensure recordings directory exists
 const recordingsDir = "uploads/recordings";
@@ -237,6 +244,106 @@ router.get(
     } catch (error) {
       console.error(`[RecordingDownload ERROR] ${error.stack || error.message}`);
       res.status(500).json({ success: false, error: "Failed to download recording" });
+    }
+  },
+);
+
+router.post(
+  "/:id/transcribe",
+  authenticate,
+  authorizeRoles("patient", "doctor"),
+  async (req, res) => {
+    const reqId = `T${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    try {
+      const { id } = req.params;
+      console.log(
+        `[RecordingTranscribe ${reqId}] POST /api/recordings/${id}/transcribe user=${req.user?.id} role=${req.user?.role}`,
+      );
+
+      if (!process.env.OPENAI_API_KEY && !process.env.API_KEY) {
+        return res.status(500).json({
+          success: false,
+          error: "Transcription service is not configured",
+        });
+      }
+
+      const rec = await getRecordingById(id);
+      if (!rec) {
+        return res.status(404).json({
+          success: false,
+          error: "Recording not found",
+        });
+      }
+
+      if (
+        req.user.role === "patient" &&
+        String(req.user.id) !== String(rec.patient_id)
+      ) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+      if (
+        req.user.role === "doctor" &&
+        String(req.user.id) !== String(rec.doctor_id)
+      ) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
+      const upstream = await axios.get(rec.audio_url, {
+        responseType: "arraybuffer",
+      });
+      const contentType = upstream.headers["content-type"] || "audio/mpeg";
+      const audioFile = await toFile(
+        Buffer.from(upstream.data),
+        `recording-${id}.mp3`,
+        { type: contentType },
+      );
+
+      const transcriptionModels = [
+        process.env.OPENAI_TRANSCRIPTION_MODEL,
+        "gpt-4o-mini-transcribe",
+        "whisper-1",
+      ].filter(Boolean);
+
+      let transcriptText = "";
+      let usedModel = "";
+      let lastError = null;
+
+      for (const model of transcriptionModels) {
+        try {
+          const transcript = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model,
+          });
+          transcriptText = transcript.text || "";
+          usedModel = model;
+          if (transcriptText) break;
+        } catch (error) {
+          lastError = error;
+          console.warn(
+            `[RecordingTranscribe ${reqId}] model=${model} failed: ${error.message}`,
+          );
+        }
+      }
+
+      if (!transcriptText) {
+        throw lastError || new Error("Transcription failed");
+      }
+
+      return res.json({
+        success: true,
+        text: transcriptText,
+        model: usedModel,
+      });
+    } catch (error) {
+      console.error(
+        `[RecordingTranscribe ERROR] ${error.stack || error.message}`,
+      );
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Failed to transcribe recording",
+      });
     }
   },
 );

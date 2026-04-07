@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import "./HealthMetrics.css";
 import { API_BASE_URL } from "../../utils/apiBase";
+import {
+  Activity,
+  Flame,
+  Footprints,
+  HeartPulse,
+  Lightbulb,
+  MoonStar,
+} from "lucide-react";
 
 const HealthMetrics = ({ patientId }) => {
   const [healthData, setHealthData] = useState({});
@@ -67,17 +75,17 @@ const HealthMetrics = ({ patientId }) => {
   const getMetricIcon = (type) => {
     switch (type) {
       case "steps":
-        return "🚶";
+        return Footprints;
       case "heart_rate":
-        return "❤️";
+        return HeartPulse;
       case "sleep_duration":
-        return "😴";
+        return MoonStar;
       case "calories_burned":
-        return "🔥";
+        return Flame;
       case "activity":
-        return "⚡";
+        return Activity;
       default:
-        return "📊";
+        return Activity;
     }
   };
 
@@ -134,7 +142,12 @@ const HealthMetrics = ({ patientId }) => {
         <div className="metrics-grid">
           {metricsList.map(([type, data]) => (
             <div key={type} className="metric-card">
-              <div className="metric-icon">{getMetricIcon(type)}</div>
+              <div className="metric-icon">
+                {React.createElement(getMetricIcon(type), {
+                  size: 24,
+                  strokeWidth: 2,
+                })}
+              </div>
               <div className="metric-content">
                 <div className="metric-value">
                   {formatValue(data.value, data.unit)}
@@ -156,6 +169,9 @@ const HealthMetrics = ({ patientId }) => {
           <div className="insights-list">
             {insights.map((insight, index) => (
               <div key={index} className="insight-item">
+                <span className="insight-icon">
+                  <Lightbulb size={16} strokeWidth={2} />
+                </span>
                 {insight}
               </div>
             ))}

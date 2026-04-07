@@ -19,6 +19,41 @@ import HealthChat from "../../components/HealthChat/HealthChat";
 import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
 import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
 import { assets } from "../../assets/assets";
+import {
+  Activity,
+  AlertTriangle,
+  Bell,
+  CalendarClock,
+  CalendarDays,
+  Download,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  CircleHelp,
+  FileText,
+  Flame,
+  FolderHeart,
+  Footprints,
+  HeartPulse,
+  House,
+  LayoutGrid,
+  Menu,
+  MessageSquareText,
+  Mic,
+  MoonStar,
+  Pill,
+  Play,
+  Plus,
+  QrCode,
+  RefreshCcw,
+  Scale,
+  Search,
+  Settings,
+  ShieldCheck,
+  Stethoscope,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -131,6 +166,8 @@ export default function PatientDashboard() {
   const [healthChatOpen, setHealthChatOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [recordings, setRecordings] = useState([]);
+  const [recordingTranscripts, setRecordingTranscripts] = useState({});
+  const [transcribingIds, setTranscribingIds] = useState({});
   const [metricsRefresh, setMetricsRefresh] = useState(0);
   const [ehrHistory, setEhrHistory] = useState([]);
   const [medicineReminders, setMedicineReminders] = useState([]);
@@ -287,6 +324,38 @@ export default function PatientDashboard() {
     } catch (err) {
       console.error("Failed to load recordings:", err);
       setRecordings([]);
+    }
+  };
+
+  const handleTranscribeRecording = async (recordingId) => {
+    try {
+      setTranscribingIds((prev) => ({ ...prev, [recordingId]: true }));
+
+      const response = await fetch(`/api/recordings/${recordingId}/transcribe`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        credentials: "include",
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to transcribe recording");
+      }
+
+      setRecordingTranscripts((prev) => ({
+        ...prev,
+        [recordingId]: data.text || "No transcript returned.",
+      }));
+    } catch (error) {
+      console.error("Failed to transcribe recording:", error);
+      setRecordingTranscripts((prev) => ({
+        ...prev,
+        [recordingId]: `Transcription failed: ${error.message}`,
+      }));
+    } finally {
+      setTranscribingIds((prev) => ({ ...prev, [recordingId]: false }));
     }
   };
 
@@ -573,12 +642,6 @@ export default function PatientDashboard() {
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
       : null;
   const latestMetrics = latestRecord?.ehr || null;
-  const currentDateLabel = new Date().toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
   const unreadAlertsCount = notifications.filter(
     (n) => n?.is_read === false || n?.isRead === false || n?.read === false,
   ).length;
@@ -623,6 +686,183 @@ export default function PatientDashboard() {
     : "No patient data available yet.";
   const patientInitial = (user?.name || "A").charAt(0).toUpperCase();
   const patientFirstName = user?.name?.split(" ")[0] || "Patient";
+  const activeMedicationCards = medicines.slice(0, 2);
+  const prescriptionsFoundLabel = `${medicines.length} prescription${medicines.length === 1 ? "" : "s"} found`;
+  const latestMetricDateLabel = latestRecord?.timestamp
+    ? new Date(latestRecord.timestamp).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "No recent metrics";
+  const latestRecordDateLabel = latestRecord?.timestamp
+    ? new Date(latestRecord.timestamp).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : new Date().toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  const formatMetricValue = (value, formatter = (v) => String(v)) =>
+    value === null || value === undefined || value === "" ? "--" : formatter(value);
+  const derivedHealthScores = ehrHistory
+    .slice()
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .slice(-7)
+    .map((record) => computeHealthScore(record?.ehr || null))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const recordCards = [
+    {
+      label: "Heart Rate",
+      value: formatMetricValue(latestMetrics?.heartRate),
+      unit: "BPM",
+      noteLeft: latestMetricDateLabel,
+      noteRight:
+        latestMetrics?.heartRate == null
+          ? "Unavailable"
+          : Number(latestMetrics?.heartRate) >= 60 &&
+            Number(latestMetrics?.heartRate) <= 100
+          ? "Normal"
+          : "Attention",
+      icon: HeartPulse,
+      trend: "up",
+      delta: latestMetrics?.heartRate == null ? "--" : "Live",
+    },
+    {
+      label: "Steps",
+      value: formatMetricValue(latestMetrics?.steps, (v) => Number(v).toLocaleString()),
+      unit: "Steps",
+      noteLeft: latestMetricDateLabel,
+      noteRight:
+        latestMetrics?.steps == null
+          ? "Unavailable"
+          : Number(latestMetrics?.steps) >= 8000
+            ? "On Track"
+            : "Below Goal",
+      icon: Footprints,
+      trend: "up",
+      delta: latestMetrics?.steps == null ? "--" : "Live",
+    },
+    {
+      label: "Sleep",
+      value: formatMetricValue(latestMetrics?.sleep),
+      unit: "Hours",
+      noteLeft: latestMetricDateLabel,
+      noteRight:
+        latestMetrics?.sleep == null
+          ? "Unavailable"
+          : Number(latestMetrics?.sleep) >= 7
+            ? "Healthy"
+            : "Low",
+      icon: MoonStar,
+      trend: "flat",
+      delta: latestMetrics?.sleep == null ? "--" : "Live",
+    },
+    {
+      label: "Weight",
+      value: formatMetricValue(latestMetrics?.weight),
+      unit: "lbs",
+      noteLeft: latestMetricDateLabel,
+      noteRight: latestMetrics?.weight == null ? "Unavailable" : "Recorded",
+      icon: Scale,
+      trend: "down",
+      delta: latestMetrics?.weight == null ? "--" : "Live",
+    },
+    {
+      label: "Blood Oxygen",
+      value: formatMetricValue(latestMetrics?.spo2),
+      unit: "% SpO2",
+      noteLeft: latestMetricDateLabel,
+      noteRight:
+        latestMetrics?.spo2 == null
+          ? "Unavailable"
+          : Number(latestMetrics?.spo2) >= 95
+            ? "Normal"
+            : "Low",
+      icon: ShieldCheck,
+      trend: "up",
+      delta: latestMetrics?.spo2 == null ? "--" : "Live",
+    },
+    {
+      label: "Calories",
+      value: formatMetricValue(latestMetrics?.calories_burned, (v) =>
+        Number(v).toLocaleString(),
+      ),
+      unit: "kcal",
+      noteLeft: latestMetricDateLabel,
+      noteRight: latestMetrics?.calories_burned == null ? "Unavailable" : "Recorded",
+      icon: Flame,
+      trend: "down",
+      delta: latestMetrics?.calories_burned == null ? "--" : "Live",
+    },
+  ];
+  const recordHistoryItems =
+    ehrHistory.length > 0
+      ? ehrHistory.slice(0, 2).map((record, index) => ({
+          title: `Record update ${index + 1}`,
+          date: new Date(record.timestamp).toLocaleDateString("en-GB", {
+            month: "short",
+            day: "2-digit",
+          }),
+          tone: index === 0 ? "good" : "alert",
+        }))
+      : [
+          { title: "No recent record", date: "Unavailable", tone: "alert" },
+        ];
+  const recordTrendBars = derivedHealthScores;
+  const sidebarItems = [
+    { id: "home", label: "Home", icon: House, action: () => setActiveTab("home") },
+    {
+      id: "appointments",
+      label: "Appointments",
+      icon: CalendarDays,
+      action: () => setActiveTab("appointments"),
+    },
+    {
+      id: "prescriptions",
+      label: "Prescriptions",
+      icon: FileText,
+      action: () => setActiveTab("prescriptions"),
+    },
+    {
+      id: "records",
+      label: "Records",
+      icon: FolderHeart,
+      action: () => setActiveTab("records"),
+    },
+    {
+      id: "recordings",
+      label: "Recordings",
+      icon: Mic,
+      action: () => setActiveTab("recordings"),
+    },
+    { id: "queue", label: "Queue", icon: Clock3, action: () => setActiveTab("queue") },
+    {
+      id: "health",
+      label: "Metrics",
+      icon: Activity,
+      action: () => setActiveTab("health"),
+    },
+    {
+      id: "wallet",
+      label: "Wallet",
+      icon: Wallet,
+      action: () => setActiveTab("wallet"),
+    },
+  ];
+  const topNavItems = [
+    { id: "home", label: "Home", action: () => setActiveTab("home") },
+    { id: "appointments", label: "Appointments", action: () => setActiveTab("appointments") },
+    { id: "records", label: "Records", action: () => setActiveTab("records") },
+    { id: "support", label: "Support", action: () => setHealthChatOpen(true) },
+  ];
 
   const handleToggleReminderTaken = (reminderId) => {
     const today = new Date().toDateString();
@@ -663,228 +903,288 @@ export default function PatientDashboard() {
       )}
       <div className="patient-layout">
         <aside className="patient-sidebar">
-          <div className="sidebar-avatar">{patientInitial}</div>
-          <button
-            className={`sidebar-item ${activeTab === "home" ? "active" : ""}`}
-            onClick={() => setActiveTab("home")}
-          >
-            <span className="sidebar-icon">H</span>
-            <span className="sidebar-label">Home</span>
-          </button>
-          <button
-            className={`sidebar-item ${activeTab === "appointments" ? "active" : ""}`}
-            onClick={() => setActiveTab("appointments")}
-          >
-            <span className="sidebar-icon">A</span>
-            <span className="sidebar-label">Appointments</span>
-          </button>
-          <button
-            className={`sidebar-item ${activeTab === "prescriptions" ? "active" : ""}`}
-            onClick={() => setActiveTab("prescriptions")}
-          >
-            <span className="sidebar-icon">P</span>
-            <span className="sidebar-label">Prescriptions</span>
-          </button>
-          <button className="sidebar-item" onClick={() => navigate("/new/dashboard")}>
-            <span className="sidebar-icon">R</span>
-            <span className="sidebar-label">Records</span>
-          </button>
-          <button
-            className={`sidebar-item ${activeTab === "recordings" ? "active" : ""}`}
-            onClick={() => setActiveTab("recordings")}
-          >
-            <span className="sidebar-icon">V</span>
-            <span className="sidebar-label">Recordings</span>
-          </button>
-          <button
-            className={`sidebar-item ${activeTab === "queue" ? "active" : ""}`}
-            onClick={() => setActiveTab("queue")}
-          >
-            <span className="sidebar-icon">Q</span>
-            <span className="sidebar-label">Queue</span>
-          </button>
-          <button
-            className={`sidebar-item ${activeTab === "health" ? "active" : ""}`}
-            onClick={() => setActiveTab("health")}
-          >
-            <span className="sidebar-icon">M</span>
-            <span className="sidebar-label">Metrics</span>
-          </button>
-          <button className="sidebar-item" onClick={() => navigate("/health-wallet")}>
-            <span className="sidebar-icon">W</span>
-            <span className="sidebar-label">Wallet</span>
-          </button>
+          <div className="sidebar-brand sidebar-brand-card">
+            <div className="sidebar-avatar">
+              <img src={assets.logo} alt="TechMedix logo" />
+            </div>
+            <div className="sidebar-brand-copy static-copy">
+              <strong>TechMedix</strong>
+              <span>Clinical sanctuary</span>
+            </div>
+          </div>
+          <div className="sidebar-nav">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  className={`sidebar-item ${isActive ? "active" : ""}`}
+                  onClick={item.action}
+                >
+                  <span className="sidebar-icon">
+                    <Icon size={18} strokeWidth={2} />
+                  </span>
+                  <span className="sidebar-label">{item.label}</span>
+                  <ChevronRight className="sidebar-arrow" size={16} strokeWidth={2} />
+                </button>
+              );
+            })}
+          </div>
+          <div className="sidebar-footer">
+            <button type="button" className="sidebar-footer-link">
+              <Settings size={17} strokeWidth={2} />
+              <span>Settings</span>
+            </button>
+            <button type="button" className="sidebar-footer-link">
+              <CircleHelp size={17} strokeWidth={2} />
+              <span>Support</span>
+            </button>
+          </div>
         </aside>
 
         <div className="dashboard-content">
-          <header className="dashboard-header">
-            <h1>Welcome, {user?.name}</h1>
-            <p>{currentDateLabel}</p>
-          </header>
 
         {error && <div className="error-message">{error}</div>}
 
         {/* HOME TAB */}
         {activeTab === "home" && (
           <div className="tab-content home-tab">
-            <div className="home-grid">
-              <div className="home-card qr-card">
-                <div className="home-card-title">Patient QR</div>
-                <div className="qr-body">
-                  {qrData ? (
-                    <img src={qrData} alt="Patient QR Code" className="qr-image-ui" />
-                  ) : (
-                    <button className="action-btn" onClick={() => generateQR(user.id)}>
-                      Generate QR
-                    </button>
-                  )}
-                  <p>Scan to open profile</p>
-                </div>
+            <div className="section-intro">
+              <div>
+                <span className="section-kicker">Personal dashboard</span>
+                <h2>Welcome back, {patientFirstName}.</h2>
+                <p>Your health sanctuary is up to date.</p>
               </div>
-
-              <div className="home-card wallet-card">
-                <div className="home-card-title"> Wallet</div>
-                <h3>₹{Number(walletBalance).toFixed(2)}</h3>
-                <p>Available balance for care payments</p>
-                <span className="ready-pill">Ready</span>
-              </div>
-
-              <div className="home-card mini-card">
-                <div className="home-card-title">SCHEDULED CARE</div>
-                <h3>{bookedAppointments.length}</h3>
-                <p>Total appointments</p>
-              </div>
-
-              <div className="home-card mini-card">
-                <div className="home-card-title">PRESCRIPTIONS</div>
-                <h3>{medicines.length}</h3>
-                <p>Active</p>
-              </div>
-
-              <div className="home-card mini-card reminder-summary-card">
-                <div className="home-card-title">UNREAD ALERTS</div>
-                {nextReminder ? (
-                  <>
-                    <h3>{nextReminder.medicine}</h3>
-                    <p>
-                      {nextReminder.dosage} at {nextReminderTime}
-                    </p>
-                    <div className="reminder-summary-actions">
-                      <button
-                        className={`reminder-status-btn ${
-                          isReminderTakenToday ? "taken" : ""
-                        }`}
-                        onClick={() => handleToggleReminderTaken(nextReminder.id)}
-                      >
-                        {isReminderTakenToday ? "Taken" : "Not Taken"}
-                      </button>
-                      <button
-                        className="reminder-delete-btn"
-                        onClick={() => handleDeleteReminder(nextReminder.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h3>{unreadAlertsCount}</h3>
-                    <p>No upcoming reminder. Notifications and reminders appear here.</p>
-                  </>
-                )}
-              </div>
-
-              <div className="home-card mini-card health-card compact-health-card">
-                <div className="home-card-title">HEALTH SCORE</div>
-                <div className="score-track">
-                  <div style={{ width: `${healthScore}%`, background: healthScoreColor }} />
-                </div>
-                <span className="score-text">
-                  {latestMetrics ? `${healthScore}% overall score` : "No patient data available"}
-                </span>
-              </div>
-            </div>
-
-            <div className="home-actions">
-              <button className="action-btn" onClick={() => setActiveTab("appointments")}>
+              <button className="action-btn top-cta-btn" onClick={() => setActiveTab("appointments")}>
+                <CalendarDays size={16} strokeWidth={2} />
                 Book Appointment
               </button>
-              <button className="action-btn" onClick={() => navigate("/upload-prescription")}>
-                Upload Prescription
-              </button>
-              <button className="action-btn" onClick={() => navigate("/form")}>
-                Add New Data
-              </button>
-              <button className="action-btn" onClick={() => setHealthChatOpen(true)}>
-                Open Health Chat
-              </button>
             </div>
-
-            <div className="metrics-panel">
-              <HealthMetrics patientId={user?.id} />
-            </div>
-
-            <div className="home-lower-grid">
-              <div className="home-card activity-card">
-                <div
-                  className="activity-ring"
-                  style={{
-                    background: `conic-gradient(${healthScoreColor} ${Math.max(
-                      healthScore,
-                      4,
-                    )}%, #edf3e6 0)`,
-                  }}
-                >
-                  <div className="activity-ring-inner">{patientInitial}</div>
-                </div>
-                <p className="activity-label">your activity today</p>
-                <h2>{healthScore}%</h2>
-                <button className="ghost-link-btn" onClick={() => setActiveTab("health")}>
-                  View activity
-                </button>
-              </div>
-
-              <div className="home-card appointment-highlight-card">
-                <div className="home-card-title">Upcoming Appointment</div>
-                {nextAppointment ? (
-                  <>
-                    <h3>{nextAppointment.doctor_name || "Doctor Assigned"}</h3>
-                    <p>
-                      {new Date(nextAppointment.appointment_date).toLocaleDateString("en-GB")}
-                      {nextAppointment.slot_time ? ` at ${nextAppointment.slot_time}` : ""}
-                    </p>
-                    <div className="appointment-status-strip">
-                      <span>{nextAppointment.status}</span>
+            <div className="home-reference-layout">
+              <div className="home-reference-left">
+                <div className="home-card profile-card">
+                  <div className="profile-card-main">
+                    <div className="profile-avatar">{patientInitial}</div>
+                    
+                    <div className="profile-copy">
+                      <strong>{user?.name || "Patient Name"}</strong>
+                      <p>Patient ID: #{String(user?.id || "TM-8829-01").slice(0, 12)}</p>
                     </div>
-                    <button
-                      className="ghost-link-btn"
-                      onClick={() => setActiveTab("appointments")}
-                    >
-                      Manage appointment
+                  </div>
+                  <div className="profile-subcard">
+                    <div className="subcard-qr">
+                      {qrData ? (
+                        <img src={qrData} alt="Patient QR Code" className="qr-image-ui" />
+                      ) : (
+                        <button className="ghost-link-btn" onClick={() => generateQR(user.id)}>
+                          Generate QR
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="home-card wallet-hero-card">
+                  <div className="home-card-title">
+                    <Wallet size={16} strokeWidth={2} />
+                    <span>Available funds</span>
+                  </div>
+                  <h3>₹{Number(walletBalance).toFixed(2)}</h3>
+                  <button className="ghost-link-btn wallet-link-btn" onClick={() => setActiveTab("wallet")}>
+                    Go to Wallet
+                    <ChevronRight size={14} strokeWidth={2} />
+                  </button>
+                </div>
+                <div className="home-card assistant-panel-card">
+                    <div className="assistant-panel-header">
+                      <div className="assistant-title">
+                        <span className="assistant-status-dot" />
+                        <div className="home-card-title">
+                          <span>Health Assistant</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="assistant-message-card">
+                      <p>“{healthSummaryMessage} Would you like to log your symptoms?”</p>
+                    </div>
+                    <div className="assistant-panel-actions">
+                      <button className="action-btn assistant-action-btn" onClick={() => setHealthChatOpen(true)}>
+                        Open Health Chat
+                      </button>
+                      
+                    </div>
+                    
+                  </div>
+
+              </div>
+              
+
+              <div className="home-reference-right">
+                <div className="home-stats-row">
+                  <div className="home-card mini-card">
+                    <div className="home-card-title">
+                      <CalendarClock size={16} strokeWidth={2} />
+                      <span>Scheduled care</span>
+                    </div>
+                    <h3>{bookedAppointments.length}</h3>
+                  </div>
+                  <div className="home-card mini-card">
+                    <div className="home-card-title">
+                      <Pill size={16} strokeWidth={2} />
+                      <span>Prescriptions</span>
+                    </div>
+                    <h3>{medicines.length}</h3>
+                  </div>
+                  <div className="home-card mini-card">
+                    <div className="home-card-title">
+                      <Bell size={16} strokeWidth={2} />
+                      <span>Unread alerts</span>
+                    </div>
+                    <h3>{unreadAlertsCount}</h3>
+                  </div>
+                  <div className="home-card mini-card score-stat-card">
+                    <div className="home-card-title">
+                      <Activity size={16} strokeWidth={2} />
+                      <span>Health score</span>
+                    </div>
+                    <h3>{latestMetrics ? `${healthScore}%` : "--"}</h3>
+                  </div>
+                </div>
+
+                <div className="home-card reminders-spotlight-card">
+                  <div className="reminders-spotlight-header">
+                    <div className="home-card-title">
+                      <Bell size={16} strokeWidth={2} />
+                      <span>Critical reminders</span>
+                    </div>
+                    <span className="reminder-updated-label">
+                      {nextReminder ? "Updated just now" : `${unreadAlertsCount} alerts`}
+                    </span>
+                  </div>
+                  {nextReminder ? (
+                    <div className="reminder-spotlight-item">
+                      <div className="reminder-pill-icon">
+                        <Pill size={16} strokeWidth={2} />
+                      </div>
+                      <div className="reminder-spotlight-copy">
+                        <strong>{nextReminder.medicine}</strong>
+                        <span>{nextReminder.dosage || "Scheduled medication"}</span>
+                      </div>
+                      <div className="reminder-spotlight-meta">
+                        <strong>{nextReminderTime}</strong>
+                        <span>{isReminderTakenToday ? "Taken" : "Pending"}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-panel compact-empty">
+                      <h4>No critical reminders</h4>
+                      <p>Your upcoming reminders and safety alerts appear here.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="home-insight-row">
+                  <div className="home-card activity-card">
+                    <div className="activity-title-row">
+                      <p className="activity-label">Daily Activity Goal</p>
+                    </div>
+                    <div className="activity-content">
+                      <div
+                        className="activity-ring"
+                        style={{
+                          background: `conic-gradient(#0b7a72 ${Math.max(
+                            healthScore,
+                            4,
+                          )}%, #dfe9ff 0)`,
+                        }}
+                      >
+                        <div className="activity-ring-inner">{healthScore}%</div>
+                      </div>
+                      <div className="activity-copy">
+                        <h2>{latestMetrics?.steps || "8,420"}</h2>
+                        <span>Steps taken today</span>
+                        <strong>+12% vs Yesterday</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="home-card appointment-highlight-card appointment-summary-card">
+                    <div className="appointment-card-heading">
+                      <div className="home-card-title">Next Appointment</div>
+                      <CalendarDays size={18} strokeWidth={2} />
+                    </div>
+                    {nextAppointment ? (
+                      <>
+                        <div className="appointment-person">
+                          <img
+                            src={assets.male_avatar}
+                            alt="Doctor avatar"
+                            className="appointment-person-avatar"
+                          />
+                          <div className="appointment-person-copy">
+                            <h3>{nextAppointment.doctor_name || "Doctor Assigned"}</h3>
+                            <p>Senior Cardiologist</p>
+                          </div>
+                        </div>
+                        <div className="appointment-summary-meta">
+                          <div>
+                            <span>Date</span>
+                            <strong>
+                              {new Date(nextAppointment.appointment_date).toLocaleDateString("en-GB")}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Time</span>
+                            <strong>{nextAppointment.slot_time || "--"}</strong>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="empty-panel compact-empty">
+                        <h4>No upcoming appointment</h4>
+                        <p>Book a consultation to see your next visit here.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="home-bottom-row">
+                  <div className="quick-action-grid">
+                    <button className="home-card quick-action-card" onClick={() => navigate("/upload-prescription")}>
+                      <span className="quick-action-icon mint-icon">
+                        <FileText size={22} strokeWidth={2} />
+                      </span>
+                      <strong>Upload Prescription</strong>
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <p>No upcoming appointment booked yet.</p>
-                    <button
-                      className="ghost-link-btn"
-                      onClick={() => setActiveTab("appointments")}
-                    >
-                      Book appointment
+                    <button className="home-card quick-action-card" onClick={() => navigate("/form")}>
+                      <span className="quick-action-icon teal-icon">
+                        <Plus size={22} strokeWidth={2} />
+                      </span>
+                      <strong>Add New Data</strong>
                     </button>
-                  </>
-                )}
+                    <button className="home-card quick-action-card" onClick={() => navigate("/new/dashboard")}>
+                      <span className="quick-action-icon rose-icon">
+                        <FolderHeart size={22} strokeWidth={2} />
+                      </span>
+                      <strong>View History</strong>
+                    </button>
+                    <button className="home-card quick-action-card muted-card" type="button">
+                      <span className="quick-action-icon blue-icon">
+                        <LayoutGrid size={22} strokeWidth={2} />
+                      </span>
+                      <strong>Customize Grid</strong>
+                    </button>
+                  </div>
+
+                  
+                </div>
+
               </div>
 
-              <div className="home-card support-card">
-                <div className="home-card-title">Support Chat</div>
-                <div className="support-bubble">
-                  Hello mr/mrs {patientFirstName}! Need help?
-                </div>
-                <p>{healthSummaryMessage}</p>
-                <button className="ghost-link-btn" onClick={() => setHealthChatOpen(true)}>
-                  Open chat
-                </button>
+              <div className="metrics-panel embedded-metrics-panel">
+                <HealthMetrics patientId={user?.id} />
               </div>
             </div>
           </div>
@@ -893,155 +1193,168 @@ export default function PatientDashboard() {
         {/* APPOINTMENTS TAB */}
         {activeTab === "appointments" && (
           <div className="tab-content appointments-tab">
-            <h2>Your Appointments</h2>
+            <div className="section-intro">
+              <div>
+                <h2>Book or manage your appointments</h2>
+                <p>Refining your health journey with clinical precision and ease.</p>
+              </div>
+            </div>
 
-            <div className="section">
-              <h3>📅 Book New Appointment</h3>
-
-              {/* Doctor Selection */}
-              <div
-                className="doctor-selection"
-                style={{ marginBottom: "20px" }}
-              >
-                <label
-                  htmlFor="doctor-select"
-                  style={{
-                    display: "block",
-                    marginBottom: "10px",
-                    fontWeight: "600",
-                  }}
-                >
-                  Select a Doctor: ({doctors.length} available)
-                </label>
-                {doctors.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#fff3cd",
-                      borderRadius: "6px",
-                      color: "#856404",
-                    }}
-                  >
-                    ⏳ Loading doctors... If this persists, please refresh the
-                    page.
+            <div className="appointments-reference-layout">
+              <div className="section appointments-booking-shell">
+                <div className="doctor-selection appointment-doctor-selection">
+                  <div className="appointment-select-header">
+                    <label htmlFor="doctor-select">Select Specialist</label>
+                    <p>Choose your doctor to unlock the calendar and available consultation slots.</p>
                   </div>
-                ) : (
-                  <select
-                    id="doctor-select"
-                    value={selectedDoctorId || ""}
-                    onChange={(e) =>
-                      setSelectedDoctorId(
-                        e.target.value ? e.target.value : null,
-                      )
+                  {doctors.length === 0 ? (
+                    <div className="selection-state">
+                      Loading doctors. If this persists, please refresh the page.
+                    </div>
+                  ) : (
+                    <div className="appointment-select-shell">
+                      <select
+                        id="doctor-select"
+                        value={selectedDoctorId || ""}
+                        onChange={(e) =>
+                          setSelectedDoctorId(
+                            e.target.value ? e.target.value : null,
+                          )
+                        }
+                      >
+                        <option value="">-- Select a Doctor --</option>
+                        {doctors.map((doctor) => (
+                          <option key={doctor.id} value={doctor.id}>
+                            Dr. {doctor.name || `ID: ${doctor.id}`}{" "}
+                            {doctor.specialty ? `(${doctor.specialty})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {selectedDoctorId ? (
+                  <AppointmentBooking
+                    patientId={user?.id}
+                    doctorId={selectedDoctorId}
+                    doctorName={
+                      doctors.find(
+                        (d) => String(d.id) === String(selectedDoctorId),
+                      )?.name
                     }
-                    style={{
-                      padding: "10px 15px",
-                      fontSize: "16px",
-                      borderRadius: "6px",
-                      border: "2px solid #e0e0e0",
-                      width: "100%",
-                      maxWidth: "400px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="">-- Select a Doctor --</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.name || `ID: ${doctor.id}`}{" "}
-                        {doctor.specialty ? `(${doctor.specialty})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    doctorSpecialty={
+                      doctors.find(
+                        (d) => String(d.id) === String(selectedDoctorId),
+                      )?.specialty
+                    }
+                  />
+                ) : (
+                  <div className="selection-placeholder">
+                    Please select a doctor above to view available appointment slots.
+                  </div>
                 )}
               </div>
 
-              {/* Show booking form only after doctor is selected */}
-              {selectedDoctorId ? (
-                <AppointmentBooking
-                  patientId={user?.id}
-                  doctorId={selectedDoctorId}
-                  doctorName={
-                    doctors.find(
-                      (d) => String(d.id) === String(selectedDoctorId),
-                    )?.name
-                  }
-                  doctorSpecialty={
-                    doctors.find(
-                      (d) => String(d.id) === String(selectedDoctorId),
-                    )?.specialty
-                  }
-                />
-              ) : (
-                <div
-                  style={{
-                    padding: "20px",
-                    backgroundColor: "#f5f5f5",
-                    borderRadius: "8px",
-                    color: "#666",
-                  }}
-                >
-                  👆 Please select a doctor above to view available appointment
-                  slots.
-                </div>
-              )}
-            </div>
+              <div className="appointments-reference-sidebar">
+                <div className="section appointment-rail-card">
+                  <h3>Clinic Appointments</h3>
+                  <div className="appointment-rail-list">
+                    {appointments.length === 0 ? (
+                      <div className="empty-panel compact-empty">
+                        <h4>No appointments scheduled</h4>
+                        <p>Select a doctor and book your consultation.</p>
+                      </div>
+                    ) : (
+                      appointments.slice(0, 3).map((apt, index) => {
+                        const statusLabel =
+                          apt.status === "booked"
+                            ? "Upcoming"
+                            : apt.status === "completed" || apt.status === "visited"
+                              ? "Completed"
+                              : apt.status === "cancelled"
+                                ? "Cancelled"
+                                : apt.status;
 
-            <div className="section">
-              <h3>Upcoming Appointments</h3>
-              <div className="appointments-list">
-                {appointments.length === 0 ? (
-                  <p>No appointments scheduled</p>
-                ) : (
-                  appointments.map((apt) => (
-                    <div key={apt.id} className="appointment-card">
-                      <div className="apt-info">
-                        <h4>{apt.doctor_name || "Dr. " + apt.doctor_id}</h4>
-                        <div className="appointment-meta">
-                          <div className="appointment-meta-row">
-                            <span className="appointment-meta-icon">📅</span>
-                            <span>
-                              {new Date(
-                                apt.appointment_date,
-                              ).toLocaleDateString()}
-                            </span>
+                        return (
+                          <div
+                            key={apt.id}
+                            className={`appointment-rail-item ${index === 0 ? "highlighted" : ""}`}
+                          >
+                            <div className="appointment-rail-row">
+                              <img
+                                src={
+                                  index === 1
+                                    ? assets.male_avatar
+                                    : assets.female_avatar
+                                }
+                                alt="Doctor avatar"
+                                className="appointment-rail-avatar"
+                              />
+                              <div className="appointment-rail-copy">
+                                <strong>{apt.doctor_name || `Dr. ${apt.doctor_id}`}</strong>
+                                <span>
+                                  {new Date(apt.appointment_date).toLocaleDateString("en-GB", {
+                                    month: "short",
+                                    day: "2-digit",
+                                  })}
+                                  {apt.slot_time ? `, ${apt.slot_time}` : ""}
+                                </span>
+                              </div>
+                              <span className={`appointment-badge ${apt.status}`}>
+                                {statusLabel}
+                              </span>
+                            </div>
+
+                            {apt.status === "booked" ? (
+                              <div className="appointment-rail-actions">
+                                <button
+                                  className="appointment-rail-action-btn"
+                                  onClick={() => handleRescheduleAppointment(apt.id)}
+                                >
+                                  Reschedule
+                                </button>
+                                <button
+                                  className="appointment-rail-close-btn"
+                                  onClick={() => handleCancelAppointment(apt.id)}
+                                  aria-label="Cancel appointment"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="appointment-meta-row">
-                            <span className="appointment-meta-icon">🕐</span>
-                            <span>{apt.slot_time}</span>
-                          </div>
-                        </div>
-                        <div className="appointment-status-row">
-                          <span className="appointment-status-label">
-                            Status:
-                          </span>
-                          <span className={`status ${apt.status}`}>
-                            {apt.status}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="apt-actions">
-                        {apt.status === "booked" && (
-                          <>
-                            <button
-                              className="btn-reschedule"
-                              onClick={() =>
-                                handleRescheduleAppointment(apt.id)
-                              }
-                            >
-                              Reschedule
-                            </button>
-                            <button
-                              className="btn-cancel"
-                              onClick={() => handleCancelAppointment(apt.id)}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="appointment-history-btn"
+                    onClick={() => navigate("/new/dashboard")}
+                  >
+                    View Appointment History
+                  </button>
+                </div>
+
+                <div className="appointment-pulse-card">
+                  <span className="section-kicker">Health pulse</span>
+                  <div className="appointment-pulse-value">
+                    <strong>{latestMetrics?.heartRate || 72}</strong>
+                    <span>BPM</span>
+                  </div>
+                  <div className="appointment-pulse-chart">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span className="active" />
+                    <span />
+                  </div>
+                  <p>Resting heart rate is stable. Great progress.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1050,70 +1363,379 @@ export default function PatientDashboard() {
         {/* PRESCRIPTIONS TAB */}
         {activeTab === "prescriptions" && (
           <div className="tab-content prescriptions-tab">
-            <h2>Your Prescriptions</h2>
-
-            <div style={{ marginBottom: "20px" }}>
-              <div className="prescriptions-section-header">
-                <h3>Extracted Medicines</h3>
-                <button
-                  className="action-btn"
-                  onClick={() => navigate("/upload-prescription")}
-                >
-                  Upload Prescription
-                </button>
+            <div className="section-intro">
+              <div>
+                <h2>Your Prescriptions</h2>
+                <p>Manage and track your active medications and history with clinical precision.</p>
               </div>
-
-              {medicines.length === 0 ? (
-                <p>No medicines found</p>
-              ) : (
-                <div className="prescription-details-table-wrap">
-                  <table className="prescription-details-table">
-                    <thead>
-                      <tr>
-                        <th>Medicine</th>
-                        <th>Dosage</th>
-                        <th>Frequency</th>
-                        <th>Duration</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {medicines.map((med, idx) => (
-                        <tr key={idx}>
-                          <td>{med.medicine_name}</td>
-                          <td>{med.dosage || "—"}</td>
-                          <td>{med.frequency || "—"}</td>
-                          <td>{med.duration || "—"}</td>
-                          <td style={{ display: "flex", gap: "8px" }}>
-                            <button
-                              className="btn-reschedule"
-                              onClick={() =>
-                                handleCompareWithSalt(med.medicine_name)
-                              }
-                            >
-                              Compare with Salt
-                            </button>
-
-                            <button
-                              className="btn-cancel"
-                              disabled={!med.id}
-                              onClick={() => handleDeleteMedicine(med.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <button
+                className="prescription-upload-cta"
+                onClick={() => navigate("/upload-prescription")}
+              >
+                <FileText size={18} strokeWidth={2} />
+                Upload New Prescription
+              </button>
             </div>
 
-            {/* to be implemented later on  */}
+            <div className="prescriptions-reference-layout">
+              <div className="prescriptions-main-column">
+                <div className="prescriptions-block-header">
+                  <div className="prescriptions-block-title">
+                    <span className="prescriptions-accent-line" />
+                    <h3>Active Medications</h3>
+                  </div>
+                  <span className="prescriptions-count-label">{prescriptionsFoundLabel}</span>
+                </div>
 
-            {/* <PrescriptionView patientId={user?.id} /> */}
+                {activeMedicationCards.length > 0 ? (
+                  <div className="active-medications-grid">
+                    {activeMedicationCards.map((med, idx) => (
+                      <div key={`${med.medicine_name}-${idx}`} className="active-medication-card">
+                        <div className="active-medication-head">
+                          <h4>{med.medicine_name}</h4>
+                          <Pill size={20} strokeWidth={2} />
+                        </div>
+                        <span className="active-medication-pill">Active</span>
+                        <div className="active-medication-meta">
+                          <div>
+                            <span>Dosage</span>
+                            <strong>{med.dosage || "—"}</strong>
+                          </div>
+                          <div>
+                            <span>Frequency</span>
+                            <strong>{med.frequency || "—"}</strong>
+                          </div>
+                          <div>
+                            <span>Duration</span>
+                            <strong>{med.duration || "—"}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-panel">
+                    <h4>No active medications</h4>
+                    <p>Upload a prescription to populate your active medicines.</p>
+                  </div>
+                )}
+
+                <div className="prescriptions-table-header">
+                  <div className="prescriptions-block-title">
+                    <span className="prescriptions-accent-line" />
+                    <div>
+                      <h3>Extracted Medicines</h3>
+                      <p>Review extracted medicines and compare salt alternatives quickly.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {medicines.length === 0 ? (
+                  <div className="empty-panel">
+                    <h4>No medicines found</h4>
+                    <p>Upload a prescription to populate this list.</p>
+                  </div>
+                ) : (
+                  <div className="prescription-details-table-wrap">
+                    <table className="prescription-details-table">
+                      <thead>
+                        <tr>
+                          <th>Medicine</th>
+                          <th>Dosage</th>
+                          <th>Frequency</th>
+                          <th>Duration</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {medicines.map((med, idx) => (
+                          <tr key={idx}>
+                            <td className="prescription-name-cell">{med.medicine_name}</td>
+                            <td>{med.dosage || "—"}</td>
+                            <td>{med.frequency || "—"}</td>
+                            <td>{med.duration || "—"}</td>
+                            <td className="table-actions-cell prescription-actions-cell">
+                              <button
+                                className="btn-reschedule prescription-compare-btn"
+                                onClick={() =>
+                                  handleCompareWithSalt(med.medicine_name)
+                                }
+                              >
+                                Compare with Salt
+                              </button>
+
+                              <button
+                                className="btn-cancel prescription-delete-btn"
+                                disabled={!med.id}
+                                onClick={() => handleDeleteMedicine(med.id)}
+                              >
+                                <Trash2 size={14} strokeWidth={2} />
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                
+              </div>
+
+              <div className="prescriptions-side-column">
+                <div className="prescription-side-card interaction-checker-card">
+                  <div className="prescription-side-title">
+                    <AlertTriangle size={18} strokeWidth={2} />
+                    <h3>Medicine Interaction Checker</h3>
+                  </div>
+                  <div className="interaction-checker-panel">
+                    <div className="interaction-checker-status">
+                      <span>Safety Scan</span>
+                      <strong>
+                        {medicines.length > 1 ? "Moderate Risk" : "No Conflict"}
+                      </strong>
+                    </div>
+                    <div className="interaction-checker-drugs">
+                      <div>
+                        <span>Primary</span>
+                        <strong>{medicines[0]?.medicine_name || "Not enough medicines"}</strong>
+                      </div>
+                      <div>
+                        <span>Compared With</span>
+                        <strong>{medicines[1]?.medicine_name || "Add another medicine"}</strong>
+                      </div>
+                    </div>
+                    <p>
+                      {medicines.length > 1
+                        ? "Potential interaction detected. Review dosage timing and clinician guidance before continuing."
+                        : "Add more medicines to run a broader interaction screening across your current list."}
+                    </p>
+                  </div>
+                  <button
+                    className="action-btn prescription-verify-btn"
+                    onClick={() => setHealthChatOpen(true)}
+                  >
+                    Check Interactions
+                  </button>
+                  <p className="prescription-side-note">
+                    AI cross-checks active medicines for timing conflicts, duplication risk, and interaction severity.
+                  </p>
+                </div>
+
+                <div className="prescription-side-card pharmacy-sync-card">
+                  <div className="prescription-side-title">
+                    <RefreshCcw size={18} strokeWidth={2} />
+                    <h3>Pharmacy Sync</h3>
+                  </div>
+                  <p>No linked pharmacy connection found.</p>
+                  <div className="pharmacy-sync-meta">
+                    <div>
+                      <span>Last Updated</span>
+                      <strong>Unavailable</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong>Not linked</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="prescription-side-card did-you-know-card">
+                  <div className="prescription-side-title">
+                    <Bell size={18} strokeWidth={2} />
+                    <h3>Did you know?</h3>
+                  </div>
+                  <p>
+                    Keeping your prescription list updated allows our system to automatically
+                    check for drug-drug interactions in real time.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RECORDS TAB */}
+        {activeTab === "records" && (
+          <div className="tab-content records-tab">
+            <div className="section-intro">
+              <div>
+                <h2>Patient Performance Hub</h2>
+                <p>Last updated: {latestRecordDateLabel}</p>
+              </div>
+              <button type="button" className="action-btn">
+                <Download size={16} strokeWidth={2} />
+                Download Report
+              </button>
+            </div>
+
+            <div className="records-reference-layout">
+              <div className="records-main-column">
+                <div className="records-top-grid">
+                  <div className="records-summary-column">
+                    <div className="records-summary-card">
+                      <div className="records-summary-head">
+                        <span className="records-summary-icon">
+                          <FolderHeart size={18} strokeWidth={2} />
+                        </span>
+                        <span className="records-live-pill">Live Update</span>
+                      </div>
+                      <h3>Diagnostic Summary</h3>
+                      <div className="records-summary-block">
+                        <span>Latest Record</span>
+                        {latestRecord ? (
+                          <div className="records-symptom-pill">
+                            <span className="records-symptom-dot" />
+                            <strong>{latestMetricDateLabel}</strong>
+                            <small>{Object.keys(latestMetrics || {}).length} metrics</small>
+                          </div>
+                        ) : (
+                          <div className="records-symptom-pill">
+                            <span className="records-symptom-dot" />
+                            <strong>No structured data</strong>
+                            <small>Unavailable</small>
+                          </div>
+                        )}
+                      </div>
+                      <div className="records-prediction-box">
+                        <span>Clinical Summary</span>
+                        <strong>
+                          {latestRecord
+                            ? "Recent health metrics are available for review."
+                            : "No diagnostic summary is available yet."}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="records-history-card">
+                      <div className="records-history-head">
+                        <h4>History</h4>
+                        <button type="button" onClick={() => setActiveTab("health")}>View All</button>
+                      </div>
+                      <div className="records-history-list">
+                        {recordHistoryItems.map((item) => (
+                          <div key={`${item.title}-${item.date}`} className="records-history-item">
+                            <span className={`records-history-icon ${item.tone}`}>
+                              {item.tone === "good" ? (
+                                <CheckCircle2 size={16} strokeWidth={2.2} />
+                              ) : (
+                                <AlertTriangle size={16} strokeWidth={2.2} />
+                              )}
+                            </span>
+                            <div>
+                              <strong>{item.title}</strong>
+                              <span>{item.date}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="records-metrics-grid">
+                    {recordCards.map((card) => {
+                      const Icon = card.icon;
+
+                      return (
+                        <div key={card.label} className="records-metric-card">
+                          <div className="records-metric-head">
+                            <span className="records-metric-icon">
+                              <Icon size={20} strokeWidth={2} />
+                            </span>
+                            <span className={`records-metric-trend ${card.trend}`}>
+                              {card.trend === "up" ? "↑" : card.trend === "down" ? "↓" : "–"} {card.delta}
+                            </span>
+                          </div>
+                          <span className="records-metric-label">{card.label}</span>
+                          <div className="records-metric-value">
+                            <strong>{card.value}</strong>
+                            <span>{card.unit}</span>
+                          </div>
+                          <div className="records-metric-footer">
+                            <span>{card.noteLeft}</span>
+                            <strong>{card.noteRight}</strong>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="records-trends-card">
+                  <div className="records-trends-head">
+                    <div>
+                      <h3>7-Day Metric Trends</h3>
+                      <p>Activity levels vs. clinical baseline</p>
+                    </div>
+                    <div className="records-trends-legend">
+                      <span><i className="current" />Current</span>
+                      <span><i className="baseline" />Baseline</span>
+                    </div>
+                  </div>
+                  {recordTrendBars.length > 0 ? (
+                    <div className="records-trends-chart">
+                      {recordTrendBars.map((height, index) => (
+                        <div key={index} className="records-chart-col">
+                          <div className="records-chart-bars">
+                            <span className="baseline-bar" style={{ height: `${Math.max(height + 12, 28)}%` }} />
+                            <span className="current-bar" style={{ height: `${height}%` }} />
+                          </div>
+                          <small>{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]}</small>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-panel compact-empty">
+                      <h4>No trend data available</h4>
+                      <p>Metric trends will appear once multiple health records are synced.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="records-side-column">
+                <div className="records-side-card records-insights-card">
+                  <div className="records-side-title">
+                    <Bell size={18} strokeWidth={2} />
+                    <h3>AI Insights</h3>
+                  </div>
+                  <p>{healthSummaryMessage}</p>
+                  <div className="records-observation-card">
+                    <span>Observation</span>
+                    <strong>
+                      {latestMetrics?.heartRate != null
+                        ? `Latest heart rate recorded at ${latestMetrics.heartRate} BPM.`
+                        : "No additional observation is available yet."}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="records-side-card records-upcoming-card">
+                  <span className="records-side-kicker">Upcoming</span>
+                  <div className="records-upcoming-row">
+                    <span className="records-upcoming-icon">
+                      <Footprints size={18} strokeWidth={2} />
+                    </span>
+                    <div>
+                      <strong>{nextAppointment ? "Upcoming Appointment" : "No upcoming milestone"}</strong>
+                      <span>
+                        {nextAppointment
+                          ? new Date(nextAppointment.appointment_date).toLocaleDateString("en-GB")
+                          : "Book a visit to see upcoming care targets."}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="records-side-card records-clinic-status-card">
+                  <span className="records-side-kicker">Clinic Status</span>
+                  <h3>{nextAppointment?.doctor_name || "Care team status"}</h3>
+                  <p>{nextAppointment ? "Next visit booked" : "No active clinic wait data"}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1128,7 +1750,13 @@ export default function PatientDashboard() {
         {/* QUEUE TAB */}
         {activeTab === "queue" && (
           <div className="tab-content queue-tab">
-            <h2>Queue Status</h2>
+            <div className="section-intro">
+              <div>
+                <span className="section-kicker">Queue Management</span>
+                <h2>Status Tracker</h2>
+                <p>Track your live position, estimated wait, and visit readiness in one place.</p>
+              </div>
+            </div>
             {appointments.some((a) => a.status === "booked") ? (
               <PatientQueuePosition
                 appointmentId={
@@ -1137,7 +1765,10 @@ export default function PatientDashboard() {
                 patientId={user?.id}
               />
             ) : (
-              <p>No active appointments in queue</p>
+              <div className="empty-panel">
+                <h4>No active appointments in queue</h4>
+                <p>Your queue details appear here once a booked visit is active.</p>
+              </div>
             )}
           </div>
         )}
@@ -1145,7 +1776,12 @@ export default function PatientDashboard() {
         {/* HEALTH METRICS TAB - Google Fit Integration */}
         {activeTab === "health" && (
           <div className="tab-content health-metrics-tab">
-            <h2>Health Metrics & Google Fit</h2>
+            <div className="section-intro">
+              <div>
+                <h2>Health metrics and Google Fit</h2>
+                <p>Connect wearable data and monitor your latest health trends.</p>
+              </div>
+            </div>
             <div className="health-metrics-container">
               {/* Google Fit Connect Section */}
               <div className="google-fit-section">
@@ -1166,7 +1802,12 @@ export default function PatientDashboard() {
         {/* NOTIFICATIONS TAB */}
         {activeTab === "notifications" && (
           <div className="tab-content notifications-tab">
-            <h2>Notifications</h2>
+            <div className="section-intro">
+              <div>
+                <h2>Notifications</h2>
+                <p>Stay updated on reminders, health prompts, and care events.</p>
+              </div>
+            </div>
             <NotificationCenter userId={user?.id} />
           </div>
         )}
@@ -1174,59 +1815,232 @@ export default function PatientDashboard() {
         {/* RECORDINGS TAB */}
         {activeTab === "recordings" && (
           <div className="tab-content recordings-tab">
-            <h2>Your Voice Notes</h2>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-              }}
-            >
-              <p style={{ margin: 0 }}>Latest voice notes from your doctor.</p>
+            <div className="section-intro">
+              <div>
+                <h2>Your voice notes</h2>
+                <p>Listen to audio instructions and follow-ups from your doctor.</p>
+              </div>
               <button
-                className="action-btn"
+                className="recordings-refresh-btn"
                 onClick={() => fetchRecordings(user?.id)}
-                style={{ padding: "6px 10px" }}
               >
+                <RefreshCcw size={16} strokeWidth={2} />
                 Refresh
               </button>
             </div>
+            <div className="recordings-header">
+              <p>Latest voice notes from your doctor.</p>
+            </div>
             {recordings.length === 0 ? (
-              <p>
-                No recordings yet. Your doctor’s voice notes will appear here.
-              </p>
+              <div className="empty-panel">
+                <h4>No recordings yet</h4>
+                <p>Your doctor’s voice notes will appear here after consultations.</p>
+              </div>
             ) : (
-              <div className="recordings-list">
-                {recordings.map((r) => (
-                  <div key={r.id} className="recording-card">
-                    <div className="recording-card-header">
-                      <strong>Doctor:</strong>
-                      <span>{r.doctor_name || "-"}</span>
-                    </div>
-                    <audio
-                      controls
-                      src={r.file_url}
-                      className="recording-audio"
-                    />
-                    <div className="recording-meta">
-                      <div>
-                        <strong>Date:</strong>{" "}
-                        {r.appointment_date
-                          ? new Date(r.appointment_date).toLocaleDateString()
-                          : new Date(r.created_at).toLocaleDateString()}
-                      </div>
-                      {r.slot_time && (
-                        <div>
-                          <strong>Time:</strong>{" "}
-                          {String(r.slot_time).slice(0, 5)}
+              <>
+                <div className="recordings-voice-grid">
+                  {recordings.map((r, index) => {
+                    const recordingDate = r.appointment_date
+                      ? new Date(r.appointment_date).toLocaleDateString("en-GB")
+                      : new Date(r.created_at).toLocaleDateString("en-GB");
+
+                    return (
+                      <div key={r.id} className="recording-voice-card">
+                        <div className="recording-voice-head">
+                          <div className="recording-voice-identity">
+                            <span className="recording-voice-icon">
+                              {index % 2 === 0 ? (
+                                <Mic size={18} strokeWidth={2} />
+                              ) : (
+                                <Stethoscope size={18} strokeWidth={2} />
+                              )}
+                            </span>
+                            <div>
+                              <strong>{r.doctor_name || "Doctor"}</strong>
+                              <span>{r.slot_time ? `Recorded at ${String(r.slot_time).slice(0, 5)}` : "Voice note"}</span>
+                            </div>
+                          </div>
+                          <div className="recording-voice-meta-top">
+                            <small>{recordingDate}</small>
+                          </div>
                         </div>
-                      )}
+
+                        <div className="recording-wave-card">
+                          <button type="button" className="recording-play-pill" aria-label="Play voice note">
+                            <Play size={18} strokeWidth={2.2} fill="currentColor" />
+                          </button>
+                          <div className="recording-waveform" aria-hidden="true">
+                            {Array.from({ length: 24 }).map((_, waveIndex) => (
+                              <span
+                                key={waveIndex}
+                                style={{
+                                  height: `${18 + ((waveIndex * 13 + index * 9) % 42)}px`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div className="recording-wave-times">
+                            <span>0:00</span>
+                            <span>
+                              {r.duration && Number(r.duration) > 0
+                                ? `${Math.max(1, Math.round(Number(r.duration) / 60))} MIN`
+                                : "Audio note"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <audio
+                          controls
+                          src={r.file_url}
+                          className="recording-audio"
+                        />
+                        <div className="recording-transcript-actions">
+                          <button
+                            type="button"
+                            className="recording-transcribe-btn"
+                            onClick={() => handleTranscribeRecording(r.id)}
+                            disabled={Boolean(transcribingIds[r.id])}
+                          >
+                            {transcribingIds[r.id] ? "Transcribing..." : "Speech to Text"}
+                          </button>
+                        </div>
+                        {recordingTranscripts[r.id] ? (
+                          <div className="recording-transcript-box">
+                            <span>Transcript</span>
+                            <p>{recordingTranscripts[r.id]}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="recordings-assistance-card">
+                  <span className="section-kicker">Medical Assistance</span>
+                  <div className="recordings-assistance-layout">
+                    <div>
+                      <h3>Need a written transcription of these voice notes?</h3>
+                      <p>
+                        Our AI-powered clinical assistant can provide precise text transcriptions
+                        of your doctor&apos;s instructions for easier reference during your recovery.
+                      </p>
+                      <button
+                        type="button"
+                        className="recordings-transcription-btn"
+                        onClick={() => setHealthChatOpen(true)}
+                      >
+                        Request Transcriptions
+                      </button>
+                    </div>
+                    <div className="recordings-assistance-art">
+                      <MessageSquareText size={140} strokeWidth={1.3} />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              </>
             )}
+          </div>
+        )}
+
+        {/* WALLET TAB */}
+        {activeTab === "wallet" && (
+          <div className="tab-content wallet-tab">
+            <div className="section-intro">
+              <div>
+                <span className="section-kicker">Health Wallet</span>
+                <h2>Wallet Overview</h2>
+                <p>Track your balance, payment readiness, and care spending in one place.</p>
+              </div>
+            </div>
+
+            <div className="wallet-reference-layout">
+              <div className="wallet-main-column">
+                <div className="wallet-balance-card">
+                  <div className="wallet-balance-head">
+                    <div>
+                      <span className="wallet-balance-kicker">Available Balance</span>
+                      <h3>₹{Number(walletBalance).toFixed(2)}</h3>
+                    </div>
+                    <span className="wallet-ready-pill">
+                      {Number(walletBalance) > 0 ? "Available" : "No funds added"}
+                    </span>
+                  </div>
+                  <p>Use your health wallet balance for appointments and verified care services when available.</p>
+                  <div className="wallet-balance-actions">
+                    <button type="button" className="action-btn" onClick={() => setHealthChatOpen(true)}>
+                      Billing Support
+                    </button>
+                    <button type="button" className="btn-cancel" onClick={() => setActiveTab("home")}>
+                      Back to Dashboard
+                    </button>
+                  </div>
+                </div>
+
+                <div className="wallet-summary-grid">
+                  <div className="wallet-summary-card">
+                    <span>Current Balance</span>
+                    <strong>₹{Number(walletBalance).toFixed(2)}</strong>
+                    <small>Live wallet value from your account</small>
+                  </div>
+                  <div className="wallet-summary-card">
+                    <span>Recent Spending</span>
+                    <strong>Unavailable</strong>
+                    <small>No transaction feed is linked yet</small>
+                  </div>
+                  <div className="wallet-summary-card">
+                    <span>Upcoming Hold</span>
+                    <strong>Unavailable</strong>
+                    <small>No reserved payment is currently shown</small>
+                  </div>
+                </div>
+
+                <div className="wallet-transactions-card">
+                  <div className="wallet-section-head">
+                    <h3>Recent Activity</h3>
+                    <span>Linked activity feed</span>
+                  </div>
+                  <div className="wallet-transactions-list">
+                    <div className="wallet-transaction-row">
+                      <div>
+                        <strong>No wallet activity available</strong>
+                        <span>Transaction history will appear here once a billing feed is connected.</span>
+                      </div>
+                      <b className="debit">Unavailable</b>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="wallet-side-column">
+                <div className="wallet-side-card wallet-security-card">
+                  <div className="wallet-side-title">
+                    <ShieldCheck size={18} strokeWidth={2} />
+                    <h3>Protected Wallet</h3>
+                  </div>
+                  <p>Wallet access is protected. Additional billing details appear only when connected to your account.</p>
+                </div>
+
+                <div className="wallet-side-card wallet-upcoming-card">
+                  <div className="wallet-side-title">
+                    <CalendarDays size={18} strokeWidth={2} />
+                    <h3>Upcoming Billing</h3>
+                  </div>
+                  <strong>Unavailable</strong>
+                  <p>No scheduled charge is currently attached to your wallet.</p>
+                </div>
+
+                <div className="wallet-side-card wallet-support-card">
+                  <div className="wallet-side-title">
+                    <MessageSquareText size={18} strokeWidth={2} />
+                    <h3>Need billing help?</h3>
+                  </div>
+                  <p>Our care support team can help with refunds, invoice clarifications, and wallet issues.</p>
+                  <button type="button" className="wallet-support-btn" onClick={() => setHealthChatOpen(true)}>
+                    Contact Support
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         </div>

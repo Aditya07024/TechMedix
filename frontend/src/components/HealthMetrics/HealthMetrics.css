@@ -1,9 +1,17 @@
 .health-metrics {
   background: white;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 24px;
-  margin: 20px 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin: 0;
+  box-shadow: 0 18px 34px rgba(12, 68, 124, 0.06);
+  border: 1px solid #b5d4f4;
+  transition: border-radius 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.health-metrics:hover {
+  border-radius: 8px;
+  transform: translateY(-2px);
+  box-shadow: 0 24px 44px rgba(12, 68, 124, 0.1);
 }
 
 .dark-mode .health-metrics {
@@ -12,7 +20,7 @@
 }
 
 .health-metrics h3 {
-  color: #2c3e50;
+  color: #1a2b40;
   margin-bottom: 20px;
   font-size: 1.5rem;
   font-weight: 600;
@@ -25,7 +33,7 @@
 }
 
 .health-metrics h4 {
-  color: #34495e;
+  color: #0c447c;
   margin-bottom: 15px;
   font-size: 1.2rem;
   font-weight: 500;
@@ -72,26 +80,35 @@
 }
 
 .metric-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px;
+  background: #ffffff;
+  color: #1a2b40;
+  border-radius: 0;
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
+  border: 1px solid #b5d4f4;
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    border-radius 0.2s ease;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 16px 28px rgba(12, 68, 124, 0.08);
 }
 
 .metric-icon {
-  font-size: 2rem;
-  opacity: 0.9;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e6f1fb;
+  color: #185fa5;
+  opacity: 0.95;
 }
 
 .metric-content {
@@ -115,7 +132,7 @@
 
 .metric-label {
   font-size: 0.9rem;
-  opacity: 0.9;
+  color: #5a7a96;
   margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -123,7 +140,7 @@
 
 .metric-date {
   font-size: 0.8rem;
-  opacity: 0.7;
+  color: #5a7a96;
 }
 
 .health-insights {
@@ -142,24 +159,28 @@
 }
 
 .insight-item {
-  background: #f8f9fa;
-  border-left: 4px solid #3498db;
+  background: #f7fbff;
+  border: 1px solid #b5d4f4;
   padding: 12px 16px;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0;
   font-size: 0.95rem;
   line-height: 1.4;
-  color: #2c3e50;
+  color: #1a2b40;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: border-radius 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.dark-mode .insight-item {
-  background: #102235;
-  border-left-color: #4aa8e8;
+.insight-item:hover {
+  border-radius: 8px;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(12, 68, 124, 0.06);
 }
 
-.insight-item:before {
-  content: "💡";
-  margin-right: 8px;
-  font-size: 1rem;
+.insight-icon {
+  color: #185fa5;
+  flex: 0 0 auto;
 }
 
 /* Responsive design */

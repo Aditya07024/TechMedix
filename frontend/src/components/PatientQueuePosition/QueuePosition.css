@@ -1,137 +1,469 @@
-.queue-position-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
-  margin: 16px 0;
+.queue-position-container {
+  width: 100%;
 }
 
-.queue-position-card h3 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  font-weight: 600;
+.queue-card {
+  background: #ffffff;
+  border: 1px solid #dfe7f2;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(31, 55, 95, 0.08);
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 12px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-weight: 600;
+.loading-state,
+.error-state {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 18px;
+  border: 4px solid #deebff;
+  border-top-color: #0b7a72;
+  border-radius: 50%;
+  animation: queue-spin 1s linear infinite;
+}
+
+.error-state {
+  color: #991b1b;
+}
+
+.queue-reference-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 354px;
+  gap: 28px;
+  align-items: start;
+}
+
+.queue-main-column,
+.queue-side-column {
+  display: grid;
+  gap: 28px;
+}
+
+.queue-live-update {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #66727f;
+  font-size: 0.98rem;
+}
+
+.queue-live-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #0b7a72;
+}
+
+.queue-status-card,
+.queue-prep-card,
+.queue-side-card {
+  background: #ffffff;
+  border: 1px solid #dfe7f2;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(31, 55, 95, 0.08);
+}
+
+.queue-status-card {
+  padding: 30px 38px;
+}
+
+.queue-status-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.queue-token-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 20px;
 }
 
-.status-badge.status-in-progress {
-  background-color: rgba(76, 175, 80, 0.3);
-  border: 2px solid #4caf50;
-  color: #e8f5e9;
+.queue-token-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #0b8b81 0%, #0b766e 100%);
+  color: #ffffff;
 }
 
-.position-display {
-  text-align: center;
-  margin: 24px 0;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+.queue-token-block h3 {
+  margin: 0 0 8px;
+  color: #10203a;
+  font-size: 1.95rem;
+  line-height: 1;
 }
 
-.queue-number {
-  font-size: 48px;
-  font-weight: bold;
-  color: #fff;
-  margin-bottom: 8px;
-}
-
-.queue-label {
+.queue-token-block p {
   margin: 0;
-  font-size: 14px;
-  opacity: 0.9;
+  color: #66727f;
+  font-size: 1.05rem;
 }
 
-.wait-time {
+.queue-wait-block {
+  text-align: right;
+}
+
+.queue-wait-block span,
+.queue-progress-labels span,
+.queue-side-title {
+  color: #a0afb4;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.queue-wait-block strong {
+  display: block;
+  margin-top: 8px;
+  color: #0b6f67;
+  font-size: 1.6rem;
+  font-weight: 500;
+}
+
+.queue-progress-block {
+  margin-top: 72px;
+}
+
+.queue-progress-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.queue-progress-labels span {
+  text-align: center;
+}
+
+.queue-progress-labels .active {
+  color: #0b6f67;
+}
+
+.queue-progress-track {
+  position: relative;
+  height: 60px;
+  border-radius: 999px;
+  background: #d8e5ff;
+  overflow: hidden;
+}
+
+.queue-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #217f79 0%, #219089 100%);
+}
+
+.queue-progress-dot {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #b9c9e8;
+  border: 4px solid #d8e5ff;
+  transform: translate(-50%, -50%);
+}
+
+.queue-progress-dot:nth-child(2) { left: 10%; }
+.queue-progress-dot:nth-child(3) { left: 30%; }
+.queue-progress-dot:nth-child(4) { left: 50%; }
+.queue-progress-dot:nth-child(5) { left: 70%; }
+.queue-progress-dot:nth-child(6) { left: 90%; }
+
+.queue-progress-dot.filled {
+  background: #ffffff;
+  border-color: #1b766f;
+}
+
+.queue-progress-dot.current {
+  width: 28px;
+  height: 28px;
+  background: #e8fffb;
+  border-color: #6be9dd;
+  box-shadow: 0 0 0 6px rgba(107, 233, 221, 0.16);
+}
+
+.queue-status-bottom {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 16px;
-  border-radius: 8px;
-  margin: 16px 0;
+  gap: 18px;
+  margin-top: 84px;
+  padding-top: 28px;
+  border-top: 1px solid #dfe7f2;
 }
 
-.time-label {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.time-value {
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.queue-info {
-  margin: 16px 0;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-}
-
-.info-text {
-  margin: 0;
-  font-size: 14px;
-  opacity: 0.95;
-}
-
-.status-indicator {
+.queue-doctor-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 14px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
+.queue-doctor-avatar {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
   border-radius: 50%;
-  animation: pulse 2s infinite;
 }
 
-.dot.status-waiting {
-  background-color: #ffc107;
+.queue-doctor-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #10203a;
+  font-size: 0.98rem;
 }
 
-.dot.status-in_progress {
-  background-color: #4caf50;
+.queue-doctor-card span,
+.queue-notice-card p,
+.queue-prep-copy p {
+  padding: 20px;
+  color: #66727f;
+  font-size: 0.96rem;
+  line-height: 1.55;
 }
 
-.status-text {
-  font-size: 12px;
+.queue-view-btn,
+.queue-update-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 28px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #0b7a72 0%, #086860 100%);
+  color: #ffffff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.queue-prep-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 30px;
+  padding: 34px 38px;
+  background: #edf5ff;
+}
+
+.queue-prep-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.queue-prep-copy h3,
+.queue-notice-card h4,
+.queue-safety-card h4 {
+  margin: 0 0 18px;
+  color: #10203a;
+  font-size: 1.05rem;
+}
+
+.queue-prep-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 26px;
+}
+
+.queue-update-btn {
+  min-height: 42px;
+  padding: 0 24px;
+  background: #ffffff;
+  color: #0b6f67;
+  border: 1px solid #c7dced;
+  box-shadow: none;
+}
+
+.queue-link-btn {
+  border: none;
+  background: transparent;
+  color: #6f7c89;
+  font-size: 0.96rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.queue-checkin-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  min-height: 320px;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #0b7a72;
+}
+
+.queue-checkin-card span {
+  color: #58656f;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.5px;
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 1;
+.queue-side-column {
+  padding-top: 54px;
+}
+
+.queue-volume-card {
+  padding: 28px 32px;
+  background: #d8e5ff;
+  border-left: 5px solid #0b7a72;
+}
+
+.queue-volume-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 26px 0 28px;
+}
+
+.queue-volume-stats span,
+.queue-volume-footer span,
+.queue-wifi-card span {
+  color: #66727f;
+  font-size: 0.96rem;
+}
+
+.queue-volume-stats strong {
+  display: block;
+  margin-top: 10px;
+  color: #10203a;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.queue-volume-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(16, 32, 58, 0.08);
+}
+
+.queue-volume-footer strong {
+  color: #10203a;
+  font-size: 1rem;
+}
+
+.queue-notice-card {
+  padding: 0 0 26px;
+  overflow: hidden;
+}
+
+.queue-notice-image {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+.queue-notice-card h4,
+.queue-notice-card p,
+.queue-wifi-card {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+.queue-notice-card h4 {
+  margin-top: 18px;
+}
+
+.queue-wifi-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: #eef3ff;
+  color: #0b6f67;
+}
+
+.queue-wifi-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #10203a;
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.queue-safety-card {
+  padding: 34px 30px;
+  background: #12243d;
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.queue-safety-card h4,
+.queue-safety-card p {
+  color: #ffffff;
+}
+
+.queue-safety-card p {
+  margin: 0 0 120px;
+  line-height: 1.65;
+}
+
+.queue-safety-link {
+  border: none;
+  background: transparent;
+  color: #79efe1;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+@keyframes queue-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.queue-loading {
-  padding: 24px;
-  text-align: center;
-  background: #f5f5f5;
-  border-radius: 8px;
-  color: #666;
+@media (max-width: 1380px) {
+  .queue-reference-layout,
+  .queue-prep-card {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-side-column {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .queue-status-top,
+  .queue-status-bottom,
+  .queue-progress-labels,
+  .queue-volume-stats {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .queue-status-top,
+  .queue-status-bottom {
+    gap: 18px;
+  }
+
+  .queue-wait-block {
+    text-align: left;
+  }
 }

@@ -64,10 +64,12 @@ a {
 .app {
   width: 80%;
   margin: auto;
+  padding-top: 78px;
 }
 
 .app.landing-app {
   width: 100%;
+  padding-top: 0;
 }
 @keyframes fadeIn {
   0% {
