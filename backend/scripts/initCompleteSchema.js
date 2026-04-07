@@ -286,6 +286,10 @@ export async function initializeCompletSchema() {
         is_deleted BOOLEAN DEFAULT FALSE
       );
     `;
+    await sql`
+      ALTER TABLE medicines
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+    `;
 
     // 1️⃣3️⃣ REPORTS TABLE
     await sql`

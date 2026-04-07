@@ -1,22 +1,29 @@
 import dotenv from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 
 // Ensure .env is loaded
 dotenv.config();
 
-// Initialize Neon SQL connection
-if (!process.env.DATABASE_URL) {
-  console.error("ERROR: DATABASE_URL environment variable is not set!");
+const connectionString =
+  process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error(
+    "ERROR: SUPABASE_DB_URL or DATABASE_URL environment variable is not set!",
+  );
   process.exit(1);
 }
 
 console.log(
-  "✓ DATABASE_URL configured (length:",
-  process.env.DATABASE_URL.length,
+  "✓ Database connection string configured (length:",
+  connectionString.length,
   ")",
 );
 
-// Create the SQL function for Neon serverless
-const sql = neon(process.env.DATABASE_URL);
+const sql = postgres(connectionString, {
+  ssl: "require",
+});
+
+sql.query = (query, params = []) => sql.unsafe(query, params);
 
 export default sql;

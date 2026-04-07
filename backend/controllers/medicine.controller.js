@@ -1,13 +1,4 @@
 import {
-  getMedicineByIdFromCsv,
-  getMedicineFiltersFromCsv,
-  getMedicinesFromCsv,
-  getMedicineSideEffectsFromCsv,
-  getMedicineSubstitutesFromCsv,
-  getMedicineUsesFromCsv,
-  searchMedicinesInCsv,
-} from "../services/medicineCsvService.js";
-import {
   getMedicineByIdFromDb,
   getMedicineFiltersFromDb,
   getMedicinesFromDb,
@@ -103,7 +94,7 @@ export async function getMedicines(req, res) {
       });
     }
 
-    let result = await getMedicinesFromCsv({
+    const result = await getMedicinesFromDb({
       page: pagination.page,
       limit: pagination.limit,
       search: req.query.search?.trim() ?? "",
@@ -114,20 +105,6 @@ export async function getMedicines(req, res) {
       category: req.query.category?.trim() ?? "",
       habitForming: habitForming.hasValue ? habitForming.value : undefined,
     });
-
-    if (result.data.length === 0) {
-      result = await getMedicinesFromDb({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: req.query.search?.trim() ?? "",
-        saltSearch: req.query.salt_search?.trim() ?? "",
-        chemicalClass: req.query.chemical_class?.trim() ?? "",
-        therapeuticClass: req.query.therapeutic_class?.trim() ?? "",
-        actionClass: req.query.action_class?.trim() ?? "",
-        category: req.query.category?.trim() ?? "",
-        habitForming: habitForming.hasValue ? habitForming.value : undefined,
-      });
-    }
 
     return res.json({
       success: true,
@@ -149,9 +126,7 @@ export async function getMedicineById(req, res) {
       });
     }
 
-    const medicine =
-      (await getMedicineByIdFromCsv(medicineId)) ??
-      (await getMedicineByIdFromDb(medicineId));
+    const medicine = await getMedicineByIdFromDb(medicineId);
     if (!medicine) {
       return res.status(404).json({
         success: false,
@@ -179,10 +154,7 @@ export async function searchMedicines(req, res) {
       });
     }
 
-    let medicines = await searchMedicinesInCsv(query);
-    if (medicines.length === 0) {
-      medicines = await searchMedicinesInDb(query);
-    }
+    const medicines = await searchMedicinesInDb(query);
 
     return res.json({
       success: true,
@@ -224,19 +196,7 @@ export async function lookupMedicineWithAiFallback(req, res) {
 
 export async function getMedicineFilters(req, res) {
   try {
-    const csvFilters = await getMedicineFiltersFromCsv();
-    const dbFilters = await getMedicineFiltersFromDb();
-    const filters = {
-      chemical_class: [...new Set([...csvFilters.chemical_class, ...dbFilters.chemical_class])].sort(),
-      therapeutic_class: [
-        ...new Set([
-          ...csvFilters.therapeutic_class,
-          ...dbFilters.therapeutic_class,
-        ]),
-      ].sort(),
-      action_class: [...new Set([...csvFilters.action_class, ...dbFilters.action_class])].sort(),
-      category: [...new Set([...csvFilters.category, ...dbFilters.category])].sort(),
-    };
+    const filters = await getMedicineFiltersFromDb();
 
     return res.json({
       success: true,
@@ -257,13 +217,7 @@ export async function getMedicineSubstitutes(req, res) {
       });
     }
 
-    let substitutes = await getMedicineSubstitutesFromCsv(medicineId);
-    if (substitutes !== null && substitutes.length === 0) {
-      substitutes = await getMedicineSubstitutesFromDb(medicineId);
-    }
-    if (substitutes === null) {
-      substitutes = await getMedicineSubstitutesFromDb(medicineId);
-    }
+    const substitutes = await getMedicineSubstitutesFromDb(medicineId);
     if (substitutes === null) {
       return res.status(404).json({
         success: false,
@@ -290,10 +244,7 @@ export async function getMedicineSideEffects(req, res) {
       });
     }
 
-    let sideEffects = await getMedicineSideEffectsFromCsv(medicineId);
-    if (sideEffects === null || sideEffects.length === 0) {
-      sideEffects = await getMedicineSideEffectsFromDb(medicineId);
-    }
+    const sideEffects = await getMedicineSideEffectsFromDb(medicineId);
     if (sideEffects === null) {
       return res.status(404).json({
         success: false,
@@ -320,10 +271,7 @@ export async function getMedicineUses(req, res) {
       });
     }
 
-    let uses = await getMedicineUsesFromCsv(medicineId);
-    if (uses === null || uses.length === 0) {
-      uses = await getMedicineUsesFromDb(medicineId);
-    }
+    const uses = await getMedicineUsesFromDb(medicineId);
     if (uses === null) {
       return res.status(404).json({
         success: false,

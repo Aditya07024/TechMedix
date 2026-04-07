@@ -1,5 +1,28 @@
 import sql from "../config/database.js";
 
+let medicinesHasIsDeletedColumnPromise;
+
+async function medicinesHasIsDeletedColumn() {
+  if (!medicinesHasIsDeletedColumnPromise) {
+    medicinesHasIsDeletedColumnPromise = sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'medicines'
+          AND column_name = 'is_deleted'
+      ) AS exists
+    `
+      .then((rows) => rows[0]?.exists === true)
+      .catch((error) => {
+        medicinesHasIsDeletedColumnPromise = null;
+        throw error;
+      });
+  }
+
+  return medicinesHasIsDeletedColumnPromise;
+}
+
 /*
   CREATE MEDICINE
 */
@@ -19,39 +42,51 @@ export const createMedicine = async (medicineData) => {
       link,
     } = medicineData;
 
-    const result = await sql`
-      INSERT INTO medicines (
-        name,
-        salt,
-        price,
-        info,
-        benefits,
-        sideeffects,
-        usage,
-        working,
-        safetyadvice,
-        image,
-        link,
-        created_at,
-        is_deleted
-      )
-      VALUES (
-        ${name},
-        ${salt},
-        ${price},
-        ${info},
-        ${benefits},
-        ${sideeffects},
-        ${usage},
-        ${working},
-        ${safetyadvice},
-        ${image || null},
-        ${link || null},
-        NOW(),
-        FALSE
-      )
-      RETURNING *
-    `;
+    const hasIsDeletedColumn = await medicinesHasIsDeletedColumn();
+    const columns = [
+      "name",
+      "salt",
+      "price",
+      "info",
+      "benefits",
+      "sideeffects",
+      "usage",
+      "working",
+      "safetyadvice",
+      "image",
+      "link",
+      "created_at",
+    ];
+    const values = [
+      name,
+      salt,
+      price,
+      info,
+      benefits,
+      sideeffects,
+      usage,
+      working,
+      safetyadvice,
+      image || null,
+      link || null,
+      new Date(),
+    ];
+
+    if (hasIsDeletedColumn) {
+      columns.push("is_deleted");
+      values.push(false);
+    }
+
+    const columnList = columns.join(", ");
+    const placeholders = values.map((_, index) => `$${index + 1}`).join(", ");
+    const result = await sql.query(
+      `
+        INSERT INTO medicines (${columnList})
+        VALUES (${placeholders})
+        RETURNING *
+      `,
+      values,
+    );
 
     return result[0];
 
@@ -69,12 +104,19 @@ export const createMedicine = async (medicineData) => {
   GET MEDICINE BY ID (Soft Safe)
 */
 export const getMedicineById = async (id) => {
-  const result = await sql`
-    SELECT *
-    FROM medicines
-    WHERE id = ${id}
-      AND is_deleted = FALSE
-  `;
+  const clauses = ["id = $1"];
+  if (await medicinesHasIsDeletedColumn()) {
+    clauses.push("is_deleted = FALSE");
+  }
+
+  const result = await sql.query(
+    `
+      SELECT *
+      FROM medicines
+      WHERE ${clauses.join(" AND ")}
+    `,
+    [id],
+  );
   return result[0];
 };
 
@@ -83,12 +125,19 @@ export const getMedicineById = async (id) => {
   GET ALL MEDICINES
 */
 export const getAllMedicines = async () => {
-  return await sql`
-    SELECT *
-    FROM medicines
-    WHERE is_deleted = FALSE
-    ORDER BY created_at DESC
-  `;
+  const clauses = [];
+  if (await medicinesHasIsDeletedColumn()) {
+    clauses.push("is_deleted = FALSE");
+  }
+
+  return sql.query(
+    `
+      SELECT *
+      FROM medicines
+      WHERE ${clauses.length > 0 ? clauses.join(" AND ") : "TRUE"}
+      ORDER BY created_at DESC
+    `,
+  );
 };
 
 
@@ -97,24 +146,44 @@ export const getAllMedicines = async () => {
 */
 export const updateMedicine = async (id, data) => {
   try {
-    const result = await sql`
-      UPDATE medicines
-      SET name = COALESCE(${data.name}, name),
-          salt = COALESCE(${data.salt}, salt),
-          price = COALESCE(${data.price}, price),
-          info = COALESCE(${data.info}, info),
-          benefits = COALESCE(${data.benefits}, benefits),
-          sideeffects = COALESCE(${data.sideeffects}, sideeffects),
-          usage = COALESCE(${data.usage}, usage),
-          working = COALESCE(${data.working}, working),
-          safetyadvice = COALESCE(${data.safetyadvice}, safetyadvice),
-          image = COALESCE(${data.image}, image),
-          link = COALESCE(${data.link}, link),
-          updated_at = NOW()
-      WHERE id = ${id}
-        AND is_deleted = FALSE
-      RETURNING *
-    `;
+    const clauses = ["id = $11"];
+    if (await medicinesHasIsDeletedColumn()) {
+      clauses.push("is_deleted = FALSE");
+    }
+
+    const result = await sql.query(
+      `
+        UPDATE medicines
+        SET name = COALESCE($1, name),
+            salt = COALESCE($2, salt),
+            price = COALESCE($3, price),
+            info = COALESCE($4, info),
+            benefits = COALESCE($5, benefits),
+            sideeffects = COALESCE($6, sideeffects),
+            usage = COALESCE($7, usage),
+            working = COALESCE($8, working),
+            safetyadvice = COALESCE($9, safetyadvice),
+            image = COALESCE($10, image),
+            link = COALESCE($12, link),
+            updated_at = NOW()
+        WHERE ${clauses.join(" AND ")}
+        RETURNING *
+      `,
+      [
+        data.name,
+        data.salt,
+        data.price,
+        data.info,
+        data.benefits,
+        data.sideeffects,
+        data.usage,
+        data.working,
+        data.safetyadvice,
+        data.image,
+        id,
+        data.link,
+      ],
+    );
 
     return result[0];
 
@@ -129,13 +198,28 @@ export const updateMedicine = async (id, data) => {
   SOFT DELETE
 */
 export const deleteMedicine = async (id) => {
-  const result = await sql`
-    UPDATE medicines
-    SET is_deleted = TRUE,
-        updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING id
-  `;
+  if (await medicinesHasIsDeletedColumn()) {
+    const result = await sql.query(
+      `
+        UPDATE medicines
+        SET is_deleted = TRUE,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id],
+    );
+    return result[0];
+  }
+
+  const result = await sql.query(
+    `
+      DELETE FROM medicines
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id],
+  );
   return result[0];
 };
 
@@ -145,16 +229,19 @@ export const deleteMedicine = async (id) => {
 */
 export const searchMedicines = async (searchTerm) => {
   const pattern = `%${searchTerm}%`;
+  const clauses = ["(name ILIKE $1 OR salt ILIKE $1 OR benefits ILIKE $1)"];
 
-  return await sql`
-    SELECT *
-    FROM medicines
-    WHERE is_deleted = FALSE
-      AND (
-        name ILIKE ${pattern}
-        OR salt ILIKE ${pattern}
-        OR benefits ILIKE ${pattern}
-      )
-    ORDER BY created_at DESC
-  `;
+  if (await medicinesHasIsDeletedColumn()) {
+    clauses.unshift("is_deleted = FALSE");
+  }
+
+  return sql.query(
+    `
+      SELECT *
+      FROM medicines
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY created_at DESC
+    `,
+    [pattern],
+  );
 };

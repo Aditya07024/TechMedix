@@ -56,7 +56,7 @@ io.on("connection", (socket) => {
   });
 });
 
-import sql from "./config/database.js"; // Neon serverless SQL connection
+import sql from "./config/database.js";
 import axios from "axios";
 import cors from "cors";
 import helmet from "helmet";
@@ -83,7 +83,6 @@ import {
 } from "./models-pg/patientData.js";
 import { createReport, getReportById } from "./models-pg/report.js";
 import { searchMedicines } from "./models-pg/medicine.js";
-import { searchMedicinesInCsv } from "./services/medicineCsvService.js";
 import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 import safetyRoutes from "./routes/safetyRoutes.js";
@@ -528,7 +527,7 @@ const upload = multer({ storage: storage });
 async function testConnection() {
   try {
     const result = await sql`SELECT NOW()`;
-    console.log("✓ Connected to PostgreSQL (Neon):", result[0]);
+    console.log("✓ Connected to PostgreSQL:", result[0]);
 
     // Initialize all database tables
     await initializeCompletSchema();
@@ -559,7 +558,7 @@ app.get("/", (req, res) => {
 // For now, these endpoints are temporarily disabled
 
 app.get("/test", (req, res) => {
-  res.json({ message: "API is working correctly with PostgreSQL/Neon" });
+  res.json({ message: "API is working correctly with PostgreSQL" });
 });
 
 // AI health check route
@@ -1371,7 +1370,7 @@ async function findAiDoctorMedicineSuggestions(prompt) {
       continue;
     }
 
-    const matches = await searchMedicinesInCsv(query);
+    const matches = await searchMedicines(query);
     for (const match of matches) {
       if (seenIds.has(match.id)) {
         continue;

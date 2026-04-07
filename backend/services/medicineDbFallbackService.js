@@ -1,5 +1,28 @@
 import sql from "../config/database.js";
 
+let medicinesHasIsDeletedColumnPromise;
+
+async function medicinesHasIsDeletedColumn() {
+  if (!medicinesHasIsDeletedColumnPromise) {
+    medicinesHasIsDeletedColumnPromise = sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'medicines'
+          AND column_name = 'is_deleted'
+      ) AS exists
+    `
+      .then((rows) => rows[0]?.exists === true)
+      .catch((error) => {
+        medicinesHasIsDeletedColumnPromise = null;
+        throw error;
+      });
+  }
+
+  return medicinesHasIsDeletedColumnPromise;
+}
+
 function normalizeText(value) {
   return String(value ?? "")
     .toLowerCase()
@@ -7,7 +30,7 @@ function normalizeText(value) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-function buildSubstituteLookupQuery(names) {
+async function buildSubstituteLookupQuery(names) {
   const clauses = [];
   const params = [];
   const normalizedNameSql =
@@ -41,6 +64,11 @@ function buildSubstituteLookupQuery(names) {
     return null;
   }
 
+  const whereClauses = [`(${clauses.join(" OR ")})`];
+  if (await medicinesHasIsDeletedColumn()) {
+    whereClauses.unshift("is_deleted = false");
+  }
+
   return {
     query: `
       SELECT DISTINCT ON (id)
@@ -64,8 +92,7 @@ function buildSubstituteLookupQuery(names) {
         created_at,
         updated_at
       FROM medicines
-      WHERE is_deleted = false
-        AND (${clauses.join(" OR ")})
+      WHERE ${whereClauses.join(" AND ")}
       ORDER BY id, name ASC
     `,
     params,
@@ -91,8 +118,12 @@ export async function getMedicinesFromDb({
   category,
   habitForming,
 }) {
-  const clauses = ["is_deleted = false"];
+  const clauses = [];
   const params = [];
+
+  if (await medicinesHasIsDeletedColumn()) {
+    clauses.push("is_deleted = false");
+  }
 
   const pushParam = (value) => {
     params.push(value);
@@ -135,7 +166,7 @@ export async function getMedicinesFromDb({
     clauses.push(`habit_forming = ${placeholder}`);
   }
 
-  const whereClause = clauses.join(" AND ");
+  const whereClause = clauses.length > 0 ? clauses.join(" AND ") : "TRUE";
 
   const countRows = await sql.query(
     `SELECT COUNT(*)::int AS total FROM medicines WHERE ${whereClause}`,
@@ -177,6 +208,11 @@ export async function getMedicinesFromDb({
 }
 
 export async function getMedicineByIdFromDb(id) {
+  const whereClauses = ["id = $1"];
+  if (await medicinesHasIsDeletedColumn()) {
+    whereClauses.push("is_deleted = false");
+  }
+
   const rows = await sql`
     SELECT
       id,
@@ -199,8 +235,7 @@ export async function getMedicineByIdFromDb(id) {
       created_at,
       updated_at
     FROM medicines
-    WHERE id = ${id}
-      AND is_deleted = false
+    WHERE ${sql.unsafe(whereClauses.join(" AND "), [id])}
     LIMIT 1
   `;
 
@@ -243,7 +278,7 @@ export async function getMedicineByIdFromDb(id) {
   ];
 
   let substituteDetails = [];
-  const substituteQuery = buildSubstituteLookupQuery(substituteNames);
+  const substituteQuery = await buildSubstituteLookupQuery(substituteNames);
   if (substituteQuery) {
     substituteDetails = await sql.query(
       substituteQuery.query,
@@ -263,63 +298,79 @@ export async function getMedicineByIdFromDb(id) {
 
 export async function searchMedicinesInDb(query) {
   const pattern = `%${query}%`;
+  const clauses = [
+    `(name ILIKE $1 OR salt ILIKE $1)`,
+  ];
 
-  return sql`
-    SELECT
-      id,
-      name,
-      salt,
-      price,
-      image
-    FROM medicines
-    WHERE is_deleted = false
-      AND (
-        name ILIKE ${pattern}
-        OR salt ILIKE ${pattern}
-      )
-    ORDER BY
-      CASE WHEN name ILIKE ${pattern} THEN 0 ELSE 1 END,
-      name ASC,
-      id ASC
-    LIMIT 10
-  `;
+  if (await medicinesHasIsDeletedColumn()) {
+    clauses.unshift("is_deleted = false");
+  }
+
+  return sql.query(
+    `
+      SELECT
+        id,
+        name,
+        salt,
+        price,
+        image
+      FROM medicines
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY
+        CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
+        name ASC,
+        id ASC
+      LIMIT 10
+    `,
+    [pattern],
+  );
 }
 
 export async function getMedicineFiltersFromDb() {
+  const baseClauses = [];
+  if (await medicinesHasIsDeletedColumn()) {
+    baseClauses.push("is_deleted = false");
+  }
+
+  const buildWhereClause = (columnName) =>
+    [...baseClauses, `${columnName} IS NOT NULL`, `TRIM(${columnName}) <> ''`].join(
+      " AND ",
+    );
+
   const [chemicalClasses, therapeuticClasses, actionClasses, categories] =
     await Promise.all([
-      sql`
-        SELECT DISTINCT chemical_class
-        FROM medicines
-        WHERE is_deleted = false
-          AND chemical_class IS NOT NULL
-          AND TRIM(chemical_class) <> ''
-        ORDER BY chemical_class ASC
-      `,
-      sql`
-        SELECT DISTINCT therapeutic_class
-        FROM medicines
-        WHERE is_deleted = false
-          AND therapeutic_class IS NOT NULL
-          AND TRIM(therapeutic_class) <> ''
-        ORDER BY therapeutic_class ASC
-      `,
-      sql`
-        SELECT DISTINCT action_class
-        FROM medicines
-        WHERE is_deleted = false
-          AND action_class IS NOT NULL
-          AND TRIM(action_class) <> ''
-        ORDER BY action_class ASC
-      `,
-      sql`
-        SELECT DISTINCT category
-        FROM medicines
-        WHERE is_deleted = false
-          AND category IS NOT NULL
-          AND TRIM(category) <> ''
-        ORDER BY category ASC
-      `,
+      sql.query(
+        `
+          SELECT DISTINCT chemical_class
+          FROM medicines
+          WHERE ${buildWhereClause("chemical_class")}
+          ORDER BY chemical_class ASC
+        `,
+      ),
+      sql.query(
+        `
+          SELECT DISTINCT therapeutic_class
+          FROM medicines
+          WHERE ${buildWhereClause("therapeutic_class")}
+          ORDER BY therapeutic_class ASC
+        `,
+      ),
+      sql.query(
+        `
+          SELECT DISTINCT action_class
+          FROM medicines
+          WHERE ${buildWhereClause("action_class")}
+          ORDER BY action_class ASC
+        `,
+      ),
+      sql.query(
+        `
+          SELECT DISTINCT category
+          FROM medicines
+          WHERE ${buildWhereClause("category")}
+          ORDER BY category ASC
+        `,
+      ),
     ]);
 
   return {
