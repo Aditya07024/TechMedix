@@ -2,7 +2,6 @@ import sql from "../config/database.js";
 
 let medicinesHasIsDeletedColumnPromise;
 let medicineColumnsPromise;
-const tableExistsPromiseCache = new Map();
 
 async function medicinesHasIsDeletedColumn() {
   if (!medicinesHasIsDeletedColumnPromise) {
@@ -48,29 +47,6 @@ async function medicineHasColumn(columnName) {
   return columns.has(columnName);
 }
 
-async function tableExists(tableName) {
-  if (!tableExistsPromiseCache.has(tableName)) {
-    tableExistsPromiseCache.set(
-      tableName,
-      sql`
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = ${tableName}
-        ) AS exists
-      `
-        .then((rows) => rows[0]?.exists === true)
-        .catch((error) => {
-          tableExistsPromiseCache.delete(tableName);
-          throw error;
-        }),
-    );
-  }
-
-  return tableExistsPromiseCache.get(tableName);
-}
-
 async function buildMedicineSelect(columns) {
   const availableColumns = await getMedicineColumns();
 
@@ -88,6 +64,33 @@ function normalizeText(value) {
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((item) => String(item ?? "").trim()).filter(Boolean))];
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return normalizeStringArray(parsed);
+      }
+    } catch {
+      // Fall back to delimited string parsing.
+    }
+
+    return [...new Set(trimmed.split(",").map((item) => item.trim()).filter(Boolean))];
+  }
+
+  return [];
 }
 
 async function buildSubstituteLookupQuery(names) {
@@ -133,6 +136,10 @@ async function buildSubstituteLookupQuery(names) {
     "id",
     "name",
     "salt",
+    "salts",
+    "substitutes",
+    "side_effects",
+    "uses",
     "chemical_class",
     "habit_forming",
     "therapeutic_class",
@@ -357,6 +364,10 @@ export async function getMedicineByIdFromDb(id) {
     "id",
     "name",
     "salt",
+    "salts",
+    "substitutes",
+    "side_effects",
+    "uses",
     "chemical_class",
     "habit_forming",
     "therapeutic_class",
@@ -392,54 +403,10 @@ export async function getMedicineByIdFromDb(id) {
     return null;
   }
 
-  const [hasSaltsTable, hasSubstitutesTable, hasSideEffectsTable, hasUsesTable] =
-    await Promise.all([
-      tableExists("medicine_salts"),
-      tableExists("medicine_substitutes"),
-      tableExists("medicine_side_effects"),
-      tableExists("medicine_uses"),
-    ]);
-
-  const [salts, substitutes, sideEffects, uses] = await Promise.all([
-    hasSaltsTable
-      ? sql`
-          SELECT salt_name
-          FROM medicine_salts
-          WHERE medicine_id = ${id}
-          ORDER BY salt_name ASC
-        `
-      : Promise.resolve([]),
-    hasSubstitutesTable
-      ? sql`
-          SELECT substitute_name
-          FROM medicine_substitutes
-          WHERE medicine_id = ${id}
-          ORDER BY substitute_name ASC
-        `
-      : Promise.resolve([]),
-    hasSideEffectsTable
-      ? sql`
-          SELECT side_effect
-          FROM medicine_side_effects
-          WHERE medicine_id = ${id}
-          ORDER BY id ASC
-        `
-      : Promise.resolve([]),
-    hasUsesTable
-      ? sql`
-          SELECT "use"
-          FROM medicine_uses
-          WHERE medicine_id = ${id}
-          ORDER BY id ASC
-        `
-      : Promise.resolve([]),
-  ]);
-
-  const substituteNames = [
-    ...new Set(
-      substitutes.map((item) => item.substitute_name?.trim()).filter(Boolean),
-    ),
-  ];
+  const salts = normalizeStringArray(medicine.salts);
+  const substituteNames = normalizeStringArray(medicine.substitutes);
+  const sideEffects = normalizeStringArray(medicine.side_effects);
+  const uses = normalizeStringArray(medicine.uses);
 
   let substituteDetails = [];
   const substituteQuery = await buildSubstituteLookupQuery(substituteNames);
@@ -452,11 +419,11 @@ export async function getMedicineByIdFromDb(id) {
 
   return {
     ...medicine,
-    salts: salts.map((item) => item.salt_name),
+    salts: salts.length > 0 ? salts : normalizeStringArray(medicine.salt),
     substitutes: substituteNames,
     substitute_details: substituteDetails,
-    side_effects: sideEffects.map((item) => item.side_effect),
-    uses: uses.map((item) => item.use),
+    side_effects: sideEffects,
+    uses,
   };
 }
 

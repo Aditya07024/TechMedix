@@ -272,6 +272,15 @@ export async function initializeCompletSchema() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         salt VARCHAR(255),
+        salts TEXT[] DEFAULT '{}',
+        substitutes TEXT[] DEFAULT '{}',
+        side_effects TEXT[] DEFAULT '{}',
+        uses TEXT[] DEFAULT '{}',
+        chemical_class VARCHAR(255),
+        habit_forming BOOLEAN,
+        therapeutic_class VARCHAR(255),
+        action_class VARCHAR(255),
+        category VARCHAR(255),
         price NUMERIC,
         info TEXT,
         benefits TEXT,
@@ -289,6 +298,18 @@ export async function initializeCompletSchema() {
     await sql`
       ALTER TABLE medicines
       ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+    `;
+    await sql`
+      ALTER TABLE medicines
+      ADD COLUMN IF NOT EXISTS salts TEXT[] DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS substitutes TEXT[] DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS side_effects TEXT[] DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS uses TEXT[] DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS chemical_class VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS habit_forming BOOLEAN,
+      ADD COLUMN IF NOT EXISTS therapeutic_class VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS action_class VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS category VARCHAR(255);
     `;
 
     // 1️⃣3️⃣ REPORTS TABLE

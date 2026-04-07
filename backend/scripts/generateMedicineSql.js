@@ -69,19 +69,21 @@ function sqlValue(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+function sqlTextArray(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return "ARRAY[]::TEXT[]";
+  }
+
+  return `ARRAY[${values.map((value) => sqlValue(value)).join(", ")}]::TEXT[]`;
+}
+
 function writeMedicineInsert(stream, medicine) {
   stream.write(
     `INSERT INTO medicines (` +
-      `id, name, salt, chemical_class, habit_forming, therapeutic_class, action_class, working, safetyadvice, price, usage, image, link, info, benefits, sideeffects, category, created_at, updated_at, is_deleted` +
+      `id, name, salt, salts, substitutes, side_effects, uses, chemical_class, habit_forming, therapeutic_class, action_class, working, safetyadvice, price, usage, image, link, info, benefits, sideeffects, category, created_at, updated_at, is_deleted` +
       `) VALUES (` +
-      `${sqlValue(medicine.id)}, ${sqlValue(medicine.name)}, ${sqlValue(medicine.salt)}, ${sqlValue(medicine.chemical_class)}, ${sqlValue(medicine.habit_forming)}, ${sqlValue(medicine.therapeutic_class)}, ${sqlValue(medicine.action_class)}, ${sqlValue(medicine.working)}, ${sqlValue(medicine.safetyadvice)}, ${sqlValue(medicine.price)}, ${sqlValue(medicine.usage)}, ${sqlValue(medicine.image)}, ${sqlValue(medicine.link)}, ${sqlValue(medicine.info)}, ${sqlValue(medicine.benefits)}, ${sqlValue(medicine.sideeffects)}, ${sqlValue(medicine.category)}, NOW(), NOW(), FALSE` +
+      `${sqlValue(medicine.id)}, ${sqlValue(medicine.name)}, ${sqlValue(medicine.salt)}, ${sqlTextArray(medicine.salts)}, ${sqlTextArray(medicine.substitutes)}, ${sqlTextArray(medicine.side_effects)}, ${sqlTextArray(medicine.uses)}, ${sqlValue(medicine.chemical_class)}, ${sqlValue(medicine.habit_forming)}, ${sqlValue(medicine.therapeutic_class)}, ${sqlValue(medicine.action_class)}, ${sqlValue(medicine.working)}, ${sqlValue(medicine.safetyadvice)}, ${sqlValue(medicine.price)}, ${sqlValue(medicine.usage)}, ${sqlValue(medicine.image)}, ${sqlValue(medicine.link)}, ${sqlValue(medicine.info)}, ${sqlValue(medicine.benefits)}, ${sqlValue(medicine.sideeffects)}, ${sqlValue(medicine.category)}, NOW(), NOW(), FALSE` +
       `);\n`,
-  );
-}
-
-function writeRelationInsert(stream, tableName, medicineId, columnName, value) {
-  stream.write(
-    `INSERT INTO ${tableName} (medicine_id, ${columnName}) VALUES (${sqlValue(medicineId)}, ${sqlValue(value)});\n`,
   );
 }
 
@@ -156,6 +158,10 @@ async function generateSqlFile() {
         id: nextPlaceholderId,
         name: substituteName,
         salt: null,
+        salts: [],
+        substitutes: [],
+        side_effects: [],
+        uses: [],
         chemical_class: null,
         habit_forming: null,
         therapeutic_class: null,
@@ -180,7 +186,7 @@ async function generateSqlFile() {
   stream.write("-- Generated from backend/data/medicines.csv\n");
   stream.write("-- Includes placeholder medicine rows for substitutes missing from the main CSV list\n\n");
   stream.write("BEGIN;\n\n");
-  stream.write("TRUNCATE TABLE medicine_uses, medicine_side_effects, medicine_substitutes, medicine_salts, medicines RESTART IDENTITY CASCADE;\n\n");
+  stream.write("TRUNCATE TABLE medicines RESTART IDENTITY CASCADE;\n\n");
 
   for (const medicine of medicines) {
     writeMedicineInsert(stream, medicine);
@@ -189,46 +195,6 @@ async function generateSqlFile() {
   stream.write("\n-- Placeholder substitute medicines\n");
   for (const medicine of placeholderMedicines) {
     writeMedicineInsert(stream, medicine);
-  }
-
-  stream.write("\n-- Salt mappings\n");
-  for (const medicine of medicines) {
-    for (const saltName of medicine.salts) {
-      writeRelationInsert(stream, "medicine_salts", medicine.id, "salt_name", saltName);
-    }
-  }
-
-  stream.write("\n-- Substitute mappings\n");
-  for (const medicine of medicines) {
-    for (const substituteName of medicine.substitutes) {
-      writeRelationInsert(
-        stream,
-        "medicine_substitutes",
-        medicine.id,
-        "substitute_name",
-        substituteName,
-      );
-    }
-  }
-
-  stream.write("\n-- Side effect mappings\n");
-  for (const medicine of medicines) {
-    for (const sideEffect of medicine.side_effects) {
-      writeRelationInsert(
-        stream,
-        "medicine_side_effects",
-        medicine.id,
-        "side_effect",
-        sideEffect,
-      );
-    }
-  }
-
-  stream.write("\n-- Use mappings\n");
-  for (const medicine of medicines) {
-    for (const useName of medicine.uses) {
-      writeRelationInsert(stream, "medicine_uses", medicine.id, '"use"', useName);
-    }
   }
 
   let finalSequenceId = 1;

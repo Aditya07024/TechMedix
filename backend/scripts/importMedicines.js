@@ -4,6 +4,28 @@ import sql from "../config/database.js";
 
 const results = [];
 
+function cleanText(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+  return trimmed || null;
+}
+
+function collectRowSeries(row, prefix, maxIndex) {
+  const values = [];
+
+  for (let i = 0; i <= maxIndex; i += 1) {
+    const value = cleanText(row[`${prefix}${i}`]);
+    if (value) {
+      values.push(value);
+    }
+  }
+
+  return values;
+}
+
 fs.createReadStream("data/medicines.csv")
   .pipe(csv())
   .on("data", (row) => {
@@ -15,10 +37,14 @@ fs.createReadStream("data/medicines.csv")
     for (const row of results) {
       try {
         // 1️⃣ Insert into medicines table
-        const medRes = await sql`
+        await sql`
           INSERT INTO medicines (
             name,
             salt,
+            salts,
+            substitutes,
+            side_effects,
+            uses,
             chemical_class,
             habit_forming,
             therapeutic_class,
@@ -35,73 +61,31 @@ fs.createReadStream("data/medicines.csv")
             category
           )
           VALUES (
-            ${row.name || null},
-            ${row.salt || null},
-            ${row["Chemical Class"] || null},
+            ${cleanText(row.name)},
+            ${cleanText(row.salt)},
+            ${String(row.salt ?? "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)},
+            ${collectRowSeries(row, "substitute", 4)},
+            ${collectRowSeries(row, "sideEffect", 41)},
+            ${collectRowSeries(row, "use", 4)},
+            ${cleanText(row["Chemical Class"])},
             ${row["Habit Forming"] === "Yes"},
-            ${row["Therapeutic Class"] || null},
-            ${row["Action Class"] || null},
-            ${row.working || null},
-            ${row.safetyadvice || null},
+            ${cleanText(row["Therapeutic Class"])},
+            ${cleanText(row["Action Class"])},
+            ${cleanText(row.working)},
+            ${cleanText(row.safetyadvice)},
             ${row.price ? parseFloat(row.price) : null},
-            ${row.usage || null},
-            ${row.image || null},
-            ${row.link || null},
-            ${row.info || null},
-            ${row.benefits || null},
-            ${row.sideeffects || null},
-            ${row.category || null}
+            ${cleanText(row.usage)},
+            ${cleanText(row.image)},
+            ${cleanText(row.link)},
+            ${cleanText(row.info)},
+            ${cleanText(row.benefits)},
+            ${cleanText(row.sideeffects)},
+            ${cleanText(row.category)}
           )
-          RETURNING id
         `;
-
-        const medicineId = medRes[0].id;
-
-        // 🧬 Insert salts
-        if (row.salt && row.salt.trim() !== "") {
-          const salts = row.salt.split(",");
-          for (const s of salts) {
-            if (s.trim() !== "") {
-              await sql`
-                INSERT INTO medicine_salts (medicine_id, salt_name)
-                VALUES (${medicineId}, ${s.trim()})
-              `;
-            }
-          }
-        }
-
-        // 2️⃣ Insert substitutes
-        for (let i = 0; i <= 4; i++) {
-          const sub = row[`substitute${i}`];
-          if (sub && sub.trim() !== "") {
-            await sql`
-              INSERT INTO medicine_substitutes (medicine_id, substitute_name)
-              VALUES (${medicineId}, ${sub.trim()})
-            `;
-          }
-        }
-
-        // 3️⃣ Insert side effects
-        for (let i = 0; i <= 41; i++) {
-          const effect = row[`sideEffect${i}`];
-          if (effect && effect.trim() !== "") {
-            await sql`
-              INSERT INTO medicine_side_effects (medicine_id, side_effect)
-              VALUES (${medicineId}, ${effect.trim()})
-            `;
-          }
-        }
-
-        // 4️⃣ Insert uses
-for (let i = 0; i <= 4; i++) {
-  const use = row[`use${i}`];
-  if (use && use.trim() !== "") {
-    await sql`
-      INSERT INTO medicine_uses (medicine_id, "use")
-      VALUES (${medicineId}, ${use.trim()})
-    `;
-  }
-}
 
         console.log(`✅ Inserted: ${row.name}`);
       } catch (err) {
