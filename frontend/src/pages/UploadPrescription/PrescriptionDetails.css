@@ -170,6 +170,100 @@
   padding: 26px;
 }
 
+.prescription-process-card {
+  padding: 26px;
+  border: 1px solid #d8e4f4;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 22px 50px rgba(24, 46, 88, 0.08);
+}
+
+.prescription-process-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.prescription-process-header h2 {
+  margin: 0 0 6px;
+  color: #10223f;
+}
+
+.prescription-process-header p {
+  margin: 0;
+  color: #5f7186;
+}
+
+.process-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #edf5ff;
+  color: #3367a7;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.prescription-process-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.process-step-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 18px;
+  border: 1px solid #e0e8f3;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.process-step-dot {
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #cdd8e7;
+  flex-shrink: 0;
+}
+
+.process-step-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #10223f;
+}
+
+.process-step-card p {
+  margin: 0;
+  color: #5f7186;
+  line-height: 1.6;
+}
+
+.process-step-card.done {
+  border-color: #cfe9dc;
+  background: #f0fbf5;
+}
+
+.process-step-card.done .process-step-dot {
+  background: #18a26c;
+}
+
+.process-step-card.active {
+  border-color: #bfdbfe;
+  background: #eef5ff;
+}
+
+.process-step-card.active .process-step-dot {
+  background: #3367a7;
+}
+
 .prescription-results-header,
 .ocr-preview-header {
   display: flex;
@@ -349,6 +443,10 @@
 
   .prescription-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prescription-process-steps {
+    grid-template-columns: 1fr;
   }
 
   .prescription-medicine-side {

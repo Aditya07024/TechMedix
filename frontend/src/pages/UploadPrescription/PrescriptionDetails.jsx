@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
+  Clock3,
   FileSearch,
   FileText,
   Pill,
@@ -43,6 +44,14 @@ const PrescriptionDetails = () => {
   );
   const [manualReviewRequired, setManualReviewRequired] = useState(false);
   const [extractedText, setExtractedText] = useState("");
+  const [processInfo, setProcessInfo] = useState({
+    uploaded: Boolean(prescriptionId),
+    ocr_completed: false,
+    extraction_running: false,
+    extraction_completed: false,
+    medicines_detected: Array.isArray(medicinesFromState) ? medicinesFromState.length : 0,
+    current_status: medicinesFromState?.length ? "visited" : "processing",
+  });
 
   useEffect(() => {
     if (!prescriptionId || medicinesFromState?.length) {
@@ -71,6 +80,16 @@ const PrescriptionDetails = () => {
         setPrescriptionStatus(nextStatus);
         setManualReviewRequired(requiresManualReview);
         setExtractedText(data?.prescription?.extracted_text || "");
+        setProcessInfo(
+          data?.process || {
+            uploaded: true,
+            ocr_completed: Boolean(data?.prescription?.extracted_text),
+            extraction_running: nextStatus === "extracting" || nextStatus === "ocr_complete",
+            extraction_completed: nextStatus === "visited" || nextStatus === "manual_review",
+            medicines_detected: nextMedicines.length,
+            current_status: nextStatus,
+          },
+        );
         setLoadError(null);
 
         if (nextMedicines.length > 0 || requiresManualReview || nextStatus === "failed") {
@@ -140,6 +159,50 @@ const PrescriptionDetails = () => {
   }, [medicines]);
 
   const hasResults = medicines.length > 0;
+  const processSteps = [
+    {
+      id: "uploaded",
+      label: "Prescription uploaded",
+      detail: "File received and queued for analysis.",
+      state: processInfo.uploaded ? "done" : "pending",
+    },
+    {
+      id: "ocr",
+      label: "OCR completed",
+      detail: processInfo.ocr_completed
+        ? "Text was extracted from the uploaded document."
+        : "We are still reading the prescription image.",
+      state: processInfo.ocr_completed ? "done" : "pending",
+    },
+    {
+      id: "extraction",
+      label: "Medicine extraction",
+      detail:
+        processInfo.extraction_completed || hasResults
+          ? `Structured extraction finished with ${processInfo.medicines_detected || medicines.length} medicine result${(processInfo.medicines_detected || medicines.length) === 1 ? "" : "s"}.`
+          : processInfo.extraction_running
+            ? "Matching OCR text with medicine names and dosage patterns."
+            : "Waiting for extraction to start.",
+      state:
+        processInfo.extraction_completed || hasResults
+          ? "done"
+          : processInfo.extraction_running
+            ? "active"
+            : "pending",
+    },
+    {
+      id: "review",
+      label: "Final review",
+      detail: manualReviewRequired
+        ? "Automatic extraction needs manual verification."
+        : hasResults
+          ? "Results are ready to review and compare."
+          : loading
+            ? "Final validation is still in progress."
+            : "Awaiting final result.",
+      state: manualReviewRequired || hasResults ? "done" : loading ? "active" : "pending",
+    },
+  ];
 
   return (
     <div className="prescription-details-page">
@@ -206,6 +269,30 @@ const PrescriptionDetails = () => {
           <div className="prescription-summary-card">
             <span className="summary-label">Analysis status</span>
             <strong>{prescriptionStatus || "processing"}</strong>
+          </div>
+        </section>
+
+        <section className="prescription-process-card">
+          <div className="prescription-process-header">
+            <div>
+              <h2>Live processing status</h2>
+              <p>We show each stage so you can see what is finished and what is still left.</p>
+            </div>
+            <span className="process-status-chip">
+              <Clock3 size={15} strokeWidth={2} />
+              <span>{processInfo.current_status || "processing"}</span>
+            </span>
+          </div>
+          <div className="prescription-process-steps">
+            {processSteps.map((step) => (
+              <div key={step.id} className={`process-step-card ${step.state}`}>
+                <div className="process-step-dot" />
+                <div>
+                  <strong>{step.label}</strong>
+                  <p>{step.detail}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -341,7 +428,7 @@ const PrescriptionDetails = () => {
           <section className="ocr-preview-card">
             <div className="ocr-preview-header">
               <h2>OCR text preview</h2>
-              <p>Useful when extraction needs manual review.</p>
+              <p>Shared here so users can see that OCR is complete and what text was detected.</p>
             </div>
             <pre>{extractedText}</pre>
           </section>

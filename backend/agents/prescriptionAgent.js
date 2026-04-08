@@ -35,11 +35,18 @@ const prescriptionAgent = {
 
       await tx`
         UPDATE prescriptions
-        SET extracted_text = ${rawText}
+        SET extracted_text = ${rawText},
+            status = 'ocr_complete'
         WHERE id = ${prescriptionId}
       `;
 
       /* ───── SUMMARIZER ───── */
+      await tx`
+        UPDATE prescriptions
+        SET status = 'extracting'
+        WHERE id = ${prescriptionId}
+      `;
+
       let parsed;
       try {
         parsed = await summarizePrescription(rawText);

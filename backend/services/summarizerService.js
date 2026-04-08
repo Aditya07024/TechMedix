@@ -2,6 +2,7 @@
 // Hybrid: OCR correction → regex extraction → NER supplement
 // Handles noisy handwritten/printed prescription OCR accurately.
 // Fully offline when the optional NER model is enabled.
+import { extractMedicinesFromText } from "./medicineParser.js";
 
 const MEDICAL_NER_MODEL = "onnx-community/Medical-NER-ONNX";
 const MAX_CHARS_PER_CHUNK = 3000;
@@ -49,6 +50,10 @@ async function getNerModel() {
 function fixOcrErrors(text) {
   return text
     .replace(/\r\n/g, "\n")
+    .replace(/[^\S\r\n]+/g, " ")
+    // Strip common leading quantity/noise tokens from OCR lines
+    .replace(/^[\s]*\d+\s*(?:gp|cap|tab|syp|inj)\b/gim, "")
+    .replace(/^[\s]*[a-z0-9]{1,4}\s+(?=[A-Z]{3,}|[a-z]{4,})/gm, "")
     // Fix digit/letter confusion at START of words (e.g. "1isinopril" → "Lisinopril")
     .replace(/\b1([a-z])/g, (_, c) => "L" + c)        // 1isinopril → Lisinopril
     .replace(/\b0([a-z])/g, (_, c) => "O" + c)        // 0xprenolol → Oxprenolol
@@ -63,9 +68,18 @@ function fixOcrErrors(text) {
     .replace(/\boily\b/gi, "daily")
     .replace(/\bdary\b/gi, "daily")
     .replace(/\bdaify\b/gi, "daily")
+    .replace(/\bqgh\b/gi, "QID")
+    .replace(/\btpg\b/gi, "TDS")
+    .replace(/\btdg\b/gi, "TDS")
+    .replace(/\bspg\b/gi, "SOS")
+    .replace(/\bxx\b/gi, "")
+    .replace(/\bsd\b/gi, "5 days")
     .replace(/\bFree\s+Times?\b/gi, "Three Times")
     .replace(/\bToke\b/gi, "Take")
     .replace(/\bpaint\b/gi, "pain")
+    .replace(/(\d)\s*m\s*l\b/gi, "$1ml")
+    .replace(/(\d)\s*m\s*g\b/gi, "$1mg")
+    .replace(/\b([A-Z]{3,})\s*\(\s*(\d+(?:\/\d+)?)\s*\)\s*(\d+\s*ml)\b/g, "$1 $2 $3")
     // Remove stray symbols
     .replace(/[\\[\]|™~<>]/g, "")
     .replace(/[ \t]{2,}/g, " ")
@@ -349,6 +363,13 @@ export async function summarizePrescription(ocrText) {
   const fromRegex = regexExtract(correctedText);
   console.log(`\n📌 Regex extracted ${fromRegex.length} medicine(s):`, fromRegex.map(m => m.medicine_name));
 
+  // Step 2b: Flexible fallback extraction for noisy OCR lines
+  const fromFallback = extractMedicinesFromText(correctedText);
+  console.log(
+    `📌 Fallback extracted ${fromFallback.length} medicine(s):`,
+    fromFallback.map((m) => m.medicine_name),
+  );
+
   // Step 3: NER supplement — catches anything regex missed
   let fromNer = [];
   if (shouldUseMedicalNer) {
@@ -365,7 +386,7 @@ export async function summarizePrescription(ocrText) {
   }
 
   // Step 4: Regex results take priority (higher precision on OCR noise)
-  const medicines = mergeMedicines(fromRegex, fromNer);
+  const medicines = mergeMedicines(fromRegex, fromFallback, fromNer);
 
   const parsed = { medicines };
   console.log("\n✅ FINAL EXTRACTED MEDICINES:\n");

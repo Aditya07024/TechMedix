@@ -90,12 +90,24 @@ router.get(
       );
     const prescription = rows[0];
 
+    const process = {
+      uploaded: true,
+      ocr_completed: Boolean(prescription.extracted_text),
+      extraction_running:
+        prescription.status === "extracting" || prescription.status === "ocr_complete",
+      extraction_completed:
+        prescription.status === "visited" || prescription.status === "manual_review",
+      medicines_detected: usableMedicines.length,
+      current_status: prescription.status,
+    };
+
     res.json({
       prescription,
       medicines: usableMedicines,
       manual_review_required:
         prescription.status === "manual_review" ||
         (usableMedicines.length === 0 && Boolean(prescription.extracted_text)),
+      process,
     });
   } catch (err) {
     console.error("❌ Get prescription details failed:", err);
