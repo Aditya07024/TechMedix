@@ -1,6 +1,7 @@
 import express from "express";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import * as safetyEngine from "../services/safetyEngine.js";
+import { analyzeInteractionAI } from "../services/aiInteractionAnalyzer.js";
 import { logAudit } from "../services/auditService.js";
 
 const router = express.Router();
@@ -40,7 +41,7 @@ router.post(
 router.post(
   "/check-drug-interactions",
   authenticate,
-  authorizeRoles("doctor"),
+  authorizeRoles("doctor", "patient"),
   async (req, res) => {
     try {
       const { medicines } = req.body;
@@ -49,9 +50,52 @@ router.post(
         return res.status(400).json({ error: "Medicines array required" });
       }
 
-      const interactions = await safetyEngine.checkDrugInteractions(medicines);
+      const cleanedMedicines = medicines
+        .map((medicine) => String(medicine || "").trim())
+        .filter(Boolean);
 
-      res.json(interactions);
+      if (cleanedMedicines.length < 2) {
+        return res.json({
+          has_interactions: false,
+          interactions: [],
+          critical: false,
+          source: "ai",
+        });
+      }
+
+      const interactions = [];
+
+      for (let i = 0; i < cleanedMedicines.length; i += 1) {
+        for (let j = i + 1; j < cleanedMedicines.length; j += 1) {
+          const medicineA = cleanedMedicines[i];
+          const medicineB = cleanedMedicines[j];
+          const result = await analyzeInteractionAI(medicineA, medicineB);
+
+          if (result?.interaction_found) {
+            interactions.push({
+              medicine_a: medicineA,
+              medicine_b: medicineB,
+              severity: result.severity || "medium",
+              description:
+                result.description ||
+                `Potential interaction between ${medicineA} and ${medicineB}.`,
+              mechanism: result.mechanism || "",
+              recommendation: result.recommendation || "",
+              confidence: result.confidence ?? 0,
+              source: "ai",
+            });
+          }
+        }
+      }
+
+      res.json({
+        has_interactions: interactions.length > 0,
+        interactions,
+        critical: interactions.some((item) =>
+          ["high", "critical"].includes(String(item.severity).toLowerCase()),
+        ),
+        source: "ai",
+      });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

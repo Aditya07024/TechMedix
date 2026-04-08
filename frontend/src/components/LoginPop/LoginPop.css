@@ -82,8 +82,23 @@
   transition: opacity 0.2s;
 }
 
+.cross-img.disabled {
+  pointer-events: none;
+  opacity: 0.35;
+}
+
 .cross-img:hover {
   opacity: 1;
+}
+
+.auth-loading-banner {
+  padding: 10px 14px;
+  border: 1px solid rgba(42, 178, 128, 0.28);
+  border-radius: 10px;
+  background: rgba(112, 207, 172, 0.12);
+  color: #156545;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .login-popup-inputs {
@@ -150,6 +165,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.pop button:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .login-popup-container .demo-login-btn {

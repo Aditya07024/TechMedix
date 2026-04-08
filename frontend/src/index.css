@@ -199,6 +199,58 @@ body {
   padding: 0 var(--container-padding);
 }
 
+.app-route-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(103, 221, 214, 0.2), transparent 35%),
+    linear-gradient(180deg, #f7fbfb 0%, #eef6f5 100%);
+}
+
+.app-route-loading-card {
+  width: min(92vw, 460px);
+  padding: 32px 28px;
+  border: 1px solid rgba(151, 193, 186, 0.35);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 60px rgba(12, 68, 77, 0.12);
+  text-align: center;
+}
+
+.app-route-loading-card h2 {
+  color: #12343d;
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.app-route-loading-card p {
+  color: #58707a;
+  font-size: 0.96rem;
+}
+
+.app-route-loading-spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  border: 4px solid rgba(38, 146, 128, 0.18);
+  border-top-color: #1d917d;
+  animation: appRouteSpin 0.9s linear infinite;
+}
+
+@keyframes appRouteSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Responsive Typography */
 html {
   font-size: 16px;

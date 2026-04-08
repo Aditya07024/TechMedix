@@ -12,13 +12,41 @@ import path from "path";
 import cloudinary from "../config/cloudinary.js";
 import axios from "axios";
 import OpenAI from "openai";
-import { toFile } from "openai/uploads";
 
 const router = express.Router();
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.API_KEY,
   baseURL: process.env.BASE_URL || undefined,
 });
+const LOCAL_TRANSCRIPTION_MODEL =
+  process.env.LOCAL_TRANSCRIPTION_MODEL || "Xenova/whisper-tiny.en";
+const FALLBACK_TRANSCRIPTION_MODEL =
+  process.env.OPENAI_TRANSCRIPTION_FALLBACK_MODEL || "gpt-4o-mini";
+let localTranscriber = null;
+let localTranscriberPromise = null;
+
+async function getLocalTranscriber() {
+  if (localTranscriber) {
+    return localTranscriber;
+  }
+
+  if (!localTranscriberPromise) {
+    localTranscriberPromise = import("@xenova/transformers")
+      .then(({ pipeline }) =>
+        pipeline("automatic-speech-recognition", LOCAL_TRANSCRIPTION_MODEL),
+      )
+      .then((transcriber) => {
+        localTranscriber = transcriber;
+        return transcriber;
+      })
+      .catch((error) => {
+        localTranscriberPromise = null;
+        throw error;
+      });
+  }
+
+  return localTranscriberPromise;
+}
 
 // Ensure recordings directory exists
 const recordingsDir = "uploads/recordings";
@@ -262,13 +290,6 @@ router.post(
         `[RecordingTranscribe ${reqId}] POST /api/recordings/${id}/transcribe user=${req.user?.id} role=${req.user?.role}`,
       );
 
-      if (!process.env.OPENAI_API_KEY && !process.env.API_KEY) {
-        return res.status(500).json({
-          success: false,
-          error: "Transcription service is not configured",
-        });
-      }
-
       const rec = await getRecordingById(id);
       if (!rec) {
         return res.status(404).json({
@@ -294,41 +315,86 @@ router.post(
         responseType: "arraybuffer",
       });
       const contentType = upstream.headers["content-type"] || "audio/mpeg";
-      const audioFile = await toFile(
-        Buffer.from(upstream.data),
-        `recording-${id}.mp3`,
-        { type: contentType },
+      const audioBuffer = Buffer.from(upstream.data);
+      const tempAudioPath = path.join(
+        recordingsDir,
+        `transcribe-${id}-${Date.now()}.mp3`,
       );
-
-      const transcriptionModels = [
-        process.env.OPENAI_TRANSCRIPTION_MODEL,
-        "gpt-4o-mini-transcribe",
-        "whisper-1",
-      ].filter(Boolean);
+      fs.writeFileSync(tempAudioPath, audioBuffer);
 
       let transcriptText = "";
       let usedModel = "";
       let lastError = null;
 
-      for (const model of transcriptionModels) {
+      try {
+        const transcriber = await getLocalTranscriber();
+        const localResult = await transcriber(tempAudioPath, {
+          chunk_length_s: 30,
+          stride_length_s: 5,
+        });
+        transcriptText = localResult?.text || "";
+        usedModel = LOCAL_TRANSCRIPTION_MODEL;
+      } catch (error) {
+        lastError = error;
+        console.warn(
+          `[RecordingTranscribe ${reqId}] local model=${LOCAL_TRANSCRIPTION_MODEL} failed: ${error.message}`,
+        );
+      } finally {
         try {
-          const transcript = await openai.audio.transcriptions.create({
-            file: audioFile,
-            model,
+          fs.unlinkSync(tempAudioPath);
+        } catch (_) {}
+      }
+
+      if (!transcriptText && (process.env.OPENAI_API_KEY || process.env.API_KEY)) {
+        try {
+          const audioFormat = /wav/i.test(contentType) ? "wav" : "mp3";
+          const response = await openai.chat.completions.create({
+            model: FALLBACK_TRANSCRIPTION_MODEL,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Transcribe this audio accurately. Return only the transcript text.",
+                  },
+                  {
+                    type: "input_audio",
+                    input_audio: {
+                      data: audioBuffer.toString("base64"),
+                      format: audioFormat,
+                    },
+                  },
+                ],
+              },
+            ],
           });
-          transcriptText = transcript.text || "";
-          usedModel = model;
-          if (transcriptText) break;
+
+          const completionContent = response.choices?.[0]?.message?.content;
+          transcriptText = Array.isArray(completionContent)
+            ? completionContent
+                .map((part) => (typeof part === "string" ? part : part?.text || ""))
+                .join("")
+                .trim()
+            : typeof completionContent === "string"
+              ? completionContent.trim()
+              : "";
+          usedModel = FALLBACK_TRANSCRIPTION_MODEL;
         } catch (error) {
           lastError = error;
           console.warn(
-            `[RecordingTranscribe ${reqId}] model=${model} failed: ${error.message}`,
+            `[RecordingTranscribe ${reqId}] fallback model=${FALLBACK_TRANSCRIPTION_MODEL} failed: ${error.message}`,
           );
         }
       }
 
       if (!transcriptText) {
-        throw lastError || new Error("Transcription failed");
+        throw (
+          lastError ||
+          new Error(
+            "Local transcription failed. Configure a local ASR model or retry later.",
+          )
+        );
       }
 
       return res.json({

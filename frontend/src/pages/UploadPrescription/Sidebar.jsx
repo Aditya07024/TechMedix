@@ -9,7 +9,8 @@ const Sidebar = () => {
 
       <nav className="sidebar-menu">
         <NavLink
-          to="/prescription-details"
+          to="/dashboard"
+          state={{ initialTab: "prescriptions" }}
           className={({ isActive }) =>
             isActive ? "sidebar-item active" : "sidebar-item"
           }

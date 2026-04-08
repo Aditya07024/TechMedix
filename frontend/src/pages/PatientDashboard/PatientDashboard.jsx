@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   appointmentAPI,
@@ -19,6 +19,7 @@ import HealthChat from "../../components/HealthChat/HealthChat";
 import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
 import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
 import { assets } from "../../assets/assets";
+import { toBackendUrl } from "../../utils/apiBase";
 import {
   Activity,
   AlertTriangle,
@@ -141,12 +142,85 @@ const toReminderDate = (reminder) => {
 
   return nextReminder;
 };
+
+const toFiniteNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const withTimeout = (promise, timeoutMs, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs),
+    ),
+  ]);
+
+const fetchJsonWithTimeout = async (url, options, timeoutMs, label) => {
+  const response = await withTimeout(fetch(url, options), timeoutMs, label);
+  const data = await response.json().catch(() => null);
+  return { response, data };
+};
+
+const getHealthMetricTimestamp = (metric) =>
+  metric?.recorded_at || metric?.recordedAt || metric?.created_at || metric?.createdAt || null;
+
+const normalizeHealthMetricsByType = (metrics) => {
+  if (!Array.isArray(metrics)) return {};
+
+  const latestByType = metrics.reduce((acc, metric) => {
+    const metricType = metric?.metric_type || metric?.metricType;
+    if (!metricType) return acc;
+
+    const currentTimestamp = new Date(getHealthMetricTimestamp(metric) || 0).getTime();
+    const prevTimestamp = new Date(getHealthMetricTimestamp(acc[metricType]) || 0).getTime();
+
+    if (!acc[metricType] || currentTimestamp >= prevTimestamp) {
+      acc[metricType] = metric;
+    }
+
+    return acc;
+  }, {});
+
+  return {
+    steps: toFiniteNumber(latestByType.steps?.value),
+    heartRate: toFiniteNumber(latestByType.heart_rate?.value),
+    sleep: toFiniteNumber(latestByType.sleep_duration?.value),
+    calories_burned: toFiniteNumber(
+      latestByType.calories_burned?.value ?? latestByType.calories?.value,
+    ),
+    metricTimestamps: {
+      steps: getHealthMetricTimestamp(latestByType.steps),
+      heartRate: getHealthMetricTimestamp(latestByType.heart_rate),
+      sleep: getHealthMetricTimestamp(latestByType.sleep_duration),
+      calories_burned: getHealthMetricTimestamp(
+        latestByType.calories_burned || latestByType.calories,
+      ),
+    },
+  };
+};
+
+const normalizeDoctorsResponse = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.doctors)) return payload.doctors;
+  if (Array.isArray(payload?.result)) return payload.result;
+  return [];
+};
+
+const getMedicineDisplayName = (medicine) =>
+  medicine?.medicine_name ||
+  medicine?.name ||
+  medicine?.medicine ||
+  medicine?.drug_name ||
+  "";
 /**
  * PATIENT DASHBOARD
  * Central hub for patient - shows appointments, queue, prescriptions, timeline, notifications
  */
 export default function PatientDashboard() {
   const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [qrData, setQrData] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
@@ -157,6 +231,8 @@ export default function PatientDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [doctorsError, setDoctorsError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -170,7 +246,37 @@ export default function PatientDashboard() {
   const [transcribingIds, setTranscribingIds] = useState({});
   const [metricsRefresh, setMetricsRefresh] = useState(0);
   const [ehrHistory, setEhrHistory] = useState([]);
+  const [healthMetricsHistory, setHealthMetricsHistory] = useState([]);
   const [medicineReminders, setMedicineReminders] = useState([]);
+  const [interactionCheckLoading, setInteractionCheckLoading] = useState(false);
+  const [interactionCheckResult, setInteractionCheckResult] = useState(null);
+  const [interactionCheckNonce, setInteractionCheckNonce] = useState(0);
+
+  const refreshNotifications = async (patientId) => {
+    if (!patientId) return [];
+
+    try {
+      const notifRes = await notificationAPI.getByUser(patientId);
+      const nextNotifications = notifRes?.data?.data || [];
+      setNotifications(nextNotifications);
+      writeDashboardCache(patientId, {
+        appointments,
+        prescriptions,
+        medicines,
+        notifications: nextNotifications,
+        walletBalance,
+        recordings,
+        ehrHistory,
+        healthMetricsHistory,
+        doctors,
+        qrData,
+      });
+      return nextNotifications;
+    } catch (err) {
+      console.error("Failed to refresh notifications:", err);
+      return [];
+    }
+  };
 
   const computeHealthScore = (metrics) => {
     if (!metrics) return 0;
@@ -271,7 +377,7 @@ export default function PatientDashboard() {
   };
   const handleDownloadRecording = async (rec) => {
     try {
-      const res = await fetch(`/api/recordings/${rec.id}/download`, {
+      const res = await fetch(toBackendUrl(`/api/recordings/${rec.id}/download`), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -297,7 +403,7 @@ export default function PatientDashboard() {
   };
   const fetchRecordings = async (pid) => {
     try {
-      const recRes = await fetch(`/api/recordings/patient/${pid}`, {
+        const recRes = await fetch(toBackendUrl(`/api/recordings/patient/${pid}`), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -331,7 +437,9 @@ export default function PatientDashboard() {
     try {
       setTranscribingIds((prev) => ({ ...prev, [recordingId]: true }));
 
-      const response = await fetch(`/api/recordings/${recordingId}/transcribe`, {
+      const response = await fetch(
+        toBackendUrl(`/api/recordings/${recordingId}/transcribe`),
+        {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -360,30 +468,44 @@ export default function PatientDashboard() {
   };
 
   useEffect(() => {
-    if (user?.id) {
-      const cache = readDashboardCache(user.id);
-      const cacheIsFresh =
-        cache?.timestamp &&
-        Date.now() - cache.timestamp < DASHBOARD_CACHE_TTL_MS;
+    if (!user?.id) return undefined;
 
-      if (cache?.data) {
-        setAppointments(cache.data.appointments || []);
-        setPrescriptions(cache.data.prescriptions || []);
-        setMedicines(cache.data.medicines || []);
-        setNotifications(cache.data.notifications || []);
-        setWalletBalance(Number(cache.data.walletBalance || 0));
-        setRecordings(cache.data.recordings || []);
-        setEhrHistory(cache.data.ehrHistory || []);
-        setDoctors(cache.data.doctors || []);
-        setQrData(cache.data.qrData || null);
-        setLoading(false);
-      }
+    const cache = readDashboardCache(user.id)?.data;
 
-      if (!cacheIsFresh) {
-        loadDashboardData({ showLoader: !cache?.data });
-      }
+    if (cache) {
+      setAppointments(cache.appointments || []);
+      setPrescriptions(cache.prescriptions || []);
+      setMedicines(cache.medicines || []);
+      setNotifications(cache.notifications || []);
+      setWalletBalance(Number(cache.walletBalance || 0));
+      setRecordings(cache.recordings || []);
+      setEhrHistory(cache.ehrHistory || []);
+      setHealthMetricsHistory(cache.healthMetricsHistory || []);
+      setDoctors(cache.doctors || []);
+      setQrData(cache.qrData || null);
+      setLoading(false);
+    } else {
+      setLoading(true);
     }
+
+    const loaderTimeout = window.setTimeout(() => {
+      setLoading(false);
+    }, cache ? 250 : 1800);
+
+    loadDashboardData({ showLoader: false });
+
+    return () => {
+      window.clearTimeout(loaderTimeout);
+    };
   }, [user]);
+
+  useEffect(() => {
+    const requestedTab = location.state?.initialTab;
+    if (requestedTab) {
+      setActiveTab(requestedTab);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const syncReminders = () => {
@@ -400,118 +522,279 @@ export default function PatientDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    const medicineNames = medicines
+      .map(getMedicineDisplayName)
+      .map((name) => String(name).trim())
+      .filter(Boolean);
+
+    if (medicineNames.length < 2) {
+      setInteractionCheckResult(null);
+      setInteractionCheckLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const runInteractionCheck = async () => {
+      try {
+        setInteractionCheckLoading(true);
+        const response = await fetch(
+          toBackendUrl("/api/safety/check-drug-interactions"),
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ medicines: medicineNames }),
+          },
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to run interaction check");
+        }
+        if (isActive) {
+          setInteractionCheckResult(payload);
+        }
+      } catch (error) {
+        console.error("Failed to run interaction check:", error);
+        if (isActive) {
+          setInteractionCheckResult({
+            has_interactions: false,
+            interactions: [],
+            error: error.message,
+          });
+        }
+      } finally {
+        if (isActive) {
+          setInteractionCheckLoading(false);
+        }
+      }
+    };
+
+    runInteractionCheck();
+
+    return () => {
+      isActive = false;
+    };
+  }, [medicines, interactionCheckNonce]);
+
   const loadDashboardData = async ({ showLoader = true } = {}) => {
     try {
       if (showLoader) {
         setLoading(true);
       }
+      const cachedData = readDashboardCache(user.id)?.data || {};
       const [apptRes, prescRes, notifRes] = await Promise.allSettled([
-        appointmentAPI.getByPatient(user.id),
-        prescriptionAPI.getByPatient(user.id),
-        notificationAPI.getByUser(user.id),
+        withTimeout(appointmentAPI.getByPatient(user.id), 8000, "Appointments"),
+        withTimeout(prescriptionAPI.getByPatient(user.id), 8000, "Prescriptions"),
+        withTimeout(notificationAPI.getByUser(user.id), 8000, "Notifications"),
       ]);
 
       if (apptRes.status === "fulfilled") {
         setAppointments(apptRes.value.data.data || []);
+      } else if (cachedData.appointments?.length) {
+        setAppointments(cachedData.appointments);
       }
       if (prescRes.status === "fulfilled") {
         setPrescriptions(prescRes.value.data.data || []);
+      } else if (cachedData.prescriptions?.length) {
+        setPrescriptions(cachedData.prescriptions);
       }
       if (notifRes.status === "fulfilled") {
         setNotifications(notifRes.value.data.data || []);
+      } else if (cachedData.notifications?.length) {
+        setNotifications(cachedData.notifications);
       }
 
-      let nextEhrHistory = [];
+      writeDashboardCache(user.id, {
+        appointments:
+          apptRes.status === "fulfilled"
+            ? apptRes.value.data.data || []
+            : cachedData.appointments || [],
+        prescriptions:
+          prescRes.status === "fulfilled"
+            ? prescRes.value.data.data || []
+            : cachedData.prescriptions || [],
+        medicines: cachedData.medicines || medicines,
+        notifications:
+          notifRes.status === "fulfilled"
+            ? notifRes.value.data.data || []
+            : cachedData.notifications || [],
+        walletBalance: Number(cachedData.walletBalance || walletBalance || 0),
+        recordings: cachedData.recordings || recordings,
+        ehrHistory: cachedData.ehrHistory || ehrHistory,
+        healthMetricsHistory: cachedData.healthMetricsHistory || healthMetricsHistory,
+        doctors: cachedData.doctors || doctors,
+        qrData: cachedData.qrData || qrData,
+      });
+
+      if (showLoader) {
+        setLoading(false);
+      }
+
+      let nextEhrHistory = ehrHistory.length
+        ? ehrHistory
+        : cachedData.ehrHistory || [];
       try {
-        const ehrRes = await patientDataApi.getEHRHistory(user.id);
+        const ehrRes = await withTimeout(
+          patientDataApi.getEHRHistory(user.id),
+          8000,
+          "EHR history",
+        );
         nextEhrHistory = Array.isArray(ehrRes.data) ? ehrRes.data : [];
         setEhrHistory(nextEhrHistory);
       } catch (err) {
         console.error("Failed to load patient data for health status:", err);
-        setEhrHistory([]);
+        setEhrHistory(nextEhrHistory);
       }
 
-      let nextMedicines = [];
+      let nextHealthMetricsHistory = healthMetricsHistory.length
+        ? healthMetricsHistory
+        : cachedData.healthMetricsHistory || [];
       try {
-        const medRes = await fetch(`/api/user/${user.id}/medicines`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+        const { response: healthMetricsRes, data: healthMetricsData } = await fetchJsonWithTimeout(
+          toBackendUrl("/api/health/metrics"),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            credentials: "include",
           },
-        });
-        const medData = await medRes.json();
+          8000,
+          "Health metrics",
+        );
+        if (healthMetricsRes.ok) {
+          nextHealthMetricsHistory = Array.isArray(healthMetricsData)
+            ? healthMetricsData
+            : [];
+          setHealthMetricsHistory(nextHealthMetricsHistory);
+        } else {
+          setHealthMetricsHistory(nextHealthMetricsHistory);
+        }
+      } catch (err) {
+        console.error("Failed to load synced health metrics:", err);
+        setHealthMetricsHistory(nextHealthMetricsHistory);
+      }
+
+      let nextMedicines = medicines.length ? medicines : cachedData.medicines || [];
+      try {
+        const { response: medRes, data: medData } = await fetchJsonWithTimeout(
+          toBackendUrl(`/api/user/${user.id}/medicines`),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          },
+          8000,
+          "Medicines",
+        );
+        if (!medRes.ok) {
+          throw new Error("Failed to load medicines");
+        }
         nextMedicines = Array.isArray(medData) ? medData : [];
         setMedicines(nextMedicines);
       } catch (err) {
         console.error("Failed to load medicines:", err);
+        setMedicines(nextMedicines);
       }
 
       // Load recordings for this patient
-      let nextRecordings = [];
+      let nextRecordings = recordings.length
+        ? recordings
+        : cachedData.recordings || [];
       try {
-        const recRes = await fetch(`/api/recordings/patient/${user.id}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+        const { response: recRes, data: recData } = await fetchJsonWithTimeout(
+          toBackendUrl(`/api/recordings/patient/${user.id}`),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            credentials: "include",
           },
-          credentials: "include",
-        });
+          8000,
+          "Recordings",
+        );
         if (recRes.ok) {
-          const recData = await recRes.json();
           nextRecordings = Array.isArray(recData) ? recData : [];
           setRecordings(nextRecordings);
         } else {
-          setRecordings([]);
+          setRecordings(nextRecordings);
         }
       } catch (err) {
         console.error("Failed to load recordings:", err);
-        setRecordings([]);
+        setRecordings(nextRecordings);
       }
 
       // Load wallet balance
-      let nextWalletBalance = 0;
+      let nextWalletBalance = Number(walletBalance || cachedData.walletBalance || 0);
       try {
-        const wbRes = await fetch(`/api/payments/wallet/balance`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
+        const { response: wbRes, data: wbData } = await fetchJsonWithTimeout(
+          toBackendUrl(`/api/payments/wallet/balance`),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
           },
-          credentials: "include",
-        });
-        const wbData = await wbRes.json();
+          8000,
+          "Wallet balance",
+        );
         if (wbRes.ok) {
           nextWalletBalance = Number(wbData.balance || 0);
           setWalletBalance(nextWalletBalance);
         } else {
           console.warn("Wallet balance error:", wbData?.error);
-          setWalletBalance(0);
+          setWalletBalance(nextWalletBalance);
         }
       } catch (err) {
         console.error("Failed to load wallet balance:", err);
-        setWalletBalance(0);
+        setWalletBalance(nextWalletBalance);
       }
 
-      let nextDoctors = [];
+      let nextDoctors = doctors.length ? doctors : cachedData.doctors || [];
       try {
-        const response = await fetch("/api/admin/doctors", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+        setDoctorsLoading(true);
+        setDoctorsError(null);
+        const { response, data } = await fetchJsonWithTimeout(
+          toBackendUrl("/api/admin/doctors"),
+          {
+            credentials: "include",
           },
-        });
-        const data = await response.json();
-        console.log("Doctors loaded:", data);
-        nextDoctors = Array.isArray(data?.data) ? data.data : [];
+          8000,
+          "Doctors",
+        );
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to load doctors");
+        }
+        nextDoctors = normalizeDoctorsResponse(data);
+        if (!nextDoctors.length) {
+          console.warn("Doctors endpoint returned no usable rows:", data);
+        }
         setDoctors(nextDoctors);
       } catch (err) {
         console.error("Failed to load doctors:", err);
-        setDoctors([]);
+        setDoctors(nextDoctors);
+        setDoctorsError(err.message || "Failed to load doctors");
+      } finally {
+        setDoctorsLoading(false);
       }
 
-      let nextQrData = null;
+      let nextQrData = qrData || cachedData.qrData || null;
       try {
-        const qrRes = await patientDataApi.generatePatientQR(user.id);
+        const qrRes = await withTimeout(
+          patientDataApi.generatePatientQR(user.id),
+          8000,
+          "Patient QR",
+        );
         nextQrData = qrRes.data?.qr || null;
         setQrData(nextQrData);
       } catch (err) {
         console.error("QR generation error:", err);
+        setQrData(nextQrData);
       }
 
       writeDashboardCache(user.id, {
@@ -525,13 +808,14 @@ export default function PatientDashboard() {
         walletBalance: nextWalletBalance,
         recordings: nextRecordings,
         ehrHistory: nextEhrHistory,
+        healthMetricsHistory: nextHealthMetricsHistory,
         doctors: nextDoctors,
         qrData: nextQrData,
       });
     } catch (err) {
       setError("Failed to load dashboard data: " + err.message);
     } finally {
-      if (showLoader) {
+      if (showLoader && loading) {
         setLoading(false);
       }
     }
@@ -553,6 +837,7 @@ export default function PatientDashboard() {
         walletBalance,
         recordings,
         ehrHistory,
+        healthMetricsHistory,
         doctors,
         qrData,
       });
@@ -564,7 +849,7 @@ export default function PatientDashboard() {
 
   const handleDeleteMedicine = async (medicineId) => {
     try {
-      await fetch(`/api/medicines/${medicineId}`, {
+      await fetch(toBackendUrl(`/api/medicines/${medicineId}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -581,6 +866,7 @@ export default function PatientDashboard() {
         walletBalance,
         recordings,
         ehrHistory,
+        healthMetricsHistory,
         doctors,
         qrData,
       });
@@ -588,6 +874,58 @@ export default function PatientDashboard() {
       console.error("Failed to delete medicine:", err);
       alert("Failed to delete medicine");
     }
+  };
+
+  const handleDownloadReport = () => {
+    const reportLines = [
+      "TechMedix Patient Report",
+      `Generated: ${new Date().toLocaleString("en-GB")}`,
+      `Patient: ${user?.name || "Patient"}`,
+      "",
+      "Health Snapshot",
+      `Health Score: ${hasAnyMetricData ? `${healthScore}%` : "Unavailable"}`,
+      `Latest Metric Date: ${latestMetricDateLabel}`,
+      `Heart Rate: ${latestMetrics?.heartRate ?? "Unavailable"}`,
+      `Steps: ${latestMetrics?.steps ?? "Unavailable"}`,
+      `Sleep: ${latestMetrics?.sleep ?? "Unavailable"}`,
+      `Weight: ${latestMetrics?.weight ?? "Unavailable"}`,
+      "",
+      "Active Medicines",
+      ...(medicines.length
+        ? medicines.map(
+            (medicine, index) =>
+              `${index + 1}. ${getMedicineDisplayName(medicine)} | Dosage: ${medicine.dosage || "—"} | Frequency: ${medicine.frequency || "—"} | Duration: ${medicine.duration || "—"}`,
+          )
+        : ["No active medicines"]),
+      "",
+      "Appointments",
+      ...(appointments.length
+        ? appointments.map(
+            (appointment, index) =>
+              `${index + 1}. ${appointment.doctor_name || appointment.doctor_id} | ${appointment.appointment_date} ${appointment.slot_time || ""} | Status: ${appointment.status}`,
+          )
+        : ["No appointments"]),
+      "",
+      "Alerts",
+      ...(notifications.length
+        ? notifications.slice(0, 10).map(
+            (notification, index) =>
+              `${index + 1}. ${notification.title || "Alert"} | ${notification.message || "No message"} | ${notification.created_at || ""}`,
+          )
+        : ["No alerts"]),
+    ];
+
+    const blob = new Blob([reportLines.join("\n")], {
+      type: "text/plain;charset=utf-8",
+    });
+    const reportUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = reportUrl;
+    anchor.download = `techmedix-report-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(reportUrl);
   };
 
   const handleCompareWithSalt = (medicineName) => {
@@ -619,6 +957,7 @@ export default function PatientDashboard() {
         walletBalance,
         recordings,
         ehrHistory,
+        healthMetricsHistory,
         doctors,
         qrData: nextQrData,
       });
@@ -630,8 +969,12 @@ export default function PatientDashboard() {
 
   if (loading)
     return (
-      <div className="patient-dashboard">
-        <p>Loading...</p>
+      <div className="patient-dashboard patient-dashboard-loading-shell">
+        <div className="patient-dashboard-loading-card">
+          <div className="patient-dashboard-loading-spinner" />
+          <h2>Loading your dashboard</h2>
+          <p>Fetching appointments, prescriptions, reminders, and health data.</p>
+        </div>
       </div>
     );
 
@@ -641,10 +984,44 @@ export default function PatientDashboard() {
           .slice()
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
       : null;
-  const latestMetrics = latestRecord?.ehr || null;
+  const latestLegacyMetrics = latestRecord?.ehr || null;
+  const normalizedHealthMetrics = normalizeHealthMetricsByType(healthMetricsHistory);
+  const {
+    metricTimestamps = {},
+    ...normalizedHealthMetricValues
+  } = normalizedHealthMetrics || {};
+  const latestMetrics = {
+    ...(latestLegacyMetrics || {}),
+    ...(normalizedHealthMetricValues || {}),
+  };
+  const latestHealthMetricTimestamp = Object.values(metricTimestamps)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+  const latestOverallMetricTimestamp =
+    latestHealthMetricTimestamp &&
+    (!latestRecord?.timestamp ||
+      new Date(latestHealthMetricTimestamp) > new Date(latestRecord.timestamp))
+      ? latestHealthMetricTimestamp
+      : latestRecord?.timestamp || latestHealthMetricTimestamp;
+  const visibleMetricCount = Object.values(latestMetrics || {}).filter((value) => {
+    if (value == null || value === "") return false;
+    if (typeof value === "object") {
+      return Object.values(value).some((nestedValue) => nestedValue != null && nestedValue !== "");
+    }
+    return true;
+  }).length;
+  const hasAnyMetricData = visibleMetricCount > 0;
   const unreadAlertsCount = notifications.filter(
     (n) => n?.is_read === false || n?.isRead === false || n?.read === false,
   ).length;
+  const unreadAlerts = notifications
+    .filter((n) => n?.is_read === false || n?.isRead === false || n?.read === false)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b?.created_at || b?.createdAt || 0) -
+        new Date(a?.created_at || a?.createdAt || 0),
+    );
   const nextReminder =
     medicineReminders.length > 0
       ? medicineReminders
@@ -663,6 +1040,38 @@ export default function PatientDashboard() {
   const isReminderTakenToday = nextReminder
     ? nextReminder.completed?.includes(new Date().toDateString())
     : false;
+  const reminderSpotlightItems = [
+    ...(nextReminder
+      ? [
+          {
+            id: `medicine-${nextReminder.id || nextReminder.medicine}`,
+            type: "medicine",
+            icon: Pill,
+            title: nextReminder.medicine,
+            subtitle: nextReminder.dosage || "Scheduled medication",
+            metaPrimary: nextReminderTime,
+            metaSecondary: isReminderTakenToday ? "Taken" : "Pending",
+          },
+        ]
+      : []),
+    ...unreadAlerts.slice(0, 2).map((alertItem) => ({
+      id: `alert-${alertItem.id}`,
+      type: "alert",
+      icon: AlertTriangle,
+      title: alertItem.title || "Safety alert",
+      subtitle: alertItem.message || "You have a new update in TechMedix.",
+      metaPrimary: new Date(
+        alertItem.created_at || alertItem.createdAt || Date.now(),
+      ).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      metaSecondary: "Unread",
+    })),
+  ];
   const bookedAppointments = appointments.filter((a) => a.status === "booked");
   const nextAppointment =
     bookedAppointments.length > 0
@@ -674,10 +1083,10 @@ export default function PatientDashboard() {
               new Date(`${b.appointment_date} ${b.slot_time || "00:00"}`),
           )[0]
       : null;
-  const healthScore = latestMetrics ? computeHealthScore(latestMetrics) : 0;
+  const healthScore = hasAnyMetricData ? computeHealthScore(latestMetrics) : 0;
   const healthScoreColor =
     healthScore > 70 ? "#90c976" : healthScore > 40 ? "#f2b84b" : "#ef6b6b";
-  const healthSummaryMessage = latestMetrics
+  const healthSummaryMessage = hasAnyMetricData
     ? healthScore > 70
       ? "Heart rate is within a typical resting range."
       : healthScore > 40
@@ -688,15 +1097,15 @@ export default function PatientDashboard() {
   const patientFirstName = user?.name?.split(" ")[0] || "Patient";
   const activeMedicationCards = medicines.slice(0, 2);
   const prescriptionsFoundLabel = `${medicines.length} prescription${medicines.length === 1 ? "" : "s"} found`;
-  const latestMetricDateLabel = latestRecord?.timestamp
-    ? new Date(latestRecord.timestamp).toLocaleDateString("en-GB", {
+  const latestMetricDateLabel = latestOverallMetricTimestamp
+    ? new Date(latestOverallMetricTimestamp).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
       })
     : "No recent metrics";
-  const latestRecordDateLabel = latestRecord?.timestamp
-    ? new Date(latestRecord.timestamp).toLocaleString("en-GB", {
+  const latestRecordDateLabel = latestOverallMetricTimestamp
+    ? new Date(latestOverallMetricTimestamp).toLocaleString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -710,6 +1119,67 @@ export default function PatientDashboard() {
         hour: "2-digit",
         minute: "2-digit",
       });
+  const sortedEhrHistory = ehrHistory
+    .slice()
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const stepHistory = healthMetricsHistory
+    .filter((metric) => (metric?.metric_type || metric?.metricType) === "steps")
+    .sort(
+      (a, b) =>
+        new Date(getHealthMetricTimestamp(b) || 0) -
+        new Date(getHealthMetricTimestamp(a) || 0),
+    )
+    .map((metric) => ({
+      timestamp: getHealthMetricTimestamp(metric),
+      value: toFiniteNumber(metric?.value),
+    }))
+    .filter((metric) => Number.isFinite(metric.value) && metric.value >= 0);
+  const legacyStepHistory = sortedEhrHistory.filter((record) => {
+    const stepValue = Number(record?.ehr?.steps);
+    return Number.isFinite(stepValue) && stepValue >= 0;
+  });
+  const effectiveStepHistory = stepHistory.length
+    ? stepHistory
+    : legacyStepHistory.map((record) => ({
+        timestamp: record?.timestamp,
+        value: toFiniteNumber(record?.ehr?.steps),
+      }));
+  const latestStepRecord = effectiveStepHistory[0] || null;
+  const previousStepRecord = effectiveStepHistory[1] || null;
+  const previousRecord = sortedEhrHistory[1] || null;
+  const currentSteps = Number(latestStepRecord?.value);
+  const previousSteps = Number(previousStepRecord?.value);
+  const hasCurrentSteps = Number.isFinite(currentSteps) && currentSteps >= 0;
+  const hasPreviousSteps = Number.isFinite(previousSteps) && previousSteps >= 0;
+  const stepsDeltaPercent =
+    hasCurrentSteps && hasPreviousSteps && previousSteps > 0
+      ? Math.round(((currentSteps - previousSteps) / previousSteps) * 100)
+      : null;
+  const latestStepsDate = latestStepRecord?.timestamp
+    ? new Date(latestStepRecord.timestamp)
+    : null;
+  const isLatestStepsToday = latestStepsDate
+    ? latestStepsDate.toDateString() === new Date().toDateString()
+    : false;
+  const activityGoalProgress = hasCurrentSteps
+    ? Math.min(Math.round((currentSteps / 10000) * 100), 100)
+    : 0;
+  const activityGoalLabel = hasCurrentSteps
+    ? `${activityGoalProgress}%`
+    : "--";
+  const activityStepsLabel = hasCurrentSteps
+    ? currentSteps.toLocaleString("en-IN")
+    : "--";
+  const activityMetricLabel = hasCurrentSteps
+    ? isLatestStepsToday
+      ? "Steps taken today"
+      : "Daily steps"
+    : "Steps taken today";
+  const activityTrendLabel = hasCurrentSteps
+    ? stepsDeltaPercent == null
+      ? latestStepsDate?.toLocaleDateString("en-GB") || "Latest recorded steps"
+      : `${stepsDeltaPercent > 0 ? "+" : ""}${stepsDeltaPercent}% vs previous record`
+    : "No comparison yet";
   const formatMetricValue = (value, formatter = (v) => String(v)) =>
     value === null || value === undefined || value === "" ? "--" : formatter(value);
   const derivedHealthScores = ehrHistory
@@ -804,7 +1274,29 @@ export default function PatientDashboard() {
     },
   ];
   const recordHistoryItems =
-    ehrHistory.length > 0
+    healthMetricsHistory.length > 0
+      ? healthMetricsHistory
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(getHealthMetricTimestamp(b) || 0) -
+              new Date(getHealthMetricTimestamp(a) || 0),
+          )
+          .slice(0, 2)
+          .map((metric, index) => ({
+            title: String(metric.metric_type || metric.metricType || "Metric")
+              .replace(/_/g, " ")
+              .replace(/\b\w/g, (char) => char.toUpperCase()),
+            date: new Date(getHealthMetricTimestamp(metric)).toLocaleDateString(
+              "en-GB",
+              {
+                month: "short",
+                day: "2-digit",
+              },
+            ),
+            tone: index === 0 ? "good" : "alert",
+          }))
+      : ehrHistory.length > 0
       ? ehrHistory.slice(0, 2).map((record, index) => ({
           title: `Record update ${index + 1}`,
           date: new Date(record.timestamp).toLocaleDateString("en-GB", {
@@ -817,6 +1309,31 @@ export default function PatientDashboard() {
           { title: "No recent record", date: "Unavailable", tone: "alert" },
         ];
   const recordTrendBars = derivedHealthScores;
+  const primaryInteraction = interactionCheckResult?.interactions?.[0] || null;
+  const interactionPrimaryMedicine =
+    primaryInteraction?.medicine_a ||
+    primaryInteraction?.medicineA ||
+    medicines[0]?.medicine_name ||
+    "Not enough medicines";
+  const interactionComparedMedicine =
+    primaryInteraction?.medicine_b ||
+    primaryInteraction?.medicineB ||
+    medicines[1]?.medicine_name ||
+    "Add another medicine";
+  const interactionSeverityLabel = interactionCheckLoading
+    ? "Scanning..."
+    : primaryInteraction?.severity
+      ? `${primaryInteraction.severity} risk`
+      : medicines.length > 1
+        ? "No conflict"
+        : "Awaiting list";
+  const interactionDescription = interactionCheckLoading
+    ? "Reviewing your active medicines for known drug-drug interactions."
+    : primaryInteraction?.description ||
+      interactionCheckResult?.error ||
+      (medicines.length > 1
+        ? "No known interaction detected across your current medicines."
+        : "Add more medicines to run a broader interaction screening across your current list.");
   const sidebarItems = [
     { id: "home", label: "Home", icon: House, action: () => setActiveTab("home") },
     {
@@ -932,16 +1449,6 @@ export default function PatientDashboard() {
               );
             })}
           </div>
-          <div className="sidebar-footer">
-            <button type="button" className="sidebar-footer-link">
-              <Settings size={17} strokeWidth={2} />
-              <span>Settings</span>
-            </button>
-            <button type="button" className="sidebar-footer-link">
-              <CircleHelp size={17} strokeWidth={2} />
-              <span>Support</span>
-            </button>
-          </div>
         </aside>
 
         <div className="dashboard-content">
@@ -1049,7 +1556,7 @@ export default function PatientDashboard() {
                       <Activity size={16} strokeWidth={2} />
                       <span>Health score</span>
                     </div>
-                    <h3>{latestMetrics ? `${healthScore}%` : "--"}</h3>
+                    <h3>{hasAnyMetricData ? `${healthScore}%` : "--"}</h3>
                   </div>
                 </div>
 
@@ -1060,22 +1567,34 @@ export default function PatientDashboard() {
                       <span>Critical reminders</span>
                     </div>
                     <span className="reminder-updated-label">
-                      {nextReminder ? "Updated just now" : `${unreadAlertsCount} alerts`}
+                      {reminderSpotlightItems.length > 0
+                        ? `${reminderSpotlightItems.length} active`
+                        : `${unreadAlertsCount} alerts`}
                     </span>
                   </div>
-                  {nextReminder ? (
-                    <div className="reminder-spotlight-item">
-                      <div className="reminder-pill-icon">
-                        <Pill size={16} strokeWidth={2} />
-                      </div>
-                      <div className="reminder-spotlight-copy">
-                        <strong>{nextReminder.medicine}</strong>
-                        <span>{nextReminder.dosage || "Scheduled medication"}</span>
-                      </div>
-                      <div className="reminder-spotlight-meta">
-                        <strong>{nextReminderTime}</strong>
-                        <span>{isReminderTakenToday ? "Taken" : "Pending"}</span>
-                      </div>
+                  {reminderSpotlightItems.length > 0 ? (
+                    <div className="reminders-spotlight-list">
+                      {reminderSpotlightItems.map((item) => {
+                        const ItemIcon = item.icon;
+
+                        return (
+                          <div key={item.id} className="reminder-spotlight-item">
+                            <div
+                              className={`reminder-pill-icon ${item.type === "alert" ? "alert" : ""}`}
+                            >
+                              <ItemIcon size={16} strokeWidth={2} />
+                            </div>
+                            <div className="reminder-spotlight-copy">
+                              <strong>{item.title}</strong>
+                              <span>{item.subtitle}</span>
+                            </div>
+                            <div className="reminder-spotlight-meta">
+                              <strong>{item.metaPrimary}</strong>
+                              <span>{item.metaSecondary}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="empty-panel compact-empty">
@@ -1095,17 +1614,17 @@ export default function PatientDashboard() {
                         className="activity-ring"
                         style={{
                           background: `conic-gradient(#0b7a72 ${Math.max(
-                            healthScore,
-                            4,
+                            activityGoalProgress,
+                            hasCurrentSteps ? 4 : 0,
                           )}%, #dfe9ff 0)`,
                         }}
                       >
-                        <div className="activity-ring-inner">{healthScore}%</div>
+                        <div className="activity-ring-inner">{activityGoalLabel}</div>
                       </div>
                       <div className="activity-copy">
-                        <h2>{latestMetrics?.steps || "8,420"}</h2>
-                        <span>Steps taken today</span>
-                        <strong>+12% vs Yesterday</strong>
+                        <h2>{activityStepsLabel}</h2>
+                        <span>{activityMetricLabel}</span>
+                        <strong>{activityTrendLabel}</strong>
                       </div>
                     </div>
                   </div>
@@ -1207,9 +1726,17 @@ export default function PatientDashboard() {
                     <label htmlFor="doctor-select">Select Specialist</label>
                     <p>Choose your doctor to unlock the calendar and available consultation slots.</p>
                   </div>
-                  {doctors.length === 0 ? (
+                  {doctorsLoading ? (
                     <div className="selection-state">
                       Loading doctors. If this persists, please refresh the page.
+                    </div>
+                  ) : doctorsError ? (
+                    <div className="selection-state">
+                      {doctorsError}
+                    </div>
+                  ) : doctors.length === 0 ? (
+                    <div className="selection-state">
+                      No doctors available right now.
                     </div>
                   ) : (
                     <div className="appointment-select-shell">
@@ -1332,7 +1859,7 @@ export default function PatientDashboard() {
                   <button
                     type="button"
                     className="appointment-history-btn"
-                    onClick={() => navigate("/new/dashboard")}
+                    onClick={() => navigate("/appointments/history")}
                   >
                     View Appointment History
                   </button>
@@ -1490,34 +2017,60 @@ export default function PatientDashboard() {
                     <AlertTriangle size={18} strokeWidth={2} />
                     <h3>Medicine Interaction Checker</h3>
                   </div>
-                  <div className="interaction-checker-panel">
-                    <div className="interaction-checker-status">
-                      <span>Safety Scan</span>
-                      <strong>
-                        {medicines.length > 1 ? "Moderate Risk" : "No Conflict"}
-                      </strong>
-                    </div>
-                    <div className="interaction-checker-drugs">
-                      <div>
-                        <span>Primary</span>
-                        <strong>{medicines[0]?.medicine_name || "Not enough medicines"}</strong>
+                    <div className="interaction-checker-panel">
+                      <div className="interaction-checker-status">
+                        <span>Safety Scan</span>
+                        <strong>{interactionSeverityLabel}</strong>
                       </div>
-                      <div>
-                        <span>Compared With</span>
-                        <strong>{medicines[1]?.medicine_name || "Add another medicine"}</strong>
+                      <div className="interaction-checker-drugs">
+                        <div>
+                          <span>Primary</span>
+                          <strong>{interactionPrimaryMedicine}</strong>
+                        </div>
+                        <div>
+                          <span>Compared With</span>
+                          <strong>{interactionComparedMedicine}</strong>
+                        </div>
                       </div>
+                      <p>
+                        {interactionDescription}
+                        {primaryInteraction?.recommendation
+                          ? ` Recommendation: ${primaryInteraction.recommendation}`
+                          : ""}
+                        {!primaryInteraction?.recommendation &&
+                        primaryInteraction?.mechanism
+                          ? ` Mechanism: ${primaryInteraction.mechanism}`
+                          : ""}
+                        {interactionCheckResult?.interactions?.length > 1
+                          ? ` ${interactionCheckResult.interactions.length} interactions found in total.`
+                          : ""}
+                        {!interactionCheckLoading &&
+                        !primaryInteraction &&
+                        medicines.length > 1
+                          ? ""
+                          : ""}
+                      </p>
+                      {interactionCheckResult?.error ? (
+                        <p className="interaction-checker-meta">
+                          Live interaction scan unavailable. Showing current list only.
+                        </p>
+                      ) : null}
+                      {primaryInteraction?.source ? (
+                        <p className="interaction-checker-meta">
+                          Source: {primaryInteraction.source}
+                        </p>
+                      ) : null}
+                      {primaryInteraction?.confidence != null ? (
+                        <p className="interaction-checker-meta">
+                          Confidence: {primaryInteraction.confidence}
+                        </p>
+                      ) : null}
                     </div>
-                    <p>
-                      {medicines.length > 1
-                        ? "Potential interaction detected. Review dosage timing and clinician guidance before continuing."
-                        : "Add more medicines to run a broader interaction screening across your current list."}
-                    </p>
-                  </div>
                   <button
                     className="action-btn prescription-verify-btn"
-                    onClick={() => setHealthChatOpen(true)}
+                    onClick={() => setInteractionCheckNonce((value) => value + 1)}
                   >
-                    Check Interactions
+                    {interactionCheckLoading ? "Checking..." : "Check Interactions"}
                   </button>
                   <p className="prescription-side-note">
                     AI cross-checks active medicines for timing conflicts, duplication risk, and interaction severity.
@@ -1565,7 +2118,7 @@ export default function PatientDashboard() {
                 <h2>Patient Performance Hub</h2>
                 <p>Last updated: {latestRecordDateLabel}</p>
               </div>
-              <button type="button" className="action-btn">
+              <button type="button" className="action-btn" onClick={handleDownloadReport}>
                 <Download size={16} strokeWidth={2} />
                 Download Report
               </button>
@@ -1585,11 +2138,11 @@ export default function PatientDashboard() {
                       <h3>Diagnostic Summary</h3>
                       <div className="records-summary-block">
                         <span>Latest Record</span>
-                        {latestRecord ? (
+                        {hasAnyMetricData ? (
                           <div className="records-symptom-pill">
                             <span className="records-symptom-dot" />
                             <strong>{latestMetricDateLabel}</strong>
-                            <small>{Object.keys(latestMetrics || {}).length} metrics</small>
+                            <small>{visibleMetricCount} metrics</small>
                           </div>
                         ) : (
                           <div className="records-symptom-pill">
@@ -1602,7 +2155,7 @@ export default function PatientDashboard() {
                       <div className="records-prediction-box">
                         <span>Clinical Summary</span>
                         <strong>
-                          {latestRecord
+                          {hasAnyMetricData
                             ? "Recent health metrics are available for review."
                             : "No diagnostic summary is available yet."}
                         </strong>
@@ -1612,7 +2165,7 @@ export default function PatientDashboard() {
                     <div className="records-history-card">
                       <div className="records-history-head">
                         <h4>History</h4>
-                        <button type="button" onClick={() => setActiveTab("health")}>View All</button>
+                        <button type="button" onClick={() => navigate("/new/dashboard")}>View All</button>
                       </div>
                       <div className="records-history-list">
                         {recordHistoryItems.map((item) => (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./Navbar.css";
 import { assets } from "../../assets/assets";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import Button from "@mui/material/Button";
 import Aipop from "../../components/AiPop/Aipop";
@@ -13,6 +13,8 @@ const Navbar = ({ setShowLogin }) => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPatientDashboard = location.pathname === "/dashboard";
 
   // PROFILE DROPDOWN
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -36,7 +38,7 @@ const Navbar = ({ setShowLogin }) => {
   };
 
   return (
-    <div className="navbar">
+    <div className={`navbar ${isPatientDashboard ? "navbar-fixed-dashboard" : ""}`}>
       {askAi && <Aipop setShowAiPop={setAskAi} />}
 
       <Link to="/">
@@ -72,17 +74,22 @@ const Navbar = ({ setShowLogin }) => {
           💊 Reminders
         </Link>
 
+        {/* <a href="#buy-products" onClick={() => setMenu("buy-products")}>
+          Buy Products
+        </a> */}
+
         <Link to="/health-tips" onClick={() => setMenu("health-tips")}>
           Health Tips
         </Link>
+
       </ul>
 
       <div className="navbar-right">
-        <div className="ai-div">
+        {/* <div className="ai-div">
           <Button className="ai-button" onClick={() => setAskAi(true)}>
             Ask to AI Doctor
           </Button>
-        </div>
+        </div> */}
 
         {/* THEME TOGGLE */}
         <label className="switch">

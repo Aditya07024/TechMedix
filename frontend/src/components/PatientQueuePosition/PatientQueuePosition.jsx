@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/apiBase";
+import { useNavigate } from "react-router-dom";
 import { assets } from "../../assets/assets";
 import {
   Clock3,
@@ -15,10 +16,12 @@ import {
 import "./QueuePosition.css";
 
 export default function PatientQueuePosition({ appointmentId, patientId }) {
+  const navigate = useNavigate();
   const [queuePosition, setQueuePosition] = useState(null);
   const [estimatedWait, setEstimatedWait] = useState(null);
   const [tokenNumber, setTokenNumber] = useState(null);
   const [doctorName, setDoctorName] = useState(null);
+  const [doctorId, setDoctorId] = useState(null);
   const [status, setStatus] = useState("waiting");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,6 +69,7 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
         setTokenNumber(queue.token_number ?? "-");
         setEstimatedWait(queue.estimated_wait_minutes ?? 0);
         setDoctorName(queue.doctor_name ?? null);
+        setDoctorId(queue.doctor_id ?? null);
         setStatus(queue.status ?? "waiting");
         setError(null);
       } catch (err) {
@@ -194,7 +198,19 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
                     </span>
                   </div>
                 </div>
-                <button type="button" className="queue-view-btn">
+                <button
+                  type="button"
+                  className="queue-view-btn"
+                  onClick={() =>
+                    navigate(`/queue/${doctorId}`, {
+                      state: {
+                        appointmentId,
+                        doctorName,
+                      },
+                    })
+                  }
+                  disabled={!doctorId}
+                >
                   View Full Queue
                   <ExternalLink size={18} strokeWidth={2} />
                 </button>

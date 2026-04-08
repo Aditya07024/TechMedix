@@ -7,7 +7,7 @@ import "./PaymentPage.css";
 
 export default function PaymentPage() {
   const { appointmentId } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,6 +17,10 @@ export default function PaymentPage() {
 
   // Validate appointment ID on mount
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
     if (!appointmentId) {
       setError("No appointment ID provided. Please book an appointment first.");
       setTimeout(() => navigate("/appointments"), 2000);
@@ -47,7 +51,7 @@ export default function PaymentPage() {
       } catch (_) {}
     }
     fetchWallet();
-  }, [appointmentId, user, navigate]);
+  }, [appointmentId, user, navigate, authLoading]);
 
   const handleOnlinePayment = async () => {
     try {
@@ -122,6 +126,9 @@ export default function PaymentPage() {
       });
 
       const errorMessage =
+        (error.response?.status === 401
+          ? "Your session expired. Please log in again before paying."
+          : null) ||
         error.response?.data?.error ||
         error.message ||
         "Payment creation failed. Please try again.";
@@ -166,6 +173,9 @@ export default function PaymentPage() {
       });
 
       const errorMessage =
+        (error.response?.status === 401
+          ? "Your session expired. Please log in again before paying."
+          : null) ||
         error.response?.data?.error ||
         "Failed to process cash payment. Please try again.";
 
@@ -190,7 +200,13 @@ export default function PaymentPage() {
       alert("Paid with wallet successfully");
       navigate("/dashboard");
     } catch (error) {
-      const errorMessage = error.response?.data?.error || error.message || "Wallet payment failed.";
+      const errorMessage =
+        (error.response?.status === 401
+          ? "Your session expired. Please log in again before paying."
+          : null) ||
+        error.response?.data?.error ||
+        error.message ||
+        "Wallet payment failed.";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -219,7 +235,18 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {!appointmentId ? (
+      {authLoading ? (
+        <div
+          style={{
+            padding: "20px",
+            backgroundColor: "#eef4ff",
+            border: "1px solid #c8dafc",
+            borderRadius: "4px",
+          }}
+        >
+          <p>Checking your session…</p>
+        </div>
+      ) : !appointmentId ? (
         <div
           style={{
             padding: "20px",

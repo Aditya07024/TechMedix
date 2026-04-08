@@ -1,45 +1,95 @@
 import axios from "axios";
+import { API_BASE_URL } from "../utils/apiBase";
 
 const API_BASE = "/api/v2";
+const apiClient = axios.create({
+  baseURL: API_BASE_URL || undefined,
+  withCredentials: true,
+  timeout: 8000,
+});
+
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token && !config.headers?.Authorization) {
+    config.headers = {
+      ...config.headers,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+  return config;
+});
+
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+});
+
+const getStoredUserRole = () => {
+  try {
+    const rawUser = localStorage.getItem("user");
+    if (!rawUser) return null;
+
+    return JSON.parse(rawUser)?.role || null;
+  } catch (error) {
+    console.error("Failed to read stored user role:", error);
+    return null;
+  }
+};
+
+const normalizeNotificationResponse = (response, transform = (items) => items) => {
+  const rawItems = Array.isArray(response?.data)
+    ? response.data
+    : Array.isArray(response?.data?.data)
+      ? response.data.data
+      : [];
+
+  return {
+    ...response,
+    data: {
+      ...(response?.data && typeof response.data === "object" ? response.data : {}),
+      success: true,
+      data: transform(rawItems),
+    },
+  };
+};
 
 export const appointmentAPI = {
   book: (data) =>
-    axios.post(`${API_BASE}/appointments`, data, {
+    apiClient.post(`${API_BASE}/appointments`, data, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   get: (appointmentId) =>
-    axios.get(`${API_BASE}/appointments/${appointmentId}`, {
+    apiClient.get(`${API_BASE}/appointments/${appointmentId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getByDoctor: (doctorId, date) =>
-    axios.get(`${API_BASE}/appointments/doctor/${doctorId}`, {
+    apiClient.get(`${API_BASE}/appointments/doctor/${doctorId}`, {
       params: { date },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getByPatient: (patientId) =>
-    axios.get(`${API_BASE}/appointments/patient/${patientId}`, {
+    apiClient.get(`${API_BASE}/appointments/patient/${patientId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   cancel: (appointmentId, reason) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/appointments/${appointmentId}/cancel`,
       { cancellation_reason: reason || "Cancelled by user" },
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
     ),
 
   reschedule: (appointmentId, newDate, newTime) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/appointments/${appointmentId}/reschedule`,
       { new_date: newDate, new_slot_time: newTime },
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
     ),
 
   updateStatus: (appointmentId, status) =>
-    axios.patch(
+    apiClient.patch(
       `${API_BASE}/appointments/${appointmentId}/status`,
       { status },
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
@@ -48,41 +98,41 @@ export const appointmentAPI = {
 
 export const prescriptionAPI = {
   create: (data) =>
-    axios.post(`${API_BASE}/prescriptions`, data, {
+    apiClient.post(`${API_BASE}/prescriptions`, data, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   get: (prescriptionId) =>
-    axios.get(`${API_BASE}/prescriptions/${prescriptionId}`, {
+    apiClient.get(`${API_BASE}/prescriptions/${prescriptionId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getByPatient: (patientId) =>
-    axios.get(`${API_BASE}/prescriptions/patient/${patientId}`, {
+    apiClient.get(`${API_BASE}/prescriptions/patient/${patientId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getByDoctor: (doctorId) =>
-    axios.get(`${API_BASE}/prescriptions/doctor/${doctorId}`, {
+    apiClient.get(`${API_BASE}/prescriptions/doctor/${doctorId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   override: (prescriptionId, reason) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/prescriptions/${prescriptionId}/override`,
       { override_reason: reason },
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
     ),
 
   requestRefill: (prescriptionId) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/prescriptions/${prescriptionId}/refill`,
       {},
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
     ),
 
   complete: (prescriptionId) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/prescriptions/${prescriptionId}/complete`,
       {},
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
@@ -91,24 +141,24 @@ export const prescriptionAPI = {
 
 export const queueAPI = {
   getForDoctor: (doctorId, date) =>
-    axios.get(`${API_BASE}/queue/doctor/${doctorId}`, {
+    apiClient.get(`${API_BASE}/queue/doctor/${doctorId}`, {
       params: { date },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getQueue: (doctorId, date) =>
-    axios.get(`${API_BASE}/queue/doctor/${doctorId}`, {
+    apiClient.get(`${API_BASE}/queue/doctor/${doctorId}`, {
       params: { date },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getPosition: (appointmentId) =>
-    axios.get(`${API_BASE}/queue/position/${appointmentId}`, {
+    apiClient.get(`${API_BASE}/queue/position/${appointmentId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   markArrived: (appointmentId) =>
-  axios.post(
+  apiClient.post(
     `${API_BASE}/queue/${appointmentId}/arrived`,
     {},
     {
@@ -117,7 +167,7 @@ export const queueAPI = {
   ),
 
   startConsultation: (appointmentId) =>
-  axios.post(
+  apiClient.post(
     `${API_BASE}/queue/${appointmentId}/in-progress`,
     {},
     {
@@ -126,7 +176,7 @@ export const queueAPI = {
   ),
 
   completeConsultation: (appointmentId) =>
-  axios.post(
+  apiClient.post(
     `${API_BASE}/queue/${appointmentId}/completed`,
     {},
     {
@@ -135,7 +185,7 @@ export const queueAPI = {
   ),
 
   skipPatient: (appointmentId) =>
-    axios.post(
+    apiClient.post(
       `${API_BASE}/queue/skip`,
       { appointment_id: appointmentId },
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
@@ -144,47 +194,78 @@ export const queueAPI = {
 
 export const timelineAPI = {
   getTimeline: (patientId, type, limit) =>
-    axios.get(`/api/v2/timeline/${patientId}/timeline`, {
+    apiClient.get(`/api/v2/timeline/${patientId}/timeline`, {
       params: { type, limit }
     }),
 };
 
 export const notificationAPI = {
   getNotifications: (userId, isRead, limit) =>
-    axios.get(`${API_BASE}/notifications`, {
-      params: { user_id: userId, is_read: isRead, limit },
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    }),
+    notificationAPI.getByUser(userId, isRead, limit),
 
-  getByUser: (userId, isRead = null, limit = 50) =>
-    axios.get(`${API_BASE}/notifications`, {
-      params: { user_id: userId, is_read: isRead, limit },
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    }),
+  getByUser: async (userId, isRead = null, limit = 50) => {
+    const userRole = getStoredUserRole();
+
+    if (userRole === "patient") {
+      const response = await apiClient.get(`/api/patient-notifications/${userId}`, {
+        headers: authHeaders(),
+      });
+
+      return normalizeNotificationResponse(response, (items) => {
+        let nextItems = items;
+
+        if (isRead !== null) {
+          const expectedRead = isRead === "true" || isRead === true;
+          nextItems = nextItems.filter(
+            (notification) => Boolean(notification?.is_read) === expectedRead,
+          );
+        }
+
+        return nextItems.slice(0, Number(limit) || 50);
+      });
+    }
+
+    return apiClient.get(`${API_BASE}/notifications/user/${userId}`, {
+      params: { is_read: isRead, limit },
+      headers: authHeaders(),
+    });
+  },
 
   markAsRead: (notificationId) =>
-    axios.post(
-      `${API_BASE}/notifications/${notificationId}/read`,
-      {},
-      { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
-    ),
+    getStoredUserRole() === "patient"
+      ? apiClient.put(
+          `/api/patient-notifications/${notificationId}/read`,
+          {},
+          { headers: authHeaders() },
+        )
+      : apiClient.post(
+          `${API_BASE}/notifications/${notificationId}/read`,
+          {},
+          { headers: authHeaders() },
+        ),
 
   markAllAsRead: (userId) =>
-    axios.post(
-      `${API_BASE}/notifications/read-all`,
-      { user_id: userId },
-      { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
-    ),
+    getStoredUserRole() === "patient"
+      ? apiClient.put(
+          `/api/patient-notifications/${userId}/read-all`,
+          {},
+          { headers: authHeaders() },
+        )
+      : apiClient.post(
+          `${API_BASE}/notifications/user/${userId}/read-all`,
+          {},
+          { headers: authHeaders() },
+        ),
 
   delete: (notificationId) =>
-    axios.delete(`${API_BASE}/notifications/${notificationId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    apiClient.delete(`${API_BASE}/notifications/${notificationId}`, {
+      headers: authHeaders(),
     }),
 };
 
 export const analyticsAPI = {
   getDoctorStats: (doctorId) =>
-    axios
+    apiClient
       .get(`/api/analytics/doctor/${doctorId}/dashboard`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       })

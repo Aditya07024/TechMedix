@@ -33,6 +33,8 @@ import HealthWallet from "./pages/HealthWallet/HealthWallet";
 import GoogleFitCallback from "./components/GoogleFitCallback/GoogleFitCallback";
 import XRayAnalyzer from "./pages/XRayAnalyzer/XRayAnalyzer";
 import XRayHistory from "./pages/XRayHistory/XRayHistory";
+import AppointmentHistory from "./pages/AppointmentHistory/AppointmentHistory";
+import QueueFullPage from "./pages/QueueFullPage/QueueFullPage";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -126,7 +128,30 @@ const App = () => {
 
           <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/doctor/signup" element={<DoctorSignup />} />
-          <Route path="/payment/:appointmentId" element={<PaymentPage />} />
+          <Route
+            path="/payment/:appointmentId"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <PaymentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/appointments/history"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <AppointmentHistory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/queue/:doctorId"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <QueueFullPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ✨ NEW DOCTOR DASHBOARD V2 */}
           <Route

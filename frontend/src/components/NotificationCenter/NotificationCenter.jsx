@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import axios from "axios";
 import {
   requestNotificationPermission,
   subscribeToNotifications,
 } from "../../api/socketService";
+import { notificationAPI } from "../../api/techmedixAPI";
 import "./NotificationCenter.css";
 
 export default function NotificationCenter({ userId }) {
@@ -48,14 +48,10 @@ export default function NotificationCenter({ userId }) {
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get(
-        `/api/v2/notifications/user/${userId}?is_read=false&limit=20`,
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        },
-      );
-      setNotifications(response.data.data || []);
-      setUnreadCount(response.data.data?.length || 0);
+      const response = await notificationAPI.getByUser(userId, false, 20);
+      const nextNotifications = response?.data?.data || [];
+      setNotifications(nextNotifications);
+      setUnreadCount(nextNotifications.length);
     } catch (error) {
       console.error("Failed to fetch notifications", error);
     } finally {
@@ -100,13 +96,7 @@ export default function NotificationCenter({ userId }) {
 
   const markAsRead = async (notificationId) => {
     try {
-      await axios.post(
-        `/api/v2/notifications/${notificationId}/read`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        },
-      );
+      await notificationAPI.markAsRead(notificationId);
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
@@ -116,13 +106,7 @@ export default function NotificationCenter({ userId }) {
 
   const markAllAsRead = async () => {
     try {
-      await axios.post(
-        `/api/v2/notifications/user/${userId}/read-all`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        },
-      );
+      await notificationAPI.markAllAsRead(userId);
       setNotifications([]);
       setUnreadCount(0);
     } catch (error) {

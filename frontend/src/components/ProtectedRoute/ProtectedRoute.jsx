@@ -24,7 +24,17 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     }
   }, [loading, isAuthenticated, requiredRole, user]);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="app-route-loading">
+        <div className="app-route-loading-card">
+          <div className="app-route-loading-spinner" />
+          <h2>Opening your dashboard</h2>
+          <p>Checking your session and preparing the page.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace state={{ from: location }} />;

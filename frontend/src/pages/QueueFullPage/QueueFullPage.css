@@ -1,0 +1,144 @@
+.queue-full-page {
+  min-height: 100vh;
+  padding: 112px 24px 36px;
+  background:
+    radial-gradient(circle at top right, rgba(93, 186, 178, 0.22), transparent 25%),
+    linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+}
+
+.queue-full-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px;
+}
+
+.queue-full-header {
+  display: grid;
+  gap: 18px;
+}
+
+.queue-full-back {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #d5e2f2;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.queue-full-kicker {
+  margin: 0 0 8px;
+  color: #0b7a72;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.queue-full-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 3rem);
+  color: #10203a;
+}
+
+.queue-full-subtitle {
+  margin: 10px 0 0;
+  color: #607186;
+}
+
+.queue-full-empty {
+  padding: 28px;
+  border: 1px dashed #cfdcf0;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #58697e;
+}
+
+.queue-full-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.queue-full-summary-card,
+.queue-full-item {
+  border: 1px solid #d9e5f4;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 20px 45px rgba(26, 46, 90, 0.08);
+}
+
+.queue-full-summary-card {
+  padding: 22px;
+  display: grid;
+  gap: 8px;
+}
+
+.queue-full-summary-card span {
+  color: #7a889b;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.queue-full-summary-card strong {
+  color: #10203a;
+  font-size: 2rem;
+}
+
+.queue-full-list {
+  display: grid;
+  gap: 16px;
+}
+
+.queue-full-item {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+}
+
+.queue-full-item.mine {
+  border-color: #7dd9cf;
+  background: linear-gradient(180deg, #f3fffd 0%, #fbfffe 100%);
+}
+
+.queue-full-token,
+.queue-full-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.queue-full-token strong {
+  font-size: 1.2rem;
+  color: #0f1f39;
+}
+
+.queue-full-copy h3,
+.queue-full-copy p {
+  margin: 0;
+}
+
+.queue-full-copy h3 {
+  color: #10203a;
+  font-size: 1.08rem;
+}
+
+.queue-full-copy p,
+.queue-full-badge span {
+  color: #607186;
+}
+
+@media (max-width: 720px) {
+  .queue-full-item {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+}

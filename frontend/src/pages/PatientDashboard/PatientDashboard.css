@@ -23,6 +23,54 @@
   font-family: "Poppins", "Segoe UI", sans-serif;
 }
 
+.patient-dashboard-loading-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.patient-dashboard-loading-card {
+  width: min(92vw, 520px);
+  padding: 36px 30px;
+  border: 1px solid rgba(202, 216, 243, 0.92);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.patient-dashboard-loading-card h2 {
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.patient-dashboard-loading-card p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.patient-dashboard-loading-spinner {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  border: 4px solid rgba(11, 122, 114, 0.15);
+  border-top-color: var(--surface-teal);
+  animation: patientDashboardSpin 0.9s linear infinite;
+}
+
+@keyframes patientDashboardSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .dashboard-topbar {
   position: fixed !important;
   top: 12px !important;
@@ -666,6 +714,12 @@
   font-size: 0.88rem;
 }
 
+.reminders-spotlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .reminder-spotlight-item {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto;
@@ -685,6 +739,11 @@
   border-radius: 50%;
   background: #feeaf0;
   color: var(--danger);
+}
+
+.reminder-pill-icon.alert {
+  background: #fff3db;
+  color: #c57d10;
 }
 
 .reminder-spotlight-copy,
@@ -1527,6 +1586,12 @@
   color: #7c3045;
   font-size: 0.94rem;
   line-height: 1.65;
+}
+
+.interaction-checker-meta {
+  margin-top: -8px;
+  color: #915469;
+  font-size: 0.82rem;
 }
 
 .prescription-verify-btn {
@@ -2809,6 +2874,7 @@
   }
 
   .patient-sidebar {
+    /* margin-top: 50px; */
     position: static;
     width: auto;
     height: auto;

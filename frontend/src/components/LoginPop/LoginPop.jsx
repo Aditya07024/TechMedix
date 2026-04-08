@@ -15,6 +15,7 @@ const LoginPop = ({ setShowLogin }) => {
 
   const [currState, setCurrState] = useState("Sign Up");
   const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,6 +29,8 @@ const LoginPop = ({ setShowLogin }) => {
   /* ---------------- GOOGLE LOGIN ---------------- */
   const googleLogin = useGoogleLogin({
     onSuccess: async (response) => {
+      setSubmitting(true);
+      setError(null);
       try {
         const res = await authApi.google(response.access_token);
 
@@ -39,9 +42,13 @@ const LoginPop = ({ setShowLogin }) => {
       } catch (err) {
         console.error(err);
         setError("Google login failed");
+        setSubmitting(false);
       }
     },
-    onError: () => setError("Google login failed"),
+    onError: () => {
+      setSubmitting(false);
+      setError("Google login failed");
+    },
     flow: "implicit",
   });
 
@@ -49,6 +56,7 @@ const LoginPop = ({ setShowLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setSubmitting(true);
 
     try {
       let res;
@@ -67,6 +75,7 @@ const LoginPop = ({ setShowLogin }) => {
 
         alert("Signup successful! Please login.");
         setCurrState("Login");
+        setSubmitting(false);
         return;
       } else {
         res = await authApi.login({ email, password });
@@ -88,6 +97,7 @@ const LoginPop = ({ setShowLogin }) => {
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.error || "Authentication failed");
+      setSubmitting(false);
     }
   };
 
@@ -96,6 +106,7 @@ const LoginPop = ({ setShowLogin }) => {
     setEmail("demo@gmail.com");
     setPassword("1234589");
     setError(null);
+    setSubmitting(true);
 
     try {
       let res;
@@ -147,6 +158,7 @@ const LoginPop = ({ setShowLogin }) => {
           ? "Demo patient account exists, but the password does not match on the backend."
           : err.response?.data?.error || "Demo patient login failed",
       );
+      setSubmitting(false);
     }
   };
 
@@ -179,11 +191,19 @@ const LoginPop = ({ setShowLogin }) => {
               <img
                 src={assets.cross_icon}
                 alt="close"
-                onClick={() => setShowLogin(false)}
+                onClick={() => !submitting && setShowLogin(false)}
+                className={`cross-img ${submitting ? "disabled" : ""}`}
               />
             </div>
 
             {error && <div className="error-message">{error}</div>}
+            {submitting && (
+              <div className="auth-loading-banner">
+                {currState === "Sign Up"
+                  ? "Creating your account..."
+                  : "Opening your dashboard..."}
+              </div>
+            )}
 
             <div className="login-popup-inputs">
               {currState === "Sign Up" && (
@@ -259,8 +279,14 @@ const LoginPop = ({ setShowLogin }) => {
               </div>
             </div>
 
-            <button type="submit">
-              {currState === "Sign Up" ? "Create Account" : "Login"}
+            <button type="submit" disabled={submitting}>
+              {submitting
+                ? currState === "Sign Up"
+                  ? "Creating Account..."
+                  : "Opening Dashboard..."
+                : currState === "Sign Up"
+                  ? "Create Account"
+                  : "Login"}
             </button>
 
             {currState === "Login" && (
@@ -268,8 +294,9 @@ const LoginPop = ({ setShowLogin }) => {
                 type="button"
                 className="demo-login-btn"
                 onClick={handleDemoPatientLogin}
+                disabled={submitting}
               >
-                Demo Patient Login
+                {submitting ? "Opening Dashboard..." : "Demo Patient Login"}
               </button>
             )}
 
@@ -277,12 +304,12 @@ const LoginPop = ({ setShowLogin }) => {
               {currState === "Login" ? (
                 <>
                   Create a new account?
-                  <span onClick={() => setCurrState("Sign Up")}> Click here</span>
+                  <span onClick={() => !submitting && setCurrState("Sign Up")}> Click here</span>
                 </>
               ) : (
                 <>
                   Already have an account?
-                  <span onClick={() => setCurrState("Login")}> Login here</span>
+                  <span onClick={() => !submitting && setCurrState("Login")}> Login here</span>
                 </>
               )}
             </p>
