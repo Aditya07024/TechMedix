@@ -229,7 +229,18 @@ export const deleteMedicine = async (id) => {
 */
 export const searchMedicines = async (searchTerm) => {
   const pattern = `%${searchTerm}%`;
-  const clauses = ["(name ILIKE $1 OR salt ILIKE $1 OR benefits ILIKE $1)"];
+  const clauses = [
+    `(
+      name ILIKE $1 OR
+      salt ILIKE $1 OR
+      benefits ILIKE $1 OR
+      usage ILIKE $1 OR
+      info ILIKE $1 OR
+      therapeutic_class ILIKE $1 OR
+      action_class ILIKE $1 OR
+      chemical_class ILIKE $1
+    )`,
+  ];
 
   if (await medicinesHasIsDeletedColumn()) {
     clauses.unshift("is_deleted = FALSE");
@@ -240,8 +251,15 @@ export const searchMedicines = async (searchTerm) => {
       SELECT *
       FROM medicines
       WHERE ${clauses.join(" AND ")}
-      ORDER BY created_at DESC
+      ORDER BY
+        CASE
+          WHEN name ILIKE $2 THEN 1
+          WHEN salt ILIKE $2 THEN 2
+          WHEN benefits ILIKE $2 OR usage ILIKE $2 OR info ILIKE $2 THEN 3
+          ELSE 4
+        END,
+        created_at DESC
     `,
-    [pattern],
+    [pattern, searchTerm],
   );
 };

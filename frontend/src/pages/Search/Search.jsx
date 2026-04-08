@@ -62,6 +62,7 @@ const Search = () => {
       const medicineFromRoute = location.state?.medicine;
       const saltFromRoute = location.state?.salt;
       const compareBySalt = Boolean(location.state?.compareBySalt);
+      const selectedMedicineIdFromRoute = location.state?.selectedMedicineId ?? null;
 
       const trimmedMedicine =
         typeof medicineFromRoute === "string" ? medicineFromRoute.trim() : "";
@@ -97,10 +98,6 @@ const Search = () => {
           const matchedMedicine = response?.data?.[0] ?? null;
           const matchedSalt = matchedMedicine?.salt?.trim() ?? trimmedSalt;
 
-          if (matchedMedicine?.id) {
-            setSelectedMedicineId(matchedMedicine.id);
-          }
-
           if (matchedSalt) {
             setSaltSearchTerm(matchedSalt);
             setAppliedSaltQuery(matchedSalt);
@@ -112,6 +109,7 @@ const Search = () => {
         }
       }
 
+      setSelectedMedicineId(selectedMedicineIdFromRoute);
       setAppliedQuery(trimmedMedicine);
       setAppliedSaltQuery(trimmedSalt);
     }
@@ -232,7 +230,7 @@ const Search = () => {
             return currentId;
           }
 
-          return list[0]?.id ?? null;
+          return null;
         });
       } catch (fetchError) {
         if (!isMounted) {
@@ -349,6 +347,8 @@ const Search = () => {
     setSafetyResult(null);
     setSafetyError(null);
     setPriceInsights(null);
+    setSelectedMedicineId(null);
+    setSelectedMedicine(null);
   };
 
   const handleSafetyCheck = async () => {

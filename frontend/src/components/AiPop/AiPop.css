@@ -149,6 +149,55 @@
   margin: 0;
 }
 
+.ai-pop-suggestions {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ai-pop-suggestions h3 {
+  margin: 0 0 0.75rem;
+  color: #123b38;
+  font-size: 1rem;
+}
+
+.ai-pop-suggestion-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ai-pop-suggestion-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #d9e6e3;
+  border-radius: 12px;
+  background: #f7fbfa;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, transform 0.2s, background 0.2s;
+}
+
+.ai-pop-suggestion-card:hover {
+  border-color: #2ab280;
+  background: #effaf6;
+  transform: translateY(-1px);
+}
+
+.ai-pop-suggestion-name {
+  color: #163d39;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.ai-pop-suggestion-meta {
+  color: #5c6f6b;
+  font-size: 0.84rem;
+}
+
 .ai-pop-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
