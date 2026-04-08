@@ -60,6 +60,7 @@ export async function getQueuePosition(appointmentId) {
     position: row.position,
     token_number: row.position,
     estimated_wait_minutes: row.position * 10,
+    doctor_id: row.doctor_id,
     doctor_name: row.doctor_name,
     status: row.status,
   };

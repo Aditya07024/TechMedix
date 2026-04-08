@@ -15,9 +15,13 @@ export default function QueueFullPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const loadQueue = async () => {
+    let intervalId = null;
+
+    const loadQueue = async (showLoader = false) => {
       try {
-        setLoading(true);
+        if (showLoader) {
+          setLoading(true);
+        }
         setError("");
 
         const displayPromise = axios.get(
@@ -46,8 +50,15 @@ export default function QueueFullPage() {
     };
 
     if (doctorId) {
-      loadQueue();
+      loadQueue(true);
+      intervalId = setInterval(() => loadQueue(false), 5000);
     }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [doctorId, location.state?.appointmentId]);
 
   return (
@@ -61,6 +72,9 @@ export default function QueueFullPage() {
           <div>
             <p className="queue-full-kicker">Live Queue</p>
             <h1>{location.state?.doctorName || "Doctor Queue"}</h1>
+            {!location.state?.doctorName && positionData?.doctor_name ? (
+              <p className="queue-full-subtitle">{positionData.doctor_name}</p>
+            ) : null}
             <p className="queue-full-subtitle">
               See the current queue order, token progression, and your live position.
             </p>
