@@ -104,15 +104,13 @@ const Navbar = ({ setShowLogin }) => {
         </div> */}
 
         {/* THEME TOGGLE */}
-        <label className="switch">
-          <input
-            type="checkbox"
-            className="input"
-            onChange={toggleTheme}
-            checked={isDarkMode}
-          />
-          <span className="slider"></span>
-        </label>
+        <div className="theme-toggle" onClick={toggleTheme}>
+          <div className={`toggle-track ${isDarkMode ? "dark" : "light"}`}>
+            <div className="toggle-thumb">
+              {isDarkMode ? "🌙" : "☀️"}
+            </div>
+          </div>
+        </div>
 
         <div className="nav-icon-container">
           <Link to="/wishlist">

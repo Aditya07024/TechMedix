@@ -23,6 +23,26 @@
   font-family: "Poppins", "Segoe UI", sans-serif;
 }
 
+.dark-mode .patient-dashboard {
+  --page-bg: #08131f;
+  --surface: #0f1b2a;
+  --surface-soft: #122337;
+  --surface-soft-2: #19324b;
+  --surface-teal: #5be0d1;
+  --surface-teal-dark: #2aa899;
+  --border: #20354b;
+  --border-strong: #31506d;
+  --text: #e7eef8;
+  --text-secondary: #9caec2;
+  --text-muted: #708399;
+  --danger: #ff6b8d;
+  --shadow-soft: 0 20px 42px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 24px 60px rgba(0, 0, 0, 0.34);
+  background:
+    radial-gradient(circle at top left, rgba(42, 168, 153, 0.14), transparent 26%),
+    linear-gradient(180deg, #09121c 0%, var(--page-bg) 100%);
+}
+
 .patient-dashboard-loading-shell {
   display: flex;
   align-items: center;
@@ -332,6 +352,55 @@
   backdrop-filter: blur(14px);
   z-index: 30;
   overflow-y: auto;
+}
+
+.patient-theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(206, 220, 243, 0.92);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+}
+
+.patient-theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(11, 122, 114, 0.28);
+}
+
+.patient-theme-toggle-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--surface-teal) 0%, var(--surface-teal-dark) 100%);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.patient-theme-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.patient-theme-toggle-copy strong {
+  color: var(--text);
+  font-size: 0.94rem;
+}
+
+.patient-theme-toggle-copy small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .sidebar-brand {
@@ -2989,6 +3058,130 @@
 .modal-card input {
   max-width: none;
   margin-bottom: 14px;
+}
+
+.dark-mode .dashboard-modal-card,
+.dark-mode .patient-dashboard-loading-card,
+.dark-mode .patient-sidebar,
+.dark-mode .home-card,
+.dark-mode .section,
+.dark-mode .appointment-card,
+.dark-mode .recording-card,
+.dark-mode .modal-card {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dark-mode .dashboard-modal-backdrop,
+.dark-mode .modal-overlay {
+  background: rgba(3, 10, 18, 0.62);
+}
+
+.dark-mode .dashboard-modal-close,
+.dark-mode .patient-sidebar-toggle,
+.dark-mode .ghost-link-btn,
+.dark-mode .btn-cancel {
+  border-color: var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.dark-mode .dashboard-modal-option,
+.dark-mode .profile-subcard,
+.dark-mode .score-stat-card,
+.dark-mode .reminder-spotlight-item,
+.dark-mode .appointment-summary-card {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
+.dark-mode .dashboard-modal-option.selected,
+.dark-mode .sidebar-item.active {
+  background: rgba(91, 224, 209, 0.14);
+  border-color: rgba(91, 224, 209, 0.28);
+}
+
+.dark-mode .subcard-qr,
+.dark-mode .activity-ring-inner {
+  border-color: var(--border);
+  background: rgba(8, 19, 31, 0.84);
+}
+
+.dark-mode .patient-theme-toggle {
+  border-color: var(--border);
+  background: linear-gradient(180deg, rgba(20, 35, 52, 0.98) 0%, rgba(12, 24, 37, 0.98) 100%);
+}
+
+.dark-mode .sidebar-item,
+.dark-mode .sidebar-footer-link,
+.dark-mode .sidebar-brand-copy span,
+.dark-mode .home-card-title,
+.dark-mode .section-title,
+.dark-mode .reminder-updated-label,
+.dark-mode .subcard-label {
+  color: var(--text-secondary);
+}
+
+.dark-mode .sidebar-item:hover,
+.dark-mode .sidebar-footer-link:hover {
+  background: rgba(91, 224, 209, 0.1);
+  color: var(--surface-teal);
+}
+
+.dark-mode .sidebar-brand-copy strong,
+.dark-mode .topbar-logo,
+.dark-mode .profile-copy h3,
+.dark-mode .appointment-person-copy h3,
+.dark-mode .dashboard-modal-header h3 {
+  color: var(--text);
+}
+
+.dark-mode .dashboard-header p,
+.dark-mode .section-intro p,
+.dark-mode .tab-content p,
+.dark-mode .dashboard-modal-header p,
+.dark-mode .profile-copy p,
+.dark-mode .appointment-person-copy p,
+.dark-mode .reminder-spotlight-copy span {
+  color: var(--text-secondary);
+}
+
+.dark-mode .error-message {
+  border-color: rgba(255, 107, 141, 0.28);
+  background: rgba(95, 18, 38, 0.34);
+  color: #ffc4d1;
+}
+
+.dark-mode .topbar-search,
+.dark-mode .modal-card input,
+.dark-mode .dashboard-modal-option input,
+.dark-mode input,
+.dark-mode select,
+.dark-mode textarea {
+  background-color: var(--surface-soft);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.dark-mode input::placeholder,
+.dark-mode textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.dark-mode .notification-dot {
+  box-shadow: 0 0 0 4px rgba(15, 27, 42, 0.92);
+}
+
+.dark-mode .recording-wave-card,
+.dark-mode .recording-transcript-box,
+.dark-mode .recordings-assistance-card,
+.dark-mode .quick-action-card,
+.dark-mode .mini-card,
+.dark-mode .wallet-balance-card,
+.dark-mode .wallet-insight-card {
+  border-color: var(--border);
+  background: var(--surface-soft);
 }
 
 @media (max-width: 1380px) {

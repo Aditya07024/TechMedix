@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import {
   appointmentAPI,
   prescriptionAPI,
@@ -42,6 +43,7 @@ import {
   MessageSquareText,
   Mic,
   MoonStar,
+  Sun,
   Pill,
   Play,
   Plus,
@@ -250,6 +252,7 @@ const getMedicineDisplayName = (medicine) =>
  */
 export default function PatientDashboard() {
   const { user } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [qrData, setQrData] = useState(null);
@@ -1643,6 +1646,24 @@ export default function PatientDashboard() {
               <span>Clinical sanctuary</span>
             </div>
           </div>
+          <button
+            type="button"
+            className="patient-theme-toggle"
+            onClick={toggleTheme}
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <span className="patient-theme-toggle-icon">
+              {isDarkMode ? (
+                <Sun size={18} strokeWidth={2} />
+              ) : (
+                <MoonStar size={18} strokeWidth={2} />
+              )}
+            </span>
+            <span className="patient-theme-toggle-copy">
+              <strong>{isDarkMode ? "Light mode" : "Dark mode"}</strong>
+              <small>{isDarkMode ? "Use the brighter dashboard palette" : "Switch to a low-light palette"}</small>
+            </span>
+          </button>
           <div className="sidebar-nav">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -1691,7 +1712,6 @@ export default function PatientDashboard() {
                 <div className="home-card profile-card">
                   <div className="profile-card-main">
                     <div className="profile-avatar">{patientInitial}</div>
-                    
                     <div className="profile-copy">
                       <strong>{user?.name || "Patient Name"}</strong>
                       <p>Patient ID: #{String(user?.id || "TM-8829-01").slice(0, 12)}</p>
