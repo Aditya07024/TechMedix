@@ -10,7 +10,7 @@
   --wallet-shadow: 0 10px 24px rgba(33, 50, 70, 0.06);
   max-width: 1120px;
   margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: clamp(18px, 2.2vw, 28px) clamp(14px, 2vw, 24px) 48px;
   color: var(--wallet-ink);
 }
 
@@ -128,6 +128,7 @@
 .upload-label {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 14px;
   min-height: 84px;
   padding: 16px 18px;
@@ -162,7 +163,7 @@
 }
 
 .upload-btn {
-  min-width: 220px;
+  min-width: min(220px, 100%);
   border: none;
   border-radius: 12px;
   padding: 14px 20px;
@@ -210,6 +211,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -380,6 +382,7 @@
 
 .doc-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 8px;
 }
@@ -424,6 +427,10 @@
   .wallet-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .upload-btn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -462,5 +469,25 @@
 
   .doc-preview {
     height: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+  .wallet-header-copy p {
+    font-size: 0.9rem;
+  }
+
+  .upload-intro h2,
+  .section-heading h2 {
+    font-size: 1.05rem;
+  }
+
+  .pending-file-name,
+  .doc-name {
+    word-break: break-word;
+  }
+
+  .doc-preview {
+    height: 180px;
   }
 }

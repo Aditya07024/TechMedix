@@ -225,8 +225,11 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
                   Additional clinic instructions will appear here when available.
                 </p>
                 <div className="queue-prep-actions">
-                  <button type="button" className="queue-update-btn">
-                    Update Records
+                  <button
+                    type="button"
+                    className="queue-update-btn"
+                    onClick={() => navigate("/form")}
+                  > Update Records
                   </button>
                   <button type="button" className="queue-link-btn">
                     How it works

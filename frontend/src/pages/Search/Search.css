@@ -1,5 +1,5 @@
 .search-page {
-  padding: 2rem;
+  padding: clamp(1rem, 2vw, 2rem);
   min-height: 80vh;
   background-color: var(--background-color);
   color: var(--text-color);
@@ -36,6 +36,7 @@
 
 .search-inputs-container {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
 }
@@ -130,8 +131,10 @@
 
 .results-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
@@ -405,6 +408,7 @@
 
 .price-insight-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
 }
@@ -464,6 +468,10 @@
     grid-template-columns: 1fr;
   }
 
+  .grid-left {
+    max-height: none;
+  }
+
   .filters-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -498,5 +506,60 @@
 
   .detail-hero img {
     height: 220px;
+  }
+
+  .detail-hero h1 {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .search-page {
+    padding: 0.75rem;
+  }
+
+  .search-section h2 {
+    font-size: 1.5rem;
+  }
+
+  .heading-div h1 {
+    font-size: 1.35rem;
+  }
+
+  .medicine-content {
+    flex-direction: column;
+  }
+
+  .medicine-content img {
+    width: 100%;
+    max-width: 84px;
+    height: 84px;
+  }
+
+  .pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-bar button {
+    width: 100%;
+  }
+
+  .detail-hero {
+    gap: 1rem;
+  }
+
+  .detail-hero img {
+    height: 180px;
+  }
+
+  .detail-price {
+    font-size: 1.2rem;
+  }
+
+  .tag,
+  .detail-pill {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 }

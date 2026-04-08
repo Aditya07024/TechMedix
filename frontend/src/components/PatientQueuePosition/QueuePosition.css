@@ -467,3 +467,29 @@
     text-align: left;
   }
 }
+
+@media (max-width: 540px) {
+  .queue-position-container {
+    padding: 0;
+  }
+
+  .queue-status-card,
+  .queue-prep-card,
+  .queue-side-card {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .queue-token-block,
+  .queue-doctor-card {
+    grid-template-columns: 1fr;
+    display: grid;
+    gap: 12px;
+  }
+
+  .queue-view-btn,
+  .queue-update-btn,
+  .queue-link-btn {
+    width: 100%;
+  }
+}

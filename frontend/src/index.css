@@ -56,20 +56,29 @@ body {
   overflow-x: hidden;
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
 a {
   text-decoration: none;
   color: inherit;
 }
 
 .app {
-  width: 80%;
-  margin: auto;
+  width: min(100%, 1440px);
+  margin: 0 auto;
   padding-top: 78px;
+  padding-left: clamp(12px, 2vw, 24px);
+  padding-right: clamp(12px, 2vw, 24px);
 }
 
 .app.landing-app {
   width: 100%;
   padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 @keyframes fadeIn {
   0% {
@@ -77,21 +86,6 @@ a {
   }
   100% {
     opacity: 1;
-  }
-}
-
-.navbar-item {
-  align-items: flex-start;
-  flex-direction: column;
-}
-
-.navbar-menu {
-  width: 90%;
-}
-
-.app {
-  @media (max-width: 768px) {
-    background-color: #d0e1e0a9;
   }
 }
 
@@ -258,16 +252,28 @@ html {
 
 @media (max-width: 768px) {
   html {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   :root {
     --container-padding: 1rem;
   }
+
+  .app {
+    padding-top: 72px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 
 @media (max-width: 480px) {
   html {
-    font-size: 12px;
+    font-size: 14px;
+  }
+
+  .app {
+    padding-top: 68px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }

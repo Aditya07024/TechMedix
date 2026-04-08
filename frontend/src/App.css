@@ -1,13 +1,15 @@
 #root {
-  max-width: 1280px;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 0;
+  text-align: left;
 }
 
 .app {
-    width: 100%;  /* Changed from 80% to 100% */
-    margin: 0;    /* Remove auto margins */
+  width: 100%;
+  margin: 0;
 }
 
 .logo {

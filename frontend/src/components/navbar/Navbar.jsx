@@ -6,10 +6,12 @@ import { useTheme } from "../../context/ThemeContext";
 import Button from "@mui/material/Button";
 import Aipop from "../../components/AiPop/Aipop";
 import { useAuth } from "../../context/AuthContext";
+import { Menu, X } from "lucide-react";
 
 const Navbar = ({ setShowLogin }) => {
   const [askAi, setAskAi] = useState(false);
   const [menu, setMenu] = useState("home");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isDarkMode, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -31,11 +33,47 @@ const Navbar = ({ setShowLogin }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   // ✅ REDIRECT TO UPLOAD PAGE
   const handleUploadRedirect = () => {
     setShowProfileMenu(false);
     navigate("/upload-prescription");
   };
+
+  const navLinks = [
+    isAuthenticated && user?.role === "patient"
+      ? {
+          key: "dashboard",
+          to: "/dashboard",
+          label: "Patient Dashboard",
+        }
+      : null,
+    isAuthenticated && user?.role === "doctor"
+      ? {
+          key: "doctor-dashboard",
+          to: "/doctor/dashboard",
+          label: "Doctor Dashboard",
+        }
+      : null,
+    {
+      key: "search-for-medicine",
+      to: "/search",
+      label: "Search for medicine",
+    },
+    {
+      key: "reminders",
+      to: "/reminders",
+      label: "Reminders",
+    },
+    {
+      key: "health-tips",
+      to: "/health-tips",
+      label: "Health Tips",
+    },
+  ].filter(Boolean);
 
   return (
     <div className={`navbar ${isPatientDashboard ? "navbar-fixed-dashboard" : ""}`}>
@@ -45,43 +83,17 @@ const Navbar = ({ setShowLogin }) => {
         <img src={assets.logo} alt="logo" className="logo" />
       </Link>
 
-      <ul className="navbar-menu">
-        {isAuthenticated && user?.role === "patient" && (
+      <ul className={`navbar-menu ${mobileMenuOpen ? "open" : ""}`}>
+        {navLinks.map((item) => (
           <Link
-            to="/dashboard"
-            onClick={() => setMenu("dashboard")}
-            className={menu === "dashboard" ? "active" : ""}
+            key={item.key}
+            to={item.to}
+            onClick={() => setMenu(item.key)}
+            className={menu === item.key ? "active" : ""}
           >
-            Patient Dashboard
+            {item.label}
           </Link>
-        )}
-
-        {isAuthenticated && user?.role === "doctor" && (
-          <Link
-            to="/doctor/dashboard"
-            onClick={() => setMenu("doctor-dashboard")}
-            className={menu === "doctor-dashboard" ? "active" : ""}
-          >
-            Doctor Dashboard
-          </Link>
-        )}
-
-        <Link to="/search" onClick={() => setMenu("search-for-medicine")}>
-          Search for medicine
-        </Link>
-
-        <Link to="/reminders" onClick={() => setMenu("reminders")}>
-          💊 Reminders
-        </Link>
-
-        {/* <a href="#buy-products" onClick={() => setMenu("buy-products")}>
-          Buy Products
-        </a> */}
-
-        <Link to="/health-tips" onClick={() => setMenu("health-tips")}>
-          Health Tips
-        </Link>
-
+        ))}
       </ul>
 
       <div className="navbar-right">
@@ -159,6 +171,16 @@ const Navbar = ({ setShowLogin }) => {
             )}
           </div>
         )}
+
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen((current) => !current)}
+          aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={mobileMenuOpen}
+        >
+          {mobileMenuOpen ? <X size={20} strokeWidth={2.2} /> : <Menu size={20} strokeWidth={2.2} />}
+        </button>
       </div>
     </div>
   );

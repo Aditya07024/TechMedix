@@ -54,6 +54,7 @@ import {
   Stethoscope,
   Trash2,
   Wallet,
+  X,
 } from "lucide-react";
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -271,6 +272,7 @@ export default function PatientDashboard() {
   const [healthChatOpen, setHealthChatOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [recordings, setRecordings] = useState([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [recordingTranscripts, setRecordingTranscripts] = useState({});
   const [transcribingIds, setTranscribingIds] = useState({});
   const [metricsRefresh, setMetricsRefresh] = useState(0);
@@ -1612,8 +1614,26 @@ export default function PatientDashboard() {
           onClose={() => setHealthChatOpen(false)}
         />
       )}
+      <button
+        type="button"
+        className="patient-sidebar-toggle"
+        onClick={() => setSidebarOpen((current) => !current)}
+        aria-label={sidebarOpen ? "Close dashboard menu" : "Open dashboard menu"}
+        aria-expanded={sidebarOpen}
+      >
+        {sidebarOpen ? <X size={18} strokeWidth={2.2} /> : <Menu size={18} strokeWidth={2.2} />}
+        <span>Menu</span>
+      </button>
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="patient-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close dashboard menu overlay"
+        />
+      ) : null}
       <div className="patient-layout">
-        <aside className="patient-sidebar">
+        <aside className={`patient-sidebar ${sidebarOpen ? "open" : ""}`}>
           <div className="sidebar-brand sidebar-brand-card">
             <div className="sidebar-avatar">
               <img src={assets.logo} alt="TechMedix logo" />
@@ -1632,7 +1652,10 @@ export default function PatientDashboard() {
                 <button
                   key={item.id}
                   className={`sidebar-item ${isActive ? "active" : ""}`}
-                  onClick={item.action}
+                  onClick={() => {
+                    item.action();
+                    setSidebarOpen(false);
+                  }}
                 >
                   <span className="sidebar-icon">
                     <Icon size={18} strokeWidth={2} />
@@ -2321,10 +2344,20 @@ export default function PatientDashboard() {
                 <h2>Patient Performance Hub</h2>
                 <p>Last updated: {latestRecordDateLabel}</p>
               </div>
-              <button type="button" className="action-btn" onClick={handleDownloadReport}>
-                <Download size={16} strokeWidth={2} />
-                Download Report
-              </button>
+              <div className="section-intro-actions">
+                <button type="button" className="action-btn" onClick={() => navigate("/form")}>
+                  <Plus size={16} strokeWidth={2} />
+                  Add New Data
+                </button>
+                <button type="button" className="action-btn" onClick={() => navigate("/health-wallet")}>
+                  <FolderHeart size={16} strokeWidth={2} />
+                  View All Records
+                </button>
+                <button type="button" className="action-btn" onClick={handleDownloadReport}>
+                  <Download size={16} strokeWidth={2} />
+                  Download Report
+                </button>
+              </div>
             </div>
 
             <div className="records-reference-layout">

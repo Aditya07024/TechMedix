@@ -293,6 +293,28 @@
   position: relative;
 }
 
+.patient-sidebar-toggle {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(224, 232, 244, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(43, 72, 120, 0.08);
+  position: relative;
+  z-index: 1001;
+}
+
+.patient-sidebar-backdrop {
+  display: none;
+}
+
 .patient-sidebar {
   position: fixed;
   top: 100px;
@@ -565,6 +587,13 @@
   justify-content: space-between;
   gap: 18px;
   margin: 0 0 24px;
+}
+
+.section-intro-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .top-cta-btn,
@@ -2999,12 +3028,34 @@
     display: block;
   }
 
+  .patient-sidebar-toggle {
+    display: inline-flex;
+  }
+
   .patient-sidebar {
-    /* margin-top: 50px; */
-    position: static;
-    width: auto;
-    height: auto;
+    position: fixed;
+    top: 98px;
+    left: 12px;
+    width: min(280px, calc(100vw - 40px));
+    height: calc(100vh - 116px);
     min-height: auto;
+    transform: translateX(calc(-100% - 16px));
+    transition: transform 0.25s ease;
+    z-index: 1002;
+  }
+
+  .patient-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .patient-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    border: none;
+    background: rgba(13, 25, 51, 0.38);
+    backdrop-filter: blur(3px);
+    z-index: 1000;
   }
 
   .dashboard-content {
@@ -3079,5 +3130,10 @@
   .section-intro {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .patient-sidebar {
+    top: 124px;
+    height: calc(100vh - 142px);
   }
 }
