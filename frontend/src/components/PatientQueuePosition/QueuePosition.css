@@ -308,12 +308,45 @@
   color: #0b7a72;
 }
 
-.queue-checkin-card span {
-  color: #58656f;
-  font-size: 0.84rem;
+.queue-checkin-qr {
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.queue-checkin-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 0 22px;
+  border: 1px solid #bfe2dd;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f2fffc 0%, #dff7f2 100%);
+  box-shadow: 0 12px 28px rgba(11, 122, 114, 0.14);
+  color: #085f59;
+  font-family: inherit;
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  line-height: 1.5;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.queue-checkin-link:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #f8fffd 0%, #e8fbf7 100%);
+  box-shadow: 0 16px 32px rgba(11, 122, 114, 0.18);
+}
+
+.queue-checkin-link:focus-visible {
+  outline: 3px solid rgba(11, 122, 114, 0.24);
+  outline-offset: 3px;
 }
 
 .queue-side-column {

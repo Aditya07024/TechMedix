@@ -5,17 +5,16 @@ import { API_BASE_URL } from "../../utils/apiBase";
 import { useNavigate } from "react-router-dom";
 import { assets } from "../../assets/assets";
 import {
-  Clock3,
   ExternalLink,
-  QrCode,
   ShieldCheck,
-  Stethoscope,
   Ticket,
   Wifi,
 } from "lucide-react";
 import "./QueuePosition.css";
 
 export default function PatientQueuePosition({ appointmentId, patientId }) {
+  const mobileCheckInQrUrl =
+    "https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ";
   const navigate = useNavigate();
   const [queuePosition, setQueuePosition] = useState(null);
   const [estimatedWait, setEstimatedWait] = useState(null);
@@ -237,8 +236,19 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
                 </div>
               </div>
               <div className="queue-checkin-card">
-                <QrCode size={54} strokeWidth={1.8} />
-                <span>Mobile Check-In</span>
+                <img
+                  src={assets.techmedix_apk_qr}
+                  alt="Mobile check-in QR code"
+                  className="queue-checkin-qr"
+                />
+                <button
+                  type="button"
+                  className="queue-checkin-link"
+                  onClick={() => window.open(mobileCheckInQrUrl, "_blank", "noopener,noreferrer")}
+                >
+                  Download Mobile app
+                  <ExternalLink size={16} strokeWidth={2} />
+                </button>
               </div>
             </div>
           </div>

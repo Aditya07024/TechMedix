@@ -19,6 +19,7 @@ import doctor_ai_icon from "./doctor-ai-icon.png";
 import female_avatar from "./female_avatar.jpg"
 import male_avatar from "./male_avatar.jpg"
 import landingphoto from "./landingphoto.jpg";
+import techmedix_apk_qr from "./TechMedix APK.png";
 
 // Social media icons
 import linkedin from "./linkedin.png";
@@ -50,6 +51,7 @@ export const assets = {
   landingphoto,
   male_avatar,
   female_avatar,
+  techmedix_apk_qr,
   // Icons
   doctor_ai_icon,
   chatgpt,
