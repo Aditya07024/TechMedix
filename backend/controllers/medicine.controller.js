@@ -127,6 +127,11 @@ export async function getMedicineById(req, res) {
     }
 
     const medicine = await getMedicineByIdFromDb(medicineId);
+    console.log("[medicine:getById] controller response", {
+      medicineId,
+      payload: medicine,
+    });
+
     if (!medicine) {
       return res.status(404).json({
         success: false,

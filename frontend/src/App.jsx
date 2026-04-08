@@ -35,6 +35,7 @@ import XRayAnalyzer from "./pages/XRayAnalyzer/XRayAnalyzer";
 import XRayHistory from "./pages/XRayHistory/XRayHistory";
 import AppointmentHistory from "./pages/AppointmentHistory/AppointmentHistory";
 import QueueFullPage from "./pages/QueueFullPage/QueueFullPage";
+import LiquidGlassDemo from "./pages/LiquidGlassDemo/LiquidGlassDemo";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -56,7 +57,7 @@ const App = () => {
         {location.pathname !== "/" && <Navbar setShowLogin={setShowLogin} />}
 
         <Routes>
-          <Route path="/" element={<Landingpage />} />
+          <Route path="/" element={<Landingpage setShowLogin={setShowLogin} />} />
           <Route path="/home" element={<Home />} />
           <Route path="/wishlist" element={<WishList />} />
           <Route path="/view" element={<ProductView />} />
@@ -175,6 +176,7 @@ const App = () => {
 
           {/* 📄 TERMS & CONDITIONS */}
           <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/ui/liquid-glass" element={<LiquidGlassDemo />} />
 
           {/* 🔥 FALLBACK */}
           <Route path="*" element={<Notfound />} />

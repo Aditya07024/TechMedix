@@ -21,6 +21,39 @@ const initialFilters = {
   habit_forming: "",
 };
 
+function normalizeDetailList(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // Fall back to splitting on common delimiters.
+    }
+
+    return trimmed
+      .split(/\r?\n|,|;/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 const Search = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,7 +120,7 @@ const Search = () => {
         try {
           const response = await getMedicines({
             page: 1,
-            limit: 10,
+            limit: 20,
             search: trimmedMedicine,
           });
 
@@ -186,6 +219,15 @@ const Search = () => {
         const list = response?.data ?? [];
         const nextPagination = response?.pagination ?? pagination;
 
+        console.log("Medicine list response:", {
+          query: appliedQuery,
+          saltQuery: appliedSaltQuery,
+          filters,
+          pagination: nextPagination,
+          count: list.length,
+          medicines: list,
+        });
+
         if (
           list.length === 0 &&
           appliedQuery &&
@@ -208,7 +250,7 @@ const Search = () => {
               setPagination((current) => ({
                 ...current,
                 page: 1,
-                limit: 1,
+                limit: 20,
                 total: 1,
                 totalPages: 1,
               }));
@@ -272,6 +314,11 @@ const Search = () => {
       try {
         setDetailsLoading(true);
         const response = await getMedicineById(selectedMedicineId);
+        console.log("Selected medicine details response:", {
+          selectedMedicineId,
+          payload: response?.data ?? null,
+          rawResponse: response,
+        });
 
         if (!isMounted) {
           return;
@@ -320,6 +367,29 @@ const Search = () => {
       ],
     ].filter(([, value]) => value);
   }, [selectedMedicine]);
+
+  const detailUses = useMemo(
+    () => normalizeDetailList(selectedMedicine?.uses ?? selectedMedicine?.usage),
+    [selectedMedicine],
+  );
+
+  const detailSideEffects = useMemo(
+    () =>
+      normalizeDetailList(
+        selectedMedicine?.side_effects ?? selectedMedicine?.sideeffects,
+      ),
+    [selectedMedicine],
+  );
+
+  const detailSalts = useMemo(
+    () => normalizeDetailList(selectedMedicine?.salts ?? selectedMedicine?.salt),
+    [selectedMedicine],
+  );
+
+  const detailSubstitutes = useMemo(
+    () => normalizeDetailList(selectedMedicine?.substitutes),
+    [selectedMedicine],
+  );
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -831,11 +901,11 @@ const Search = () => {
                 </div>
 
                 <div className="detail-pill-sections">
-                  {selectedMedicine.salts?.length ? (
+                  {detailSalts.length ? (
                     <div className="pill-section">
                       <h4>Salts</h4>
                       <div className="pill-list">
-                        {selectedMedicine.salts.map((item) => (
+                        {detailSalts.map((item) => (
                           <span key={`salt-${item}`} className="detail-pill">
                             {item}
                           </span>
@@ -844,11 +914,11 @@ const Search = () => {
                     </div>
                   ) : null}
 
-                  {selectedMedicine.uses?.length ? (
+                  {detailUses.length ? (
                     <div className="pill-section">
                       <h4>Uses</h4>
                       <div className="pill-list">
-                        {selectedMedicine.uses.map((item) => (
+                        {detailUses.map((item) => (
                           <span key={`use-${item}`} className="detail-pill">
                             {item}
                           </span>
@@ -857,11 +927,11 @@ const Search = () => {
                     </div>
                   ) : null}
 
-                  {selectedMedicine.side_effects?.length ? (
+                  {detailSideEffects.length ? (
                     <div className="pill-section">
                       <h4>Side Effects</h4>
                       <div className="pill-list">
-                        {selectedMedicine.side_effects.map((item) => (
+                        {detailSideEffects.map((item) => (
                           <span key={`effect-${item}`} className="detail-pill warning">
                             {item}
                           </span>
@@ -890,11 +960,11 @@ const Search = () => {
                         ))}
                       </div>
                     </div>
-                  ) : selectedMedicine.substitutes?.length ? (
+                  ) : detailSubstitutes.length ? (
                     <div className="pill-section">
                       <h4>Substitutes</h4>
                       <div className="substitute-link-list">
-                        {selectedMedicine.substitutes.map((item) => (
+                        {detailSubstitutes.map((item) => (
                           <button
                             key={`substitute-${item}`}
                             type="button"

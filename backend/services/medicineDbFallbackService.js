@@ -93,6 +93,58 @@ function normalizeStringArray(value) {
   return [];
 }
 
+function firstPresentValue(row, keys) {
+  for (const key of keys) {
+    const value = row?.[key];
+
+    if (Array.isArray(value) && value.length > 0) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+      return value;
+    }
+
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function collectSeriesValues(row, keys) {
+  return keys
+    .map((key) => row?.[key])
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
+function buildIndexedKeys(prefix, count) {
+  return Array.from({ length: count + 1 }, (_, index) => `${prefix}${index}`);
+}
+
+function normalizeHabitFormingValue(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (["true", "1", "yes"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "0", "no"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return null;
+}
+
 async function buildSubstituteLookupQuery(names) {
   const clauses = [];
   const params = [];
@@ -360,31 +412,6 @@ export async function getMedicinesFromDb({
 }
 
 export async function getMedicineByIdFromDb(id) {
-  const selectList = await buildMedicineSelect([
-    "id",
-    "name",
-    "salt",
-    "salts",
-    "substitutes",
-    "side_effects",
-    "uses",
-    "chemical_class",
-    "habit_forming",
-    "therapeutic_class",
-    "action_class",
-    "working",
-    "safetyadvice",
-    "price",
-    "usage",
-    "image",
-    "link",
-    "info",
-    "benefits",
-    "sideeffects",
-    "category",
-    "created_at",
-    "updated_at",
-  ]);
   const whereClauses = ["id = $1"];
   if (await medicinesHasIsDeletedColumn()) {
     whereClauses.push("is_deleted = false");
@@ -393,7 +420,7 @@ export async function getMedicineByIdFromDb(id) {
   const rows = await sql.query(
     `
       SELECT
-        ${selectList}
+        *
       FROM medicines
       WHERE ${whereClauses.join(" AND ")}
       LIMIT 1
@@ -402,17 +429,44 @@ export async function getMedicineByIdFromDb(id) {
   );
 
   const medicine = rows[0] ?? null;
+  console.log("[medicine:getById] raw row from DB", {
+    id,
+    rowFound: Boolean(medicine),
+    row: medicine,
+  });
+
   if (!medicine) {
     return null;
   }
 
-  const salts = normalizeStringArray(medicine.salts);
-  const substituteNames = normalizeStringArray(medicine.substitutes);
-  const sideEffects = normalizeStringArray(medicine.side_effects);
-  const uses = normalizeStringArray(medicine.uses);
+  const salts = normalizeStringArray(
+    firstPresentValue(medicine, ["salts", "salt"]),
+  );
+  const substituteNames = normalizeStringArray(
+    firstPresentValue(medicine, ["substitutes"]),
+  );
+  const legacySubstitutes = collectSeriesValues(
+    medicine,
+    buildIndexedKeys("substitute", 4),
+  );
+  const sideEffects = normalizeStringArray(
+    firstPresentValue(medicine, ["side_effects", "sideeffects"]),
+  );
+  const legacySideEffects = collectSeriesValues(medicine, [
+    ...buildIndexedKeys("sideEffect", 41),
+    ...buildIndexedKeys("sideeffect", 41),
+  ]);
+  const uses = normalizeStringArray(firstPresentValue(medicine, ["uses", "usage"]));
+  const legacyUses = collectSeriesValues(medicine, buildIndexedKeys("use", 4));
+
+  const normalizedSubstitutes =
+    substituteNames.length > 0 ? substituteNames : legacySubstitutes;
+  const normalizedSideEffects =
+    sideEffects.length > 0 ? sideEffects : legacySideEffects;
+  const normalizedUses = uses.length > 0 ? uses : legacyUses;
 
   let substituteDetails = [];
-  const substituteQuery = await buildSubstituteLookupQuery(substituteNames);
+  const substituteQuery = await buildSubstituteLookupQuery(normalizedSubstitutes);
   if (substituteQuery) {
     substituteDetails = await sql.query(
       substituteQuery.query,
@@ -420,14 +474,37 @@ export async function getMedicineByIdFromDb(id) {
     );
   }
 
-  return {
+  const normalizedMedicine = {
     ...medicine,
-    salts: salts.length > 0 ? salts : normalizeStringArray(medicine.salt),
-    substitutes: substituteNames,
+    salt: firstPresentValue(medicine, ["salt"]) ?? (salts[0] ?? null),
+    salts,
+    substitutes: normalizedSubstitutes,
     substitute_details: substituteDetails,
-    side_effects: sideEffects,
-    uses,
+    side_effects: normalizedSideEffects,
+    uses: normalizedUses,
+    chemical_class: firstPresentValue(medicine, [
+      "chemical_class",
+      "Chemical Class",
+    ]),
+    therapeutic_class: firstPresentValue(medicine, [
+      "therapeutic_class",
+      "Therapeutic Class",
+    ]),
+    action_class: firstPresentValue(medicine, [
+      "action_class",
+      "Action Class",
+    ]),
+    habit_forming: normalizeHabitFormingValue(
+      firstPresentValue(medicine, ["habit_forming", "Habit Forming"]),
+    ),
   };
+
+  console.log("[medicine:getById] normalized payload", {
+    id,
+    payload: normalizedMedicine,
+  });
+
+  return normalizedMedicine;
 }
 
 export async function searchMedicinesInDb(query) {
