@@ -166,7 +166,7 @@
   border: none;
   border-radius: 12px;
   padding: 14px 20px;
-  background: var(--wallet-accent);
+  /* background: var(--wallet-accent); */
   color: #fff;
   font-weight: 700;
   font-size: 0.95rem;

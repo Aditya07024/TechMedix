@@ -65,19 +65,6 @@ const prescriptionAgent = {
         confidence: typeof m.confidence === "number" ? m.confidence : 0.8,
       }));
 
-      if (parsed.medicines.length === 0) {
-        parsed.medicines = [
-          {
-            medicine_name: "UNKNOWN (Manual Review Required)",
-            dosage: null,
-            frequency: null,
-            duration: null,
-            instructions: null,
-            confidence: 0.25,
-          },
-        ];
-      }
-
       /* ───── CLEAN OLD DATA (SOFT SAFE) ───── */
       await tx`
         DELETE FROM prescription_medicines
@@ -111,7 +98,7 @@ const prescriptionAgent = {
       /* ───── MARK COMPLETE ───── */
       await tx`
         UPDATE prescriptions
-        SET status = 'visited',
+        SET status = ${parsed.medicines.length > 0 ? "visited" : "manual_review"},
             processed_at = NOW()
         WHERE id = ${prescriptionId}
       `;

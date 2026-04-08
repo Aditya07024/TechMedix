@@ -73,9 +73,8 @@ router.get(
       return res.status(404).json({ error: "Prescription not found" });
     }
     const medicines = await getMedicinesByPrescription(prescriptionId);
-    res.json({
-      prescription: rows[0],
-      medicines: medicines.map((m) => ({
+    const usableMedicines = medicines
+      .map((m) => ({
         id: m.id,
         medicine_name: m.medicine_name,
         dosage: m.dosage,
@@ -83,7 +82,20 @@ router.get(
         duration: m.duration,
         instructions: m.instructions,
         confidence: m.confidence != null ? Number(m.confidence) : null,
-      })),
+      }))
+      .filter(
+        (medicine) =>
+          medicine.medicine_name &&
+          medicine.medicine_name !== "UNKNOWN (Manual Review Required)",
+      );
+    const prescription = rows[0];
+
+    res.json({
+      prescription,
+      medicines: usableMedicines,
+      manual_review_required:
+        prescription.status === "manual_review" ||
+        (usableMedicines.length === 0 && Boolean(prescription.extracted_text)),
     });
   } catch (err) {
     console.error("❌ Get prescription details failed:", err);

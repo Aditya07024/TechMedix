@@ -89,7 +89,7 @@ const UploadPrescription = () => {
               className="upload-btn"
               disabled={loading}
             >
-              {loading ? "Analyzing..." : "Analyze Prescription"}
+              {loading ? "Uploading Prescription..." : "Upload Prescription"}
             </button>
             {file ? (
               <div className="upload-file-pill">
@@ -98,6 +98,10 @@ const UploadPrescription = () => {
               </div>
             ) : null}
           </div>
+
+          <p className="upload-helper-text">
+            Select a file and click <strong>Upload Prescription</strong> to continue.
+          </p>
 
           {error && <p className="upload-error">{error}</p>}
         </div>

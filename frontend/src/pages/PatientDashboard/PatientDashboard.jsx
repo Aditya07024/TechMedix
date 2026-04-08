@@ -57,6 +57,8 @@ import {
 } from "lucide-react";
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const getQuickActionPrefsKey = (patientId) => `patient-dashboard-quick-actions-${patientId}`;
+const DEFAULT_QUICK_ACTION_IDS = ["upload-prescription", "add-data", "view-history"];
 
 const getDashboardCacheKey = (patientId) =>
   `patient-dashboard-cache-${patientId}`;
@@ -91,6 +93,33 @@ const writeDashboardCache = (patientId, data) => {
     );
   } catch (error) {
     console.error("Failed to write patient dashboard cache:", error);
+  }
+};
+
+const readQuickActionPrefs = (patientId) => {
+  if (!patientId) return DEFAULT_QUICK_ACTION_IDS;
+
+  try {
+    const raw = localStorage.getItem(getQuickActionPrefsKey(patientId));
+    if (!raw) return DEFAULT_QUICK_ACTION_IDS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_QUICK_ACTION_IDS;
+  } catch (error) {
+    console.error("Failed to read dashboard quick action preferences:", error);
+    return DEFAULT_QUICK_ACTION_IDS;
+  }
+};
+
+const writeQuickActionPrefs = (patientId, quickActionIds) => {
+  if (!patientId) return;
+
+  try {
+    localStorage.setItem(
+      getQuickActionPrefsKey(patientId),
+      JSON.stringify(quickActionIds),
+    );
+  } catch (error) {
+    console.error("Failed to write dashboard quick action preferences:", error);
   }
 };
 
@@ -251,6 +280,9 @@ export default function PatientDashboard() {
   const [interactionCheckLoading, setInteractionCheckLoading] = useState(false);
   const [interactionCheckResult, setInteractionCheckResult] = useState(null);
   const [interactionCheckNonce, setInteractionCheckNonce] = useState(0);
+  const [showCustomizeGridModal, setShowCustomizeGridModal] = useState(false);
+  const [savedQuickActionIds, setSavedQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
+  const [draftQuickActionIds, setDraftQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
 
   const refreshNotifications = async (patientId) => {
     if (!patientId) return [];
@@ -487,6 +519,10 @@ export default function PatientDashboard() {
     } else {
       setLoading(true);
     }
+
+    const quickActionPrefs = readQuickActionPrefs(user.id);
+    setSavedQuickActionIds(quickActionPrefs);
+    setDraftQuickActionIds(quickActionPrefs);
 
     const loaderTimeout = window.setTimeout(() => {
       setLoading(false);
@@ -1022,39 +1058,30 @@ export default function PatientDashboard() {
         new Date(b?.created_at || b?.createdAt || 0) -
         new Date(a?.created_at || a?.createdAt || 0),
     );
-  const nextReminder =
-    medicineReminders.length > 0
-      ? medicineReminders
-          .slice()
-          .sort((a, b) => toReminderDate(a) - toReminderDate(b))[0]
-      : null;
-  const nextReminderTime = nextReminder
-    ? toReminderDate(nextReminder).toLocaleString("en-GB", {
+  const pendingMedicineReminders = medicineReminders.filter(
+    (reminder) => !reminder?.completed?.includes(new Date().toDateString()),
+  );
+  const sortedPendingMedicineReminders = pendingMedicineReminders
+    .slice()
+    .sort((a, b) => toReminderDate(a) - toReminderDate(b));
+  const reminderSpotlightItems = [
+    ...sortedPendingMedicineReminders.map((reminder) => ({
+      id: `medicine-${reminder.id || reminder.medicine}`,
+      type: "medicine",
+      reminderId: reminder.id,
+      icon: Pill,
+      title: reminder.medicine,
+      subtitle: reminder.dosage || "Scheduled medication",
+      metaPrimary: toReminderDate(reminder).toLocaleString("en-GB", {
         day: "2-digit",
         month: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-      })
-    : null;
-  const isReminderTakenToday = nextReminder
-    ? nextReminder.completed?.includes(new Date().toDateString())
-    : false;
-  const reminderSpotlightItems = [
-    ...(nextReminder
-      ? [
-          {
-            id: `medicine-${nextReminder.id || nextReminder.medicine}`,
-            type: "medicine",
-            icon: Pill,
-            title: nextReminder.medicine,
-            subtitle: nextReminder.dosage || "Scheduled medication",
-            metaPrimary: nextReminderTime,
-            metaSecondary: isReminderTakenToday ? "Taken" : "Pending",
-          },
-        ]
-      : []),
-    ...unreadAlerts.slice(0, 2).map((alertItem) => ({
+      }),
+      metaSecondary: "Pending",
+    })),
+    ...unreadAlerts.map((alertItem) => ({
       id: `alert-${alertItem.id}`,
       type: "alert",
       icon: AlertTriangle,
@@ -1070,6 +1097,7 @@ export default function PatientDashboard() {
         hour12: true,
       }),
       metaSecondary: "Unread",
+      alertId: alertItem.id,
     })),
   ];
   const bookedAppointments = appointments.filter((a) => a.status === "booked");
@@ -1380,6 +1408,81 @@ export default function PatientDashboard() {
     { id: "records", label: "Records", action: () => setActiveTab("records") },
     { id: "support", label: "Support", action: () => setHealthChatOpen(true) },
   ];
+  const quickActionOptions = [
+    {
+      id: "book-appointment",
+      label: "Book Appointment",
+      iconClassName: "teal-icon",
+      icon: CalendarDays,
+      action: () => setActiveTab("appointments"),
+    },
+    {
+      id: "upload-prescription",
+      label: "Upload Prescription",
+      iconClassName: "mint-icon",
+      icon: FileText,
+      action: () => navigate("/upload-prescription"),
+    },
+    {
+      id: "add-data",
+      label: "Add New Data",
+      iconClassName: "teal-icon",
+      icon: Plus,
+      action: () => navigate("/form"),
+    },
+    {
+      id: "view-history",
+      label: "View History",
+      iconClassName: "rose-icon",
+      icon: FolderHeart,
+      action: () => navigate("/new/dashboard"),
+    },
+    {
+      id: "prescriptions",
+      label: "My Prescriptions",
+      iconClassName: "mint-icon",
+      icon: Pill,
+      action: () => setActiveTab("prescriptions"),
+    },
+    {
+      id: "records",
+      label: "Health Records",
+      iconClassName: "blue-icon",
+      icon: Activity,
+      action: () => setActiveTab("records"),
+    },
+    {
+      id: "recordings",
+      label: "Voice Recordings",
+      iconClassName: "rose-icon",
+      icon: Mic,
+      action: () => setActiveTab("recordings"),
+    },
+    {
+      id: "wallet",
+      label: "Health Wallet",
+      iconClassName: "teal-icon",
+      icon: Wallet,
+      action: () => setActiveTab("wallet"),
+    },
+    {
+      id: "search-medicine",
+      label: "Search Medicine",
+      iconClassName: "blue-icon",
+      icon: Search,
+      action: () => navigate("/search"),
+    },
+    {
+      id: "appointment-history",
+      label: "Appointment History",
+      iconClassName: "mint-icon",
+      icon: Stethoscope,
+      action: () => navigate("/appointments/history"),
+    },
+  ];
+  const visibleQuickActions = quickActionOptions.filter((item) =>
+    savedQuickActionIds.includes(item.id),
+  );
 
   const handleToggleReminderTaken = (reminderId) => {
     const today = new Date().toDateString();
@@ -1410,8 +1513,99 @@ export default function PatientDashboard() {
     writeMedicineReminders(updatedReminders);
   };
 
+  const handleCompleteSpotlightItem = async (item) => {
+    if (item.type === "medicine" && item.reminderId != null) {
+      handleToggleReminderTaken(item.reminderId);
+      return;
+    }
+
+    if (item.type === "alert" && item.alertId != null) {
+      try {
+        await notificationAPI.markAsRead(item.alertId);
+      } catch (error) {
+        console.error("Failed to mark spotlight alert as read:", error);
+      }
+
+      setNotifications((prev) => prev.filter((notification) => notification.id !== item.alertId));
+    }
+  };
+
+  const handleToggleQuickActionSelection = (quickActionId) => {
+    setDraftQuickActionIds((prev) => {
+      if (prev.includes(quickActionId)) {
+        return prev.filter((id) => id !== quickActionId);
+      }
+
+      return [...prev, quickActionId];
+    });
+  };
+
+  const handleSaveQuickActions = () => {
+    const nextQuickActionIds = draftQuickActionIds.length
+      ? draftQuickActionIds
+      : DEFAULT_QUICK_ACTION_IDS;
+    setSavedQuickActionIds(nextQuickActionIds);
+    writeQuickActionPrefs(user?.id, nextQuickActionIds);
+    setShowCustomizeGridModal(false);
+  };
+
   return (
     <div className="patient-dashboard">
+      {showCustomizeGridModal && (
+        <div className="dashboard-modal-backdrop" onClick={() => setShowCustomizeGridModal(false)}>
+          <div className="dashboard-modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-modal-header">
+              <div>
+                <span className="section-kicker">Customize grid</span>
+                <h3>Choose your quick actions</h3>
+                <p>Save the home shortcuts you want to keep for future visits.</p>
+              </div>
+              <button
+                type="button"
+                className="dashboard-modal-close"
+                onClick={() => setShowCustomizeGridModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="dashboard-modal-options">
+              {quickActionOptions.map((option) => {
+                const OptionIcon = option.icon;
+                const isSelected = draftQuickActionIds.includes(option.id);
+
+                return (
+                  <label
+                    key={option.id}
+                    className={`dashboard-modal-option ${isSelected ? "selected" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleQuickActionSelection(option.id)}
+                    />
+                    <span className={`quick-action-icon ${option.iconClassName}`}>
+                      <OptionIcon size={20} strokeWidth={2} />
+                    </span>
+                    <strong>{option.label}</strong>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="dashboard-modal-actions">
+              <button
+                type="button"
+                className="ghost-link-btn"
+                onClick={() => setDraftQuickActionIds(DEFAULT_QUICK_ACTION_IDS)}
+              >
+                Reset
+              </button>
+              <button type="button" className="action-btn" onClick={handleSaveQuickActions}>
+                Save for future
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {healthChatOpen && (
         <HealthChat
           open={healthChatOpen}
@@ -1592,6 +1786,13 @@ export default function PatientDashboard() {
                               <strong>{item.metaPrimary}</strong>
                               <span>{item.metaSecondary}</span>
                             </div>
+                            <button
+                              type="button"
+                              className="reminder-spotlight-action"
+                              onClick={() => handleCompleteSpotlightItem(item)}
+                            >
+                              Mark as done
+                            </button>
                           </div>
                         );
                       })}
@@ -1671,25 +1872,27 @@ export default function PatientDashboard() {
 
                 <div className="home-bottom-row">
                   <div className="quick-action-grid">
-                    <button className="home-card quick-action-card" onClick={() => navigate("/upload-prescription")}>
-                      <span className="quick-action-icon mint-icon">
-                        <FileText size={22} strokeWidth={2} />
-                      </span>
-                      <strong>Upload Prescription</strong>
-                    </button>
-                    <button className="home-card quick-action-card" onClick={() => navigate("/form")}>
-                      <span className="quick-action-icon teal-icon">
-                        <Plus size={22} strokeWidth={2} />
-                      </span>
-                      <strong>Add New Data</strong>
-                    </button>
-                    <button className="home-card quick-action-card" onClick={() => navigate("/new/dashboard")}>
-                      <span className="quick-action-icon rose-icon">
-                        <FolderHeart size={22} strokeWidth={2} />
-                      </span>
-                      <strong>View History</strong>
-                    </button>
-                    <button className="home-card quick-action-card muted-card" type="button">
+                    {visibleQuickActions.map((item) => {
+                      const ItemIcon = item.icon;
+
+                      return (
+                        <button
+                          key={item.id}
+                          className="home-card quick-action-card"
+                          onClick={item.action}
+                        >
+                          <span className={`quick-action-icon ${item.iconClassName}`}>
+                            <ItemIcon size={22} strokeWidth={2} />
+                          </span>
+                          <strong>{item.label}</strong>
+                        </button>
+                      );
+                    })}
+                    <button
+                      className="home-card quick-action-card muted-card"
+                      type="button"
+                      onClick={() => setShowCustomizeGridModal(true)}
+                    >
                       <span className="quick-action-icon blue-icon">
                         <LayoutGrid size={22} strokeWidth={2} />
                       </span>
