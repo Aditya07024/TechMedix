@@ -1,4 +1,5 @@
 import express from "express";
+import sql from "../config/database.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import * as queueService from "../services/queueManagementService.js";
 import * as smartNotifications from "../services/smartNotificationService.js";

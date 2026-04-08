@@ -304,11 +304,12 @@ export async function sendDoctorDelayNotifications(
 ) {
   // Get all patients in queue for this doctor
   const patients = await sql`
-    SELECT DISTINCT a.patient_id
-    FROM queue_tracking qt
-    JOIN appointments a ON qt.appointment_id = a.id
-    WHERE qt.doctor_id = ${doctorId}
-      AND qt.status IN ('waiting', 'in_progress')
+    SELECT DISTINCT patient_id
+    FROM appointments
+    WHERE doctor_id = ${doctorId}
+      AND appointment_date = CURRENT_DATE
+      AND status IN ('arrived', 'in_progress')
+      AND COALESCE(is_deleted, false) = false
   `;
 
   const notifications = [];
