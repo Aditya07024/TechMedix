@@ -81,9 +81,18 @@ const ProductView = () => {
     return <div className="product-view">Medicine not found.</div>;
   }
 
+  const compositionItems = [
+    medicine.short_composition1,
+    medicine.short_composition2,
+  ].filter(Boolean);
+
   const overviewItems = [
     ["Category", medicine.category],
+    ["Manufacturer", medicine.manufacturer_name],
+    ["Type", medicine.type],
+    ["Pack Size", medicine.pack_size_label],
     ["Salt", medicine.salt],
+    ["Salt Composition", medicine.salt_composition],
     ["Chemical Class", medicine.chemical_class],
     ["Therapeutic Class", medicine.therapeutic_class],
     ["Action Class", medicine.action_class],
@@ -98,18 +107,21 @@ const ProductView = () => {
   ].filter(([, value]) => value);
 
   const detailSections = [
+    ["Description", medicine.medicine_desc],
     ["Information", medicine.info],
     ["Benefits", medicine.benefits],
     ["How It Works", medicine.working],
     ["Usage", medicine.usage],
     ["Safety Advice", medicine.safetyadvice],
+    ["Drug Interactions", medicine.drug_interactions],
     ["Common Side Effects", medicine.sideeffects],
+    ["Side Effects", medicine.side_effects],
   ].filter(([, value]) => value);
 
   const relatedSections = [
+    ["Composition", compositionItems],
     ["Salts", medicine.salts],
     ["Uses", medicine.uses],
-    ["Side Effects", medicine.side_effects],
   ].filter(([, items]) => Array.isArray(items) && items.length > 0);
 
   return (

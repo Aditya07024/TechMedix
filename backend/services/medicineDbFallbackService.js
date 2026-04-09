@@ -246,6 +246,9 @@ export async function getMedicinesFromDb({
   const [
     hasIsDeletedColumn,
     hasSaltColumn,
+    hasShortComposition1Column,
+    hasShortComposition2Column,
+    hasSaltCompositionColumn,
     hasChemicalClassColumn,
     hasTherapeuticClassColumn,
     hasActionClassColumn,
@@ -255,6 +258,9 @@ export async function getMedicinesFromDb({
   ] = await Promise.all([
     medicinesHasIsDeletedColumn(),
     medicineHasColumn("salt"),
+    medicineHasColumn("short_composition1"),
+    medicineHasColumn("short_composition2"),
+    medicineHasColumn("salt_composition"),
     medicineHasColumn("chemical_class"),
     medicineHasColumn("therapeutic_class"),
     medicineHasColumn("action_class"),
@@ -264,6 +270,11 @@ export async function getMedicinesFromDb({
       "id",
       "name",
       "salt",
+      "short_composition1",
+      "short_composition2",
+      "manufacturer_name",
+      "type",
+      "pack_size_label",
       "therapeutic_class",
       "price",
       "image",
@@ -286,9 +297,27 @@ export async function getMedicinesFromDb({
     clauses.push(`name ILIKE ${placeholder}`);
   }
 
-  if (saltSearch && hasSaltColumn) {
+  if (saltSearch && (hasSaltColumn || hasShortComposition1Column || hasShortComposition2Column || hasSaltCompositionColumn)) {
     const placeholder = pushParam(`%${saltSearch}%`);
-    clauses.push(`salt ILIKE ${placeholder}`);
+    const saltClauses = [];
+
+    if (hasSaltColumn) {
+      saltClauses.push(`salt ILIKE ${placeholder}`);
+    }
+
+    if (hasShortComposition1Column) {
+      saltClauses.push(`short_composition1 ILIKE ${placeholder}`);
+    }
+
+    if (hasShortComposition2Column) {
+      saltClauses.push(`short_composition2 ILIKE ${placeholder}`);
+    }
+
+    if (hasSaltCompositionColumn) {
+      saltClauses.push(`salt_composition ILIKE ${placeholder}`);
+    }
+
+    clauses.push(`(${saltClauses.join(" OR ")})`);
   } else if (saltSearch) {
     return {
       data: [],
@@ -509,11 +538,37 @@ export async function getMedicineByIdFromDb(id) {
 
 export async function searchMedicinesInDb(query) {
   const pattern = `%${query}%`;
-  const hasSaltColumn = await medicineHasColumn("salt");
+  const [
+    hasSaltColumn,
+    hasShortComposition1Column,
+    hasShortComposition2Column,
+    hasSaltCompositionColumn,
+  ] = await Promise.all([
+    medicineHasColumn("salt"),
+    medicineHasColumn("short_composition1"),
+    medicineHasColumn("short_composition2"),
+    medicineHasColumn("salt_composition"),
+  ]);
+  const searchClauses = ["name ILIKE $1"];
+
+  if (hasSaltColumn) {
+    searchClauses.push("salt ILIKE $1");
+  }
+
+  if (hasShortComposition1Column) {
+    searchClauses.push("short_composition1 ILIKE $1");
+  }
+
+  if (hasShortComposition2Column) {
+    searchClauses.push("short_composition2 ILIKE $1");
+  }
+
+  if (hasSaltCompositionColumn) {
+    searchClauses.push("salt_composition ILIKE $1");
+  }
+
   const clauses = [
-    hasSaltColumn
-      ? "(name ILIKE $1 OR salt ILIKE $1)"
-      : "(name ILIKE $1)",
+    `(${searchClauses.join(" OR ")})`,
   ];
 
   if (await medicinesHasIsDeletedColumn()) {
@@ -526,6 +581,11 @@ export async function searchMedicinesInDb(query) {
         id,
         name,
         salt,
+        short_composition1,
+        short_composition2,
+        manufacturer_name,
+        type,
+        pack_size_label,
         price,
         image
       FROM medicines

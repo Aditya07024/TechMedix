@@ -353,6 +353,12 @@ const Search = () => {
 
     return [
       ["Salt", selectedMedicine.salt],
+      ["Primary Composition", selectedMedicine.short_composition1],
+      ["Secondary Composition", selectedMedicine.short_composition2],
+      ["Salt Composition", selectedMedicine.salt_composition],
+      ["Manufacturer", selectedMedicine.manufacturer_name],
+      ["Type", selectedMedicine.type],
+      ["Pack Size", selectedMedicine.pack_size_label],
       ["Category", selectedMedicine.category],
       ["Chemical Class", selectedMedicine.chemical_class],
       ["Therapeutic Class", selectedMedicine.therapeutic_class],
@@ -383,6 +389,15 @@ const Search = () => {
 
   const detailSalts = useMemo(
     () => normalizeDetailList(selectedMedicine?.salts ?? selectedMedicine?.salt),
+    [selectedMedicine],
+  );
+
+  const detailComposition = useMemo(
+    () =>
+      normalizeDetailList([
+        selectedMedicine?.short_composition1,
+        selectedMedicine?.short_composition2,
+      ]),
     [selectedMedicine],
   );
 
@@ -677,10 +692,19 @@ const Search = () => {
                         {item.category ? (
                           <span className="tag">{item.category}</span>
                         ) : null}
+                        {item.type ? (
+                          <span className="tag">{item.type}</span>
+                        ) : null}
+                        {item.pack_size_label ? (
+                          <span className="tag">{item.pack_size_label}</span>
+                        ) : null}
                         {item.therapeutic_class ? (
                           <span className="tag">
                             THERAPEUTIC CLASS: {item.therapeutic_class}
                           </span>
+                        ) : null}
+                        {item.manufacturer_name ? (
+                          <span className="tag">{item.manufacturer_name}</span>
                         ) : null}
                       </div>
                       <p className="price">
@@ -868,6 +892,12 @@ const Search = () => {
                 </div>
 
                 <div className="detail-sections">
+                  {selectedMedicine.medicine_desc ? (
+                    <div className="info-section">
+                      <h4>Description</h4>
+                      <p>{selectedMedicine.medicine_desc}</p>
+                    </div>
+                  ) : null}
                   {selectedMedicine.info ? (
                     <div className="info-section">
                       <h4>Information</h4>
@@ -898,9 +928,28 @@ const Search = () => {
                       <p>{selectedMedicine.safetyadvice}</p>
                     </div>
                   ) : null}
+                  {selectedMedicine.drug_interactions ? (
+                    <div className="info-section">
+                      <h4>Drug Interactions</h4>
+                      <p>{selectedMedicine.drug_interactions}</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="detail-pill-sections">
+                  {detailComposition.length ? (
+                    <div className="pill-section">
+                      <h4>Composition</h4>
+                      <div className="pill-list">
+                        {detailComposition.map((item) => (
+                          <span key={`composition-${item}`} className="detail-pill">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {detailSalts.length ? (
                     <div className="pill-section">
                       <h4>Salts</h4>

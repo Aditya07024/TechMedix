@@ -86,7 +86,7 @@ const Navbar = ({ setShowLogin }) => {
       <div className="navbar-inner">
         {askAi && <Aipop setShowAiPop={setAskAi} />}
 
-        <Link to="/">
+        <Link to="/home">
           <img src={assets.logo} alt="logo" className="logo" />
         </Link>
 
