@@ -252,14 +252,14 @@ const LoginPop = ({ setShowLogin }) => {
                 </div>
               )}
 
-              {currState === "Sign Up" && (
+              {/* {currState === "Sign Up" && (
                 <input
                   type="text"
                   placeholder="Medical History"
                   value={medicalHistory}
                   onChange={(e) => setMedicalHistory(e.target.value)}
                 />
-              )}
+              )} */}
 
               <div className="divide-row">
                 <input

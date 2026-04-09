@@ -1,6 +1,6 @@
 import sql from "../config/database.js";
 
-const MEDICINE_TABLE_CANDIDATES = ["medicines", "medixines"];
+const MEDICINE_TABLE_CANDIDATES = ["medicines"];
 
 let medicineTableNamePromise;
 let medicinesHasIsDeletedColumnPromise;
@@ -15,7 +15,7 @@ async function getMedicineTableName() {
         AND table_name = ANY(${MEDICINE_TABLE_CANDIDATES})
       ORDER BY CASE table_name
         WHEN 'medicines' THEN 0
-        WHEN 'medixines' THEN 1
+        WHEN 'medicines' THEN 1
         ELSE 2
       END
       LIMIT 1

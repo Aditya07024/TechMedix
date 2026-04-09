@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./Search.css";
 import { assets } from "../../assets/assets";
 import Button from "@mui/material/Button";
@@ -92,6 +92,7 @@ const Search = () => {
   const [medicines, setMedicines] = useState([]);
   const [selectedMedicineId, setSelectedMedicineId] = useState(null);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
+  const detailCacheRef = useRef(new Map());
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -331,6 +332,23 @@ const Search = () => {
     let isMounted = true;
 
     async function loadMedicineDetails() {
+      const listMatch = medicines.find((item) => item.id === selectedMedicineId) ?? null;
+      const cachedMedicine = detailCacheRef.current.get(selectedMedicineId) ?? null;
+      const immediateMedicine = cachedMedicine ?? listMatch;
+
+      if (immediateMedicine) {
+        setSelectedMedicine((current) =>
+          current?.id === immediateMedicine.id && current === immediateMedicine
+            ? current
+            : immediateMedicine,
+        );
+      }
+
+      if (cachedMedicine) {
+        setDetailsLoading(false);
+        return;
+      }
+
       try {
         setDetailsLoading(true);
         const response = await getMedicineById(selectedMedicineId);
@@ -344,14 +362,18 @@ const Search = () => {
           return;
         }
 
-        setSelectedMedicine(response?.data ?? null);
+        const nextMedicine = response?.data ?? null;
+        if (nextMedicine) {
+          detailCacheRef.current.set(selectedMedicineId, nextMedicine);
+        }
+        setSelectedMedicine(nextMedicine ?? immediateMedicine);
       } catch (fetchError) {
         if (!isMounted) {
           return;
         }
 
         console.error("Failed to load medicine details:", fetchError);
-        setSelectedMedicine(null);
+        setSelectedMedicine(immediateMedicine);
       } finally {
         if (isMounted) {
           setDetailsLoading(false);
@@ -364,7 +386,7 @@ const Search = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedMedicineId]);
+  }, [selectedMedicineId, medicines]);
 
   const summaryMeta = useMemo(() => {
     if (!selectedMedicine) {
@@ -694,6 +716,7 @@ const Search = () => {
                     selectedMedicineId === item.id ? "selected" : ""
                   }`}
                   onClick={() => {
+                    setSelectedMedicine(item);
                     setSelectedMedicineId(item.id);
                     if (item.salt) {
                       setSaltSearchTerm(item.salt);
@@ -964,12 +987,12 @@ const Search = () => {
                       <p>{selectedMedicine.drug_interactions}</p>
                     </div>
                   ) : null}
-                  {detailSideEffectsText ? (
+                  {/* {detailSideEffectsText ? (
                     <div className="info-section">
                       <h4>Side Effects</h4>
                       <p>{detailSideEffectsText}</p>
                     </div>
-                  ) : null}
+                  ) : null} */}
                 </div>
 
                 <div className="detail-pill-sections">
