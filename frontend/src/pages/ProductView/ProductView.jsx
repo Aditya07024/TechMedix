@@ -5,6 +5,26 @@ import { StoreContext } from "../../context/StoreContext";
 import { assets } from "../../assets/assets";
 import { getMedicineById } from "../../api/medicineApi";
 
+function normalizeTextSection(value) {
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean);
+
+    return items.length ? items.join(", ") : "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
 const ProductView = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,7 +135,12 @@ const ProductView = () => {
     ["Safety Advice", medicine.safetyadvice],
     ["Drug Interactions", medicine.drug_interactions],
     ["Common Side Effects", medicine.sideeffects],
-    ["Side Effects", medicine.side_effects],
+    [
+      "Side Effects",
+      normalizeTextSection(
+        medicine.side_effects_text ?? medicine.side_effects ?? medicine.sideeffects,
+      ),
+    ],
   ].filter(([, value]) => value);
 
   const relatedSections = [

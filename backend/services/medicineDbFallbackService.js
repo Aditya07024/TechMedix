@@ -1,16 +1,54 @@
 import sql from "../config/database.js";
 
+const MEDICINE_TABLE_CANDIDATES = ["medicines", "medixines"];
+
+let medicineTableNamePromise;
 let medicinesHasIsDeletedColumnPromise;
 let medicineColumnsPromise;
 
+async function getMedicineTableName() {
+  if (!medicineTableNamePromise) {
+    medicineTableNamePromise = sql`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = ANY(${MEDICINE_TABLE_CANDIDATES})
+      ORDER BY CASE table_name
+        WHEN 'medicines' THEN 0
+        WHEN 'medixines' THEN 1
+        ELSE 2
+      END
+      LIMIT 1
+    `
+      .then((rows) => {
+        const tableName = rows[0]?.table_name;
+
+        if (!tableName) {
+          throw new Error(
+            `Medicine source table not found. Expected one of: ${MEDICINE_TABLE_CANDIDATES.join(", ")}`,
+          );
+        }
+
+        return tableName;
+      })
+      .catch((error) => {
+        medicineTableNamePromise = null;
+        throw error;
+      });
+  }
+
+  return medicineTableNamePromise;
+}
+
 async function medicinesHasIsDeletedColumn() {
   if (!medicinesHasIsDeletedColumnPromise) {
+    const tableName = await getMedicineTableName();
     medicinesHasIsDeletedColumnPromise = sql`
       SELECT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name = 'medicines'
+          AND table_name = ${tableName}
           AND column_name = 'is_deleted'
       ) AS exists
     `
@@ -26,11 +64,12 @@ async function medicinesHasIsDeletedColumn() {
 
 async function getMedicineColumns() {
   if (!medicineColumnsPromise) {
+    const tableName = await getMedicineTableName();
     medicineColumnsPromise = sql`
       SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = 'public'
-        AND table_name = 'medicines'
+        AND table_name = ${tableName}
     `
       .then((rows) => new Set(rows.map((row) => row.column_name)))
       .catch((error) => {
@@ -93,6 +132,27 @@ function normalizeStringArray(value) {
   return [];
 }
 
+function normalizeTextBlock(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const stringValue = String(value).trim();
+  return stringValue || null;
+}
+
 function firstPresentValue(row, keys) {
   for (const key of keys) {
     const value = row?.[key];
@@ -146,6 +206,7 @@ function normalizeHabitFormingValue(value) {
 }
 
 async function buildSubstituteLookupQuery(names) {
+  const tableName = await getMedicineTableName();
   const clauses = [];
   const params = [];
   const normalizedNameSql =
@@ -214,7 +275,7 @@ async function buildSubstituteLookupQuery(names) {
     query: `
       SELECT DISTINCT ON (id)
         ${selectList}
-      FROM medicines
+      FROM ${tableName}
       WHERE ${whereClauses.join(" AND ")}
       ORDER BY id, name ASC
     `,
@@ -241,6 +302,7 @@ export async function getMedicinesFromDb({
   category,
   habitForming,
 }) {
+  const tableName = await getMedicineTableName();
   const clauses = [];
   const params = [];
   const [
@@ -409,7 +471,7 @@ export async function getMedicinesFromDb({
   const whereClause = clauses.length > 0 ? clauses.join(" AND ") : "TRUE";
 
   const countRows = await sql.query(
-    `SELECT COUNT(*)::int AS total FROM medicines WHERE ${whereClause}`,
+    `SELECT COUNT(*)::int AS total FROM ${tableName} WHERE ${whereClause}`,
     params,
   );
   const total = countRows[0]?.total ?? 0;
@@ -420,7 +482,7 @@ export async function getMedicinesFromDb({
     `
       SELECT
         ${selectList}
-      FROM medicines
+      FROM ${tableName}
       WHERE ${whereClause}
       ORDER BY name ASC, id ASC
       LIMIT $${params.length + 1}
@@ -441,6 +503,7 @@ export async function getMedicinesFromDb({
 }
 
 export async function getMedicineByIdFromDb(id) {
+  const tableName = await getMedicineTableName();
   const whereClauses = ["id = $1"];
   if (await medicinesHasIsDeletedColumn()) {
     whereClauses.push("is_deleted = false");
@@ -450,7 +513,7 @@ export async function getMedicineByIdFromDb(id) {
     `
       SELECT
         *
-      FROM medicines
+      FROM ${tableName}
       WHERE ${whereClauses.join(" AND ")}
       LIMIT 1
     `,
@@ -471,6 +534,7 @@ export async function getMedicineByIdFromDb(id) {
   const salts = normalizeStringArray(
     firstPresentValue(medicine, ["salts", "salt"]),
   );
+  const rawSideEffectsText = normalizeTextBlock(medicine.side_effects);
   const substituteNames = normalizeStringArray(
     firstPresentValue(medicine, ["substitutes"]),
   );
@@ -510,6 +574,10 @@ export async function getMedicineByIdFromDb(id) {
     substitutes: normalizedSubstitutes,
     substitute_details: substituteDetails,
     side_effects: normalizedSideEffects,
+    side_effects_text:
+      rawSideEffectsText ??
+      normalizeTextBlock(medicine.sideeffects) ??
+      normalizeTextBlock(normalizedSideEffects),
     uses: normalizedUses,
     chemical_class: firstPresentValue(medicine, [
       "chemical_class",
@@ -537,6 +605,7 @@ export async function getMedicineByIdFromDb(id) {
 }
 
 export async function searchMedicinesInDb(query) {
+  const tableName = await getMedicineTableName();
   const pattern = `%${query}%`;
   const [
     hasSaltColumn,
@@ -588,7 +657,7 @@ export async function searchMedicinesInDb(query) {
         pack_size_label,
         price,
         image
-      FROM medicines
+      FROM ${tableName}
       WHERE ${clauses.join(" AND ")}
       ORDER BY
         CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
@@ -601,6 +670,7 @@ export async function searchMedicinesInDb(query) {
 }
 
 export async function getMedicineFiltersFromDb() {
+  const tableName = await getMedicineTableName();
   const [
     hasIsDeletedColumn,
     hasChemicalClassColumn,
@@ -631,7 +701,7 @@ export async function getMedicineFiltersFromDb() {
         ? sql.query(
         `
           SELECT DISTINCT chemical_class
-          FROM medicines
+          FROM ${tableName}
           WHERE ${buildWhereClause("chemical_class")}
           ORDER BY chemical_class ASC
         `,
@@ -641,7 +711,7 @@ export async function getMedicineFiltersFromDb() {
         ? sql.query(
         `
           SELECT DISTINCT therapeutic_class
-          FROM medicines
+          FROM ${tableName}
           WHERE ${buildWhereClause("therapeutic_class")}
           ORDER BY therapeutic_class ASC
         `,
@@ -651,7 +721,7 @@ export async function getMedicineFiltersFromDb() {
         ? sql.query(
         `
           SELECT DISTINCT action_class
-          FROM medicines
+          FROM ${tableName}
           WHERE ${buildWhereClause("action_class")}
           ORDER BY action_class ASC
         `,
@@ -661,7 +731,7 @@ export async function getMedicineFiltersFromDb() {
         ? sql.query(
         `
           SELECT DISTINCT category
-          FROM medicines
+          FROM ${tableName}
           WHERE ${buildWhereClause("category")}
           ORDER BY category ASC
         `,

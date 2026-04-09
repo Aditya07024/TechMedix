@@ -54,6 +54,26 @@ function normalizeDetailList(value) {
   return [];
 }
 
+function normalizeTextSection(value) {
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean);
+
+    return items.length ? items.join(", ") : "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
 const Search = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -383,6 +403,16 @@ const Search = () => {
     () =>
       normalizeDetailList(
         selectedMedicine?.side_effects ?? selectedMedicine?.sideeffects,
+      ),
+    [selectedMedicine],
+  );
+
+  const detailSideEffectsText = useMemo(
+    () =>
+      normalizeTextSection(
+        selectedMedicine?.side_effects_text ??
+          selectedMedicine?.side_effects ??
+          selectedMedicine?.sideeffects,
       ),
     [selectedMedicine],
   );
@@ -932,6 +962,12 @@ const Search = () => {
                     <div className="info-section">
                       <h4>Drug Interactions</h4>
                       <p>{selectedMedicine.drug_interactions}</p>
+                    </div>
+                  ) : null}
+                  {detailSideEffectsText ? (
+                    <div className="info-section">
+                      <h4>Side Effects</h4>
+                      <p>{detailSideEffectsText}</p>
                     </div>
                   ) : null}
                 </div>
