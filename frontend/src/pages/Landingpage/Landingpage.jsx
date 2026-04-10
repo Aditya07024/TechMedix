@@ -17,6 +17,7 @@ import {
   Upload,
   Video,
   Wallet,
+  ExternalLink,
 } from "lucide-react";
 import techMedixApkImage from "../../assets/TechMedix APK.png";
 import dowappImage from "../../assets/dowapp.png";
@@ -272,8 +273,7 @@ const Landingpage = ({ setShowLogin }) => {
           <div className="landing-hero__copy">
             <span className="landing-badge">Connected care on web + mobile</span>
             <h1>
-              TechMedix brings telemedicine, tracking, and trust into one calm
-              experience.
+              Care beyond the clinic. Trust beyond the screen
             </h1>
             <p>
               Book appointments, follow real-time queues, upload prescriptions,
@@ -284,6 +284,9 @@ const Landingpage = ({ setShowLogin }) => {
             <div className="landing-hero__actions">
               <Link className="landing-button landing-button--primary" to="/home">
                 Open patient dashboard
+              </Link>
+              <Link className="landing-button landing-button--medicine" to="/search">
+                Search Medicines
               </Link>
               <a className="landing-button landing-button--ghost" href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ">
                 Download the app
@@ -575,10 +578,15 @@ const Landingpage = ({ setShowLogin }) => {
             </div>
 
             <div className="landing-footer__column landing-footer__column--card">
-              <div className="landing-mini-shot">
-                <ClipboardList size={24} />
-                <span>Web + mobile preview</span>
-              </div>
+              <Link
+                className="landing-button landing-button--ghost"
+                to="/about-techmedix"
+              >
+                <div className="landing-mini-shot">
+                  <ExternalLink size={25} style={{ marginLeft: "6px" }} />
+                  <span>Want to know more about the website</span>
+                </div>
+              </Link>
               <p className="landing-footer__caption">
                 Built for queue visibility, secure sessions, reminders, and
                 continuous patient context.

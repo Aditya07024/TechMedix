@@ -36,10 +36,13 @@ import XRayHistory from "./pages/XRayHistory/XRayHistory";
 import AppointmentHistory from "./pages/AppointmentHistory/AppointmentHistory";
 import QueueFullPage from "./pages/QueueFullPage/QueueFullPage";
 import LiquidGlassDemo from "./pages/LiquidGlassDemo/LiquidGlassDemo";
+import AboutTechMedix from "./pages/AboutTechMedix/AboutTechMedix";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const location = useLocation();
+  const isPublicMarketingPage =
+    location.pathname === "/" || location.pathname === "/about-techmedix";
 
   const GoogleAuthWrapper = () => {
     return (
@@ -53,11 +56,12 @@ const App = () => {
     <AuthProvider>
       {showLogin && <GoogleAuthWrapper />}
 
-      <div className={location.pathname === "/" ? "app landing-app" : "app"}>
-        {location.pathname !== "/" && <Navbar setShowLogin={setShowLogin} />}
+      <div className={isPublicMarketingPage ? "app landing-app" : "app"}>
+        {!isPublicMarketingPage && <Navbar setShowLogin={setShowLogin} />}
 
         <Routes>
           <Route path="/" element={<Landingpage setShowLogin={setShowLogin} />} />
+          <Route path="/about-techmedix" element={<AboutTechMedix />} />
           <Route path="/home" element={<Home />} />
           <Route path="/wishlist" element={<WishList />} />
           <Route path="/view" element={<ProductView />} />

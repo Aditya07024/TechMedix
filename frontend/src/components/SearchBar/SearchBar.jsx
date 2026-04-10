@@ -33,15 +33,15 @@ const SearchBar = () => {
                 onChange={(e) => setMedicine(e.target.value)}
               />
             </div>
-            <p>or</p>
-            <div className="search-by-salt">
+            {/* <p>or</p> */}
+            {/* <div className="search-by-salt">
               <input
                 type="text"
                 placeholder="Name of Solution"
                 value={solution}
                 onChange={(e) => setSolution(e.target.value)}
               />
-            </div>
+            </div> */}
           </div>
           <button type="submit" className="search-btn">
             Search &gt;
