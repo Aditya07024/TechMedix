@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { doctorApi } from "../../api"; // Corrected import path
 import { useAuth } from "../../context/AuthContext";
+import { assets } from "../../assets/assets";
+import { ArrowRight, LockKeyhole, Mail, ShieldCheck, Stethoscope } from "lucide-react";
 import "./DoctorLogin.css";
 
 const DoctorLogin = () => {
@@ -105,45 +107,108 @@ const DoctorLogin = () => {
 
   return (
     <div className="doctor-login-container">
-      <form onSubmit={handleLogin} className="doctor-login-form">
-        <h2>Doctor Login</h2>
-        {error && <p className="error-message">{error}</p>}
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="password">Password</label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" className="login-button" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
-        </button>
-        <button
-          type="button"
-          className="demo-login-button"
-          onClick={handleDemoDoctorLogin}
-          disabled={loading}
-        >
-          Demo Doctor Login
-        </button>
-        <p className="signup-link">
-          Don't have an account?{" "}
-          <span onClick={() => navigate("/doctor/signup")}>Sign Up</span>
-        </p>
-      </form>
+      <div className="doctor-auth-shell">
+        <section className="doctor-auth-hero">
+          <div className="doctor-auth-badge">
+            <ShieldCheck size={16} strokeWidth={2.1} />
+            Doctor Portal
+          </div>
+          <h1>Clinical access built for a faster practice flow.</h1>
+          <p>
+            Sign in to manage appointments, live queue activity, prescriptions, and your doctor dashboard from one workspace.
+          </p>
+
+          <div className="doctor-auth-hero-card">
+            <div className="doctor-auth-hero-card-top">
+              <img src={assets.logo} alt="TechMedix" className="doctor-auth-logo" />
+              <span>TechMedix</span>
+            </div>
+            <div className="doctor-auth-stat-grid">
+              <div>
+                <strong>Queue</strong>
+                <span>Track patients in real time</span>
+              </div>
+              <div>
+                <strong>Safety</strong>
+                <span>Review medication workflows</span>
+              </div>
+              <div>
+                <strong>Visits</strong>
+                <span>Stay ready before consultation</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="doctor-auth-hero-footer">
+            <Stethoscope size={18} strokeWidth={2} />
+            Secure access for registered doctors only
+          </div>
+        </section>
+
+        <section className="doctor-login-form doctor-auth-panel">
+          <div className="doctor-auth-panel-head">
+            <span className="doctor-auth-kicker">Welcome Back</span>
+            <h2>Doctor Sign In</h2>
+            <p>Use your registered email and password to open the doctor dashboard.</p>
+          </div>
+
+          {error && <p className="error-message">{error}</p>}
+
+          <form onSubmit={handleLogin} className="doctor-auth-form">
+            <div className="form-group">
+              <label htmlFor="email">Email Address</label>
+              <div className="doctor-auth-input">
+                <Mail size={18} strokeWidth={2} />
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="doctor@clinic.com"
+                  required
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <div className="doctor-auth-input">
+                <LockKeyhole size={18} strokeWidth={2} />
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="login-button" disabled={loading}>
+              {loading ? "Logging in..." : "Sign In"}
+            </button>
+            <button
+              type="button"
+              className="demo-login-button"
+              onClick={handleDemoDoctorLogin}
+              disabled={loading}
+            >
+              Demo Doctor Login
+            </button>
+          </form>
+
+          <div className="doctor-auth-meta">
+            <p className="signup-link">
+              New doctor on TechMedix?{" "}
+              <span onClick={() => navigate("/doctor/signup")}>Create account</span>
+            </p>
+            <Link to="/home" className="doctor-auth-home-link">
+              Return to home
+              <ArrowRight size={16} strokeWidth={2} />
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
   );
 };

@@ -1,10 +1,20 @@
 .health-metrics {
+  --metrics-surface: #ffffff;
+  --metrics-surface-soft: #e6f1fb;
+  --metrics-border: #b5d4f4;
+  --metrics-border-soft: #ecf0f1;
+  --metrics-text: #1a2b40;
+  --metrics-heading: #0c447c;
+  --metrics-text-secondary: #5a7a96;
+  --metrics-muted: #7f8c8d;
+  --metrics-accent: #185fa5;
+  --metrics-danger: #e74c3c;
   background: white;
   border-radius: 0;
   padding: 24px;
   margin: 0;
   box-shadow: 0 18px 34px rgba(12, 68, 124, 0.06);
-  border: 1px solid #b5d4f4;
+  border: 1px solid var(--metrics-border);
   transition: border-radius 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -15,12 +25,22 @@
 }
 
 .dark-mode .health-metrics {
+  --metrics-surface: #13283b;
+  --metrics-surface-soft: #17324a;
+  --metrics-border: #274866;
+  --metrics-border-soft: #274866;
+  --metrics-text: #e8f4ff;
+  --metrics-heading: #8ec8ff;
+  --metrics-text-secondary: #9eb8cf;
+  --metrics-muted: #9eb8cf;
+  --metrics-accent: #78bbff;
+  --metrics-danger: #ff8e80;
   background: #13283b;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
 }
 
 .health-metrics h3 {
-  color: #1a2b40;
+  color: var(--metrics-text);
   margin-bottom: 20px;
   font-size: 1.5rem;
   font-weight: 600;
@@ -33,7 +53,7 @@
 }
 
 .health-metrics h4 {
-  color: #0c447c;
+  color: var(--metrics-heading);
   margin-bottom: 15px;
   font-size: 1.2rem;
   font-weight: 500;
@@ -43,7 +63,7 @@
 .error {
   text-align: center;
   padding: 40px;
-  color: #7f8c8d;
+  color: var(--metrics-muted);
   font-style: italic;
 }
 
@@ -53,13 +73,13 @@
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--metrics-danger);
 }
 
 .no-data {
   text-align: center;
   padding: 40px;
-  color: #7f8c8d;
+  color: var(--metrics-muted);
 }
 
 .no-data p:first-child {
@@ -80,14 +100,14 @@
 }
 
 .metric-card {
-  background: #ffffff;
-  color: #1a2b40;
+  background: var(--metrics-surface);
+  color: var(--metrics-text);
   border-radius: 0;
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid #b5d4f4;
+  border: 1px solid var(--metrics-border);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
@@ -106,8 +126,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e6f1fb;
-  color: #185fa5;
+  background: var(--metrics-surface-soft);
+  color: var(--metrics-accent);
   opacity: 0.95;
 }
 
@@ -132,7 +152,7 @@
 
 .metric-label {
   font-size: 0.9rem;
-  color: #5a7a96;
+  color: var(--metrics-text-secondary);
   margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -140,11 +160,11 @@
 
 .metric-date {
   font-size: 0.8rem;
-  color: #5a7a96;
+  color: var(--metrics-text-secondary);
 }
 
 .health-insights {
-  border-top: 1px solid #ecf0f1;
+  border-top: 1px solid var(--metrics-border-soft);
   padding-top: 20px;
 }
 
@@ -159,13 +179,13 @@
 }
 
 .insight-item {
-  background: #f7fbff;
-  border: 1px solid #b5d4f4;
+  background: var(--metrics-surface);
+  border: 1px solid var(--metrics-border);
   padding: 12px 16px;
   border-radius: 0;
   font-size: 0.95rem;
   line-height: 1.4;
-  color: #1a2b40;
+  color: var(--metrics-text);
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -179,7 +199,7 @@
 }
 
 .insight-icon {
-  color: #185fa5;
+  color: var(--metrics-accent);
   flex: 0 0 auto;
 }
 

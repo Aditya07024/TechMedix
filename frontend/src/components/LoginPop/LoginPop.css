@@ -1,4 +1,16 @@
 .pop {
+  --popup-surface: var(--background-color);
+  --popup-text: var(--text-color);
+  --popup-border: var(--input-bg);
+  --popup-accent: #70cfac;
+  --popup-accent-strong: #2ab280;
+  --popup-accent-text: #ffffff;
+  --popup-success-bg: rgba(112, 207, 172, 0.12);
+  --popup-success-text: #156545;
+  --popup-link: #007bff;
+  --popup-error-bg: #ffe6e6;
+  --popup-error-text: #dc3545;
+  --popup-icon-bg: #ffffff;
   position: fixed;
   top: 0;
   left: 0;
@@ -45,7 +57,7 @@
 .pop .pop-right {
   height: 450px;
   width: 45%;
-  background-color: var(--background-color);
+  background-color: var(--popup-surface);
   border-radius: 0 20px 20px 0;
   padding: 1rem 2rem;
   position: relative;
@@ -72,7 +84,7 @@
 }
 
 .login-popup-title h2 {
-  color: var(--text-color);
+  color: var(--popup-text);
   font-size: 1.8rem;
   font-weight: 600;
 }
@@ -95,8 +107,8 @@
   padding: 10px 14px;
   border: 1px solid rgba(42, 178, 128, 0.28);
   border-radius: 10px;
-  background: rgba(112, 207, 172, 0.12);
-  color: #156545;
+  background: var(--popup-success-bg);
+  color: var(--popup-success-text);
   font-size: 0.92rem;
   font-weight: 600;
 }
@@ -123,11 +135,11 @@
 .login-popup-inputs input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid var(--input-bg);
+  border: 1px solid var(--popup-border);
   border-radius: 8px;
   font-size: 1rem;
-  color: var(--text-color);
-  background-color: var(--background-color);
+  color: var(--popup-text);
+  background-color: var(--popup-surface);
   transition: border-color 0.2s;
 }
 
@@ -150,15 +162,15 @@
 }
 
 .login-popup-condition p {
-  color: var(--text-color);
+  color: var(--popup-text);
   font-size: 0.9rem;
 }
 
 .pop button {
   width: 100%;
   padding: 12px;
-  background-color: #70cfac;
-  color: white;
+  background-color: var(--popup-accent);
+  color: var(--popup-accent-text);
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -184,7 +196,7 @@
 }
 
 button:hover {
-  background-color: #2ab280;
+  background-color: var(--popup-accent-strong);
 }
 
 .other-login-methods {
@@ -192,7 +204,7 @@ button:hover {
 }
 
 .other-login-methods p {
-  color: var(--text-color);
+  color: var(--popup-text);
   margin-bottom: 1rem;
   position: relative;
 }
@@ -227,10 +239,10 @@ button:hover {
   height: 40px;
   padding: 8px;
   border-radius: 50%;
-  background-color: var(--input-bg);
+  background-color: var(--popup-border);
   cursor: pointer;
   transition: transform 0.2s;
-  background-color: white;
+  background-color: var(--popup-icon-bg);
   object-fit: fit;
 }
 
@@ -291,14 +303,14 @@ button:hover {
 }
 
 .login-popup-container span {
-  color: green;
+  color: var(--popup-success-text);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .login-popup-container .terms-link {
-  color: #007bff; /* A distinct color for links */
+  color: var(--popup-link);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -317,8 +329,8 @@ button:hover {
 }
 
 .error-message {
-  color: #dc3545;
-  background: #ffe6e6;
+  color: var(--popup-error-text);
+  background: var(--popup-error-bg);
   padding: 10px;
   border-radius: 4px;
   margin-bottom: 15px;
@@ -362,7 +374,7 @@ button:hover {
 
 .card .img {
   height: 4.5em;
-  background: white;
+  background: var(--popup-icon-bg);
   border-radius: 15px;
   margin: auto;
   img {
@@ -394,8 +406,8 @@ button:hover {
   border-radius: 25px;
   border: none;
   font-weight: bold;
-  background: #dfd2d2;
-  color: rgb(0, 0, 0);
+  background: var(--popup-border);
+  color: var(--popup-text);
   transition: 0.4s ease-in-out;
   width: 80%;
   border: 3px solid rgb(0, 221, 255);
@@ -405,4 +417,16 @@ button:hover {
   background: rgb(105, 20, 20);
   color: white;
   cursor: pointer;
+}
+
+.dark-mode .pop {
+  --popup-surface: #152131;
+  --popup-text: #e8f4ff;
+  --popup-border: #314459;
+  --popup-success-bg: rgba(91, 224, 209, 0.14);
+  --popup-success-text: #8ff0d4;
+  --popup-link: #7dc3ff;
+  --popup-error-bg: rgba(95, 18, 38, 0.34);
+  --popup-error-text: #ffc4d1;
+  --popup-icon-bg: #223244;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import "./Navbar.css";
 import { assets } from "../../assets/assets";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -18,28 +18,12 @@ const Navbar = ({ setShowLogin }) => {
   const location = useLocation();
   const isPatientDashboard = location.pathname === "/dashboard";
 
-  // PROFILE DROPDOWN
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const profileRef = useRef(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handler = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setShowProfileMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
   // ✅ REDIRECT TO UPLOAD PAGE
   const handleUploadRedirect = () => {
-    setShowProfileMenu(false);
     navigate("/upload-prescription");
   };
 
@@ -138,40 +122,14 @@ const Navbar = ({ setShowLogin }) => {
 
           {/* PROFILE ICON + DROPDOWN */}
           {isAuthenticated && (
-            <div className="nav-icon-container" ref={profileRef}>
-              <button
-                className="nav-btn"
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-              >
+            <div className="nav-icon-container">
+              <button className="nav-btn" onClick={logout}>
                 <img
-                  src={assets.account_icon}
-                  alt="Profile"
+                  src={assets.logout_icon}
+                  alt="Logout"
                   className="nav-icon"
                 />
               </button>
-
-              {showProfileMenu && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "45px",
-                    right: "0",
-                    background: "white",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    width: "180px",
-                    zIndex: 2000,
-                    overflow: "hidden",
-                  }}
-                >
-                  <button
-                    style={{ ...dropdownBtnStyle, color: "red" }}
-                    onClick={logout}
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
@@ -194,16 +152,6 @@ const Navbar = ({ setShowLogin }) => {
       </div>
     </div>
   );
-};
-
-const dropdownBtnStyle = {
-  width: "100%",
-  padding: "12px 14px",
-  border: "none",
-  background: "transparent",
-  textAlign: "left",
-  cursor: "pointer",
-  fontSize: "14px",
 };
 
 export default Navbar;

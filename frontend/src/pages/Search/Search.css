@@ -97,7 +97,7 @@
 
 .search-reset {
   padding: 1rem 1.25rem;
-  background: #fff;
+  background: var(--navbar-bg);
   border: 1px solid var(--card-shadow);
   color: var(--text-color);
   font-weight: 600;
@@ -162,7 +162,7 @@
 .medicine-item {
   padding: 1rem;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--background-color);
   border: 1px solid transparent;
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease;
@@ -232,7 +232,7 @@
   align-items: center;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
-  background: #fff;
+  /* background:var(--navbar-bg); */
   border: 1px solid var(--card-shadow);
   font-size: 0.85rem;
 }
@@ -324,7 +324,7 @@
 .price-insights-card,
 .safety-warnings {
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--background-color);
   border: 1px solid var(--card-shadow);
   border-radius: 16px;
 }
@@ -369,11 +369,11 @@
 
 .substitute-link {
   cursor: pointer;
+  border-color: #fecaca;
 }
 
 .detail-pill.warning {
-  background: #fff6f6;
-  border-color: #fecaca;
+  background: --var(--navbar-bg);
 }
 
 .safety-check-btn {

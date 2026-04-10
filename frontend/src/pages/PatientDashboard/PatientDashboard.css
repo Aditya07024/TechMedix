@@ -1089,6 +1089,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  
 }
 
 .appointment-person-avatar {
@@ -1115,7 +1116,8 @@
   margin-top: 24px;
   padding: 18px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--shadow-card);
+  border: 2px solid rgba(255, 255, 255, 0.217);
 }
 
 .appointment-summary-meta span {
@@ -1236,7 +1238,7 @@
   margin: 20px 0 18px;
   padding: 20px;
   border-radius: 16px;
-  background: #fff;
+  background: var(--shadow-card);
 }
 
 .assistant-message-card::after {
@@ -1396,13 +1398,14 @@
 
 .appointment-rail-item {
   padding: 18px;
-  border: 1px solid #ebeff7;
+ 
   border-radius: 18px;
-  background: #fff;
+  background: var(--surface-soft-2);
 }
 
 .appointment-rail-item.highlighted {
-  background: #e4ecff;
+  border: 2px solid #ebeff7;
+  background: var(--border);
   border-color: transparent;
 }
 
@@ -1506,8 +1509,9 @@
 
 .appointment-pulse-card {
   padding: 28px 30px;
+  border: 2px solid white;
   border-radius: 20px;
-  background: linear-gradient(180deg, #bfdcff 0%, #b8daf8 100%);
+  background: var(--about-accent-dark);
   box-shadow: var(--shadow-card);
 }
 
@@ -1645,7 +1649,7 @@
 .active-medication-card,
 .prescription-side-card,
 .prescription-safety-card {
-  background: #fff;
+  background: var(--about-muted);
   border: 1px solid #dfe7f2;
   border-radius: 22px;
   box-shadow: var(--shadow-card);
@@ -1661,12 +1665,12 @@
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 16px;
-  color: #5dd8cb;
+  color: var(--about-surface-strong)
 }
 
 .active-medication-head h4 {
   margin: 0;
-  color: #114645;
+  color: var(--about-surface-strong);
   font-size: 1rem;
 }
 
@@ -1700,18 +1704,18 @@
 }
 
 .active-medication-meta span {
-  color: #687581;
+  color: var(--wallet-surface);
   font-size: 0.98rem;
 }
 
 .active-medication-meta strong {
-  color: #0f2a3f;
+  color: var(--doctor-ink);
   font-size: 0.98rem;
   text-align: right;
 }
 
 .prescription-name-cell {
-  color: #114645;
+  color: var(--text);
   font-size: 0.98rem;
   font-weight: 700;
 }
@@ -2400,7 +2404,7 @@
   padding: 18px;
   border: 1px dashed #d4dfef;
   border-radius: 18px;
-  background: #f7faff;
+  background: var(--surface-soft);
   color: var(--text-secondary);
 }
 
@@ -2487,7 +2491,7 @@
 .prescription-details-table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--surface);
 }
 
 .prescription-details-table th,
@@ -2499,8 +2503,8 @@
 }
 
 .prescription-details-table th {
-  background: #f4f8ff;
-  color: #607282;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -3182,6 +3186,127 @@
 .dark-mode .wallet-insight-card {
   border-color: var(--border);
   background: var(--surface-soft);
+}
+
+.dark-mode .dashboard-topbar,
+.dark-mode .records-summary-card,
+.dark-mode .records-history-card,
+.dark-mode .records-metric-card,
+.dark-mode .records-trends-card,
+.dark-mode .records-side-card,
+.dark-mode .recording-voice-card,
+.dark-mode .wallet-summary-card,
+.dark-mode .wallet-transactions-card,
+.dark-mode .wallet-side-card,
+.dark-mode .recordings-refresh-btn,
+.dark-mode .recording-transcribe-btn,
+.dark-mode .recordings-transcription-btn,
+.dark-mode .wallet-support-btn,
+.dark-mode .prescription-details-table-wrap {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dark-mode .dashboard-topbar {
+  background: rgba(12, 24, 37, 0.86);
+  box-shadow: var(--shadow-soft);
+}
+
+.dark-mode .records-summary-icon,
+.dark-mode .records-metric-icon,
+.dark-mode .records-upcoming-icon,
+.dark-mode .appointment-meta-icon {
+  background: rgba(91, 224, 209, 0.14);
+  color: var(--surface-teal);
+}
+
+.dark-mode .records-live-pill,
+.dark-mode .recording-new-badge {
+  background: rgba(91, 224, 209, 0.14);
+  color: var(--surface-teal);
+}
+
+.dark-mode .records-summary-card h3,
+.dark-mode .records-trends-card h3,
+.dark-mode .records-side-card h3,
+.dark-mode .records-history-head h4,
+.dark-mode .recording-voice-identity strong,
+.dark-mode .wallet-summary-card strong,
+.dark-mode .wallet-section-head h3,
+.dark-mode .wallet-side-title h3,
+.dark-mode .wallet-transaction-row strong,
+.dark-mode .wallet-upcoming-card strong,
+.dark-mode .topbar-search input,
+.dark-mode .prescription-name-cell {
+  color: var(--text);
+}
+
+.dark-mode .records-summary-block span,
+.dark-mode .records-prediction-box span,
+.dark-mode .records-side-kicker,
+.dark-mode .records-metric-label,
+.dark-mode .recordings-header p,
+.dark-mode .recording-voice-identity span,
+.dark-mode .recording-voice-meta-top small,
+.dark-mode .recording-wave-times span,
+.dark-mode .recording-transcript-box span,
+.dark-mode .wallet-summary-card span,
+.dark-mode .wallet-section-head span,
+.dark-mode .wallet-transaction-row span,
+.dark-mode .wallet-summary-card small,
+.dark-mode .wallet-side-card p,
+.dark-mode .selection-state,
+.dark-mode .selection-placeholder,
+.dark-mode .prescription-details-table th {
+  color: var(--text-secondary);
+}
+
+.dark-mode .recording-wave-card,
+.dark-mode .recording-transcript-box,
+.dark-mode .selection-state,
+.dark-mode .selection-placeholder,
+.dark-mode .prescription-details-table th {
+  background: var(--surface-soft);
+}
+
+.dark-mode .prescription-details-table td {
+  border-bottom-color: var(--border);
+}
+
+.dark-mode .recordings-header,
+.dark-mode .wallet-transaction-row {
+  border-color: var(--border);
+}
+
+.dark-mode .status.booked {
+  background: rgba(91, 224, 209, 0.14);
+  color: var(--surface-teal);
+}
+
+.dark-mode .status.arrived {
+  background: rgba(255, 201, 107, 0.16);
+  color: #ffd27c;
+}
+
+.dark-mode .status.in_progress {
+  background: rgba(165, 120, 255, 0.18);
+  color: #cab1ff;
+}
+
+.dark-mode .status.completed {
+  background: rgba(94, 216, 138, 0.16);
+  color: #98f0b3;
+}
+
+.dark-mode .status.visited {
+  background: rgba(120, 156, 255, 0.16);
+  color: #b2c7ff;
+}
+
+.dark-mode .status.cancelled {
+  background: rgba(255, 107, 141, 0.18);
+  color: #ffc4d1;
 }
 
 @media (max-width: 1380px) {
