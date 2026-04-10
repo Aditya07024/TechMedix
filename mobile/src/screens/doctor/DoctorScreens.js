@@ -994,18 +994,15 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("audio", {
-        uri: recordedUri,
-        type: "audio/m4a",
-        name: `consultation_${Date.now()}.m4a`,
+      await api.recordings.upload({
+        audio: {
+          uri: recordedUri,
+          type: "audio/m4a",
+          name: `consultation_${Date.now()}.m4a`,
+        },
+        patientId,
+        appointmentId: appointmentId || undefined,
       });
-      formData.append("patient_id", patientId);
-      if (appointmentId) {
-        formData.append("appointment_id", appointmentId);
-      }
-
-      const response = await api.recordings.uploadDoctor(formData);
       setError("");
       setRecordedUri(null);
       Alert.alert("Success", "Recording uploaded successfully");

@@ -29,8 +29,9 @@ async function usersTableExists() {
     `
       .then((rows) => rows[0]?.exists === true)
       .catch((error) => {
+        console.warn("users table existence check failed:", error.message);
         usersTableExistsPromise = null;
-        throw error;
+        return false;
       });
   }
 
@@ -96,12 +97,19 @@ router.post("/login", async (req, res) => {
     }
 
     // 1️⃣ First check in users table (admin / future doctor roles)
-    const users = (await usersTableExists())
-      ? await sql`
+    let users = [];
+
+    if (await usersTableExists()) {
+      try {
+        users = await sql`
           SELECT * FROM users
           WHERE email = ${email}
-        `
-      : [];
+        `;
+      } catch (error) {
+        console.warn("users table login lookup failed:", error.message);
+        users = [];
+      }
+    }
 
     if (users.length) {
   const user = users[0];

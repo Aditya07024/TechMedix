@@ -126,6 +126,14 @@ import xrayRoutes from "./routes/xrayRoutes.js";
 import medicineRoutes from "./routes/medicine.routes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
+});
+
 // Map a patient_data DB row to the frontend/Mongoose-like shape (camelCase, _id, ehr object)
 function mapPatientDataRowToFrontend(row) {
   if (!row) return null;
@@ -523,27 +531,41 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Test PostgreSQL connection on startup (non-blocking); run prescription migration so upload works
+function shouldRunStartupMigrations() {
+  return process.env.RUN_STARTUP_MIGRATIONS === "true";
+}
+
+async function runStartupMigrations() {
+  console.log("Running startup database migrations...");
+
+  await initializeCompletSchema();
+  await runPrescriptionMigration();
+  await runSafetyReportMigration();
+  await runPriceIntelligenceMigration();
+  await runMedicalScansMigration();
+  await runAppointmentMigration();
+
+  console.log("Startup database migrations finished");
+}
+
+// Test PostgreSQL connection on startup without blocking app boot.
 async function testConnection() {
   try {
     const result = await sql`SELECT NOW()`;
     console.log("✓ Connected to PostgreSQL:", result[0]);
 
-    // Initialize all database tables
-    await initializeCompletSchema();
-
-    // Run specialized migrations
-    await runPrescriptionMigration();
-    await runSafetyReportMigration();
-    await runPriceIntelligenceMigration();
-    await runMedicalScansMigration();
-    await runAppointmentMigration();
+    if (shouldRunStartupMigrations()) {
+      await runStartupMigrations();
+    } else {
+      console.log(
+        "Skipping startup migrations. Set RUN_STARTUP_MIGRATIONS=true to enable them explicitly.",
+      );
+    }
   } catch (err) {
     console.warn("⚠ Database connection warning:", err.message);
     console.warn(
       "Note: The application will continue running, but database queries may fail",
     );
-    // Don't exit - allow server to start even if DB connection fails initially
   }
 }
 

@@ -5,6 +5,14 @@ function trimSlash(value = "") {
   return String(value).replace(/\/+$/, "");
 }
 
+function unwrapData(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  if (Object.prototype.hasOwnProperty.call(payload, "data")) {
+    return payload.data;
+  }
+  return payload;
+}
+
 export function getApiBaseUrl() {
   const envUrl = trimSlash(process.env.EXPO_PUBLIC_API_URL);
   if (envUrl) return envUrl;
@@ -52,6 +60,7 @@ export async function apiRequest(path, options = {}) {
     auth = true,
     query,
     raw = false,
+    unwrap = false,
   } = options;
 
   const requestHeaders = {
@@ -72,7 +81,7 @@ export async function apiRequest(path, options = {}) {
 
   const response = await fetch(buildUrl(path, query), {
     method,
-    credentials: "include",
+    credentials: "omit",
     headers: requestHeaders,
     body:
       body == null
@@ -99,6 +108,8 @@ export async function apiRequest(path, options = {}) {
     error.payload = payload;
     throw error;
   }
+
+  if (unwrap) return unwrapData(payload);
 
   return payload;
 }
@@ -185,7 +196,7 @@ export const api = {
   },
 
   doctors: {
-    list: () => apiRequest("/api/admin/doctors", { auth: false }),
+    list: () => apiRequest("/api/admin/doctors", { auth: false, unwrap: true }),
     getPatientByCode: (uniqueCode) =>
       apiRequest(`/api/doctor/patient-data/${encodeURIComponent(uniqueCode)}`),
     getDashboard: () => apiRequest("/api/doctor/dashboard"),
@@ -197,9 +208,10 @@ export const api = {
       apiRequest("/api/v2/appointments", { method: "POST", body: payload }),
     get: (appointmentId) => apiRequest(`/api/v2/appointments/${appointmentId}`),
     getByPatient: (patientId) =>
-      apiRequest(`/api/v2/appointments/patient/${patientId}`),
+      apiRequest(`/api/v2/appointments/patient/${patientId}`, { unwrap: true }),
     getByDoctor: (doctorId, date) =>
       apiRequest(`/api/v2/appointments/doctor/${doctorId}`, {
+        unwrap: true,
         query: date ? { date } : undefined,
       }),
     cancel: (appointmentId, reason) =>
@@ -224,11 +236,12 @@ export const api = {
         query: { date, duration },
       }),
     getDoctorSchedule: (doctorId) =>
-      apiRequest(`/api/v2/schedule/doctor/${doctorId}`),
+      apiRequest(`/api/v2/schedule/doctor/${doctorId}`, { unwrap: true }),
     setDoctorSchedule: (doctorId, payload) =>
       apiRequest(`/api/v2/schedule/doctor/${doctorId}`, {
         method: "POST",
         body: payload,
+        unwrap: true,
       }),
   },
 
@@ -264,7 +277,7 @@ export const api = {
     getDetails: (prescriptionId) =>
       apiRequest(`/api/prescription/${prescriptionId}/details`),
     listByPatient: (patientId) =>
-      apiRequest(`/api/prescriptions/patient/${patientId}`),
+      apiRequest(`/api/prescriptions/patient/${patientId}`, { unwrap: true }),
     createManual: (payload) =>
       apiRequest("/api/prescriptions/manual", {
         method: "POST",
@@ -290,11 +303,33 @@ export const api = {
     search: (query) =>
       apiRequest("/api/medicines/search", {
         auth: false,
+        unwrap: true,
         query: { q: query },
+      }),
+    list: (params = {}) =>
+      apiRequest("/api/medicines", {
+        auth: false,
+        query: params,
+      }),
+    lookupWithAi: (query) =>
+      apiRequest("/api/medicines/ai-lookup", {
+        auth: false,
+        unwrap: true,
+        query: { q: query },
+      }),
+    getById: (id) =>
+      apiRequest(`/api/medicines/${encodeURIComponent(id)}`, {
+        auth: false,
+        unwrap: true,
       }),
     getPriceInsights: (name) =>
       apiRequest(`/api/medicines/${encodeURIComponent(name)}/price-insights`, {
         auth: false,
+      }).catch((error) => {
+        if (error?.status === 404) {
+          return null;
+        }
+        throw error;
       }),
   },
 
@@ -324,7 +359,7 @@ export const api = {
   },
 
   wallet: {
-    listDocuments: () => apiRequest("/api/health-wallet/documents"),
+    listDocuments: () => apiRequest("/api/health-wallet/documents", { unwrap: true }),
     uploadDocuments: async (documents) => {
       const formData = new FormData();
       for (const asset of documents) {
@@ -338,11 +373,13 @@ export const api = {
       return apiRequest("/api/health-wallet/documents", {
         method: "POST",
         body: formData,
+        unwrap: true,
       });
     },
     deleteDocument: (documentId) =>
       apiRequest(`/api/health-wallet/documents/${documentId}`, {
         method: "DELETE",
+        unwrap: true,
       }),
   },
 
@@ -352,18 +389,22 @@ export const api = {
   },
 
   notifications: {
-    list: (userId) => apiRequest(`/api/v2/notifications/user/${userId}`),
+    list: (userId) =>
+      apiRequest(`/api/v2/notifications/user/${userId}`, { unwrap: true }),
     markRead: (notificationId) =>
       apiRequest(`/api/v2/notifications/${notificationId}/read`, {
         method: "POST",
+        unwrap: true,
       }),
     markAllRead: (userId) =>
       apiRequest(`/api/v2/notifications/user/${userId}/read-all`, {
         method: "POST",
+        unwrap: true,
       }),
     remove: (notificationId) =>
       apiRequest(`/api/v2/notifications/${notificationId}`, {
         method: "DELETE",
+        unwrap: true,
       }),
   },
 
@@ -409,9 +450,9 @@ export const api = {
 
   recordings: {
     listForPatient: (patientId) =>
-      apiRequest(`/api/recordings/patient/${patientId}`),
+      apiRequest(`/api/recordings/patient/${patientId}`, { unwrap: true }),
     listForDoctor: (doctorId) =>
-      apiRequest(`/api/recordings/doctor/${doctorId}`),
+      apiRequest(`/api/recordings/doctor/${doctorId}`, { unwrap: true }),
     upload: async ({ audio, appointmentId, patientId }) => {
       const formData = new FormData();
       await appendMultipartField(formData, "audio", audio, audio.mimeType || "audio/mpeg");
@@ -424,5 +465,7 @@ export const api = {
         body: formData,
       });
     },
+    uploadDoctor: ({ audio, appointmentId, patientId }) =>
+      api.recordings.upload({ audio, appointmentId, patientId }),
   },
 };

@@ -166,6 +166,11 @@ export function PatientDashboardScreen({ navigation }) {
     medicineName: "",
   });
 
+  const hasLoadedDashboard =
+    homeData.appointments.length > 0 ||
+    homeData.prescriptions.length > 0 ||
+    homeData.documents.length > 0;
+
   useEffect(() => {
     loadNativeReminders();
   }, []);
@@ -326,62 +331,63 @@ export function PatientDashboardScreen({ navigation }) {
   async function loadDashboard(isRefresh = false) {
     if (!user?.id) return;
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!hasLoadedDashboard) setLoading(true);
 
     try {
-      const [
-        profileRes,
-        appointmentsRes,
-        prescriptionRes,
-        walletRes,
-        healthRes,
-        insightsRes,
-        notificationRes,
-        recordingsRes,
-        docsRes,
-      ] = await Promise.allSettled([
+      const [profileRes, appointmentsRes] = await Promise.allSettled([
         api.patients.getProfile(user.id),
         api.appointments.getByPatient(user.id),
-        api.prescriptions.listByPatient(user.id),
-        api.payments.getWalletBalance(),
-        api.health.latest(),
-        api.health.insights(),
-        user?.id ? api.notifications.list(user.id) : Promise.resolve([]),        api.recordings.listForPatient(user.id),
-        api.wallet.listDocuments(),
       ]);
 
-      setHomeData({
-        profile: profileRes.status === "fulfilled" ? profileRes.value : user,
+      setHomeData((current) => ({
+        ...current,
+        profile: profileRes.status === "fulfilled" ? profileRes.value : current.profile || user,
         appointments:
           appointmentsRes.status === "fulfilled"
             ? normalizeArray(appointmentsRes.value)
-            : [],
+            : current.appointments,
+      }));
+      setError("");
+      setLoading(false);
+      setRefreshing(false);
+
+      const [
+        prescriptionRes,
+        healthRes,
+        insightsRes,
+        recordingsRes,
+        docsRes,
+      ] = await Promise.allSettled([
+        api.prescriptions.listByPatient(user.id),
+        api.health.latest(),
+        api.health.insights(),
+        api.recordings.listForPatient(user.id),
+        api.wallet.listDocuments(),
+      ]);
+
+      setHomeData((current) => ({
+        ...current,
         prescriptions:
           prescriptionRes.status === "fulfilled"
             ? normalizeArray(prescriptionRes.value)
-            : [],
-        walletBalance:
-          walletRes.status === "fulfilled"
-            ? Number(walletRes.value?.balance || 0)
-            : 0,
+            : current.prescriptions,
         healthLatest:
-          healthRes.status === "fulfilled" ? healthRes.value || {} : {},
+          healthRes.status === "fulfilled"
+            ? healthRes.value || {}
+            : current.healthLatest,
         insights:
           insightsRes.status === "fulfilled"
             ? insightsRes.value?.insights || []
-            : [],
-        notifications:
-          notificationRes.status === "fulfilled"
-            ? normalizeArray(notificationRes.value)
-            : [],
+            : current.insights,
         recordings:
           recordingsRes.status === "fulfilled"
             ? normalizeArray(recordingsRes.value)
-            : [],
+            : current.recordings,
         documents:
-          docsRes.status === "fulfilled" ? normalizeArray(docsRes.value) : [],
-      });
-      setError("");
+          docsRes.status === "fulfilled"
+            ? normalizeArray(docsRes.value)
+            : current.documents,
+      }));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -393,7 +399,7 @@ export function PatientDashboardScreen({ navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadDashboard();
-    }, [user?.id]),
+    }, [user?.id, hasLoadedDashboard]),
   );
 
   const appointments = homeData.appointments || [];
@@ -2926,17 +2932,17 @@ export function MedicineSearchScreen({ navigation }) {
     setLoading(true);
     try {
       const [searchRes, safetyRes] = await Promise.allSettled([
-        api.medicines.search(query.trim()),
+        api.medicines.list({ search: query.trim(), limit: 12, page: 1 }),
         api.prescriptions.safetyCheckLatest(query.trim(), user?.id),
       ]);
 
-      const medicines =
-        searchRes.status === "fulfilled"
-          ? [
-              searchRes.value?.medicineData,
-              ...(searchRes.value?.similarMedicines || []),
-            ].filter(Boolean)
-          : [];
+      let medicines =
+        searchRes.status === "fulfilled" ? normalizeArray(searchRes.value) : [];
+
+      if (!medicines.length) {
+        const aiLookup = await api.medicines.lookupWithAi(query.trim()).catch(() => null);
+        medicines = aiLookup ? [aiLookup] : [];
+      }
 
       setResults(medicines);
       setSafetyInsight(
@@ -2947,7 +2953,7 @@ export function MedicineSearchScreen({ navigation }) {
 
       if (medicines[0]?.name) {
         const price = await api.medicines.getPriceInsights(medicines[0].name);
-        setPriceInsight(price?.data || price);
+        setPriceInsight(price?.data || price || null);
       } else {
         setPriceInsight(null);
       }
@@ -2993,10 +2999,10 @@ export function MedicineSearchScreen({ navigation }) {
               <SurfaceCard>
                 <Text style={styles.listTitle}>{item.name}</Text>
                 <Text style={styles.listMeta}>
-                  {item.salt || "Salt not provided"}
+                  {item.salt || item.salt_composition || item.short_composition1 || "Salt not provided"}
                 </Text>
                 <Text style={styles.smallText}>
-                  {item.benefits || item.info || "No description available."}
+                  {item.medicine_desc || item.benefits || item.info || item.usage || "No description available."}
                 </Text>
               </SurfaceCard>
             </TouchableOpacity>

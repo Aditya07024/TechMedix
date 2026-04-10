@@ -185,9 +185,13 @@ export function StatCard({ label, value, subtext, style }) {
   );
 }
 
-export function ActionTile({ label, icon, onPress }) {
+export function ActionTile({ label, icon, onPress, style }) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.actionTile}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.9}
+      style={[styles.actionTile, style]}
+    >
       <View style={styles.actionIconWrap}>
         <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
       </View>
@@ -384,7 +388,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minWidth: 90,
-    // flex: 1,
+    minHeight: 112,
+    flexGrow: 1,
+    flexBasis: "30%",
   },
   actionIconWrap: {
     width: 46,
