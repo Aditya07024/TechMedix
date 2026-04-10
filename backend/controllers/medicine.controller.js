@@ -7,6 +7,15 @@ import {
   getMedicineUsesFromDb,
   searchMedicinesInDb,
 } from "../services/medicineDbFallbackService.js";
+import {
+  getMedicineByIdFromCsv,
+  getMedicineFiltersFromCsv,
+  getMedicinesFromCsv,
+  getMedicineSideEffectsFromCsv,
+  getMedicineSubstitutesFromCsv,
+  getMedicineUsesFromCsv,
+  searchMedicinesInCsv,
+} from "../services/medicineCsvService.js";
 import { lookupMedicineWithAi } from "../services/aiMedicineLookupService.js";
 
 const DEFAULT_PAGE = 1;
@@ -19,6 +28,49 @@ function sendServerError(res, error, fallbackMessage) {
     success: false,
     message: fallbackMessage,
   });
+}
+
+function isMedicineSourceUnavailableError(error) {
+  const message = String(error?.message ?? "");
+
+  return (
+    error?.code === "42P01" ||
+    error?.code === "ENOENT" ||
+    message.includes("Medicine source table not found") ||
+    message.includes("medicines.csv") ||
+    message.includes("no such file or directory")
+  );
+}
+
+async function withMedicineSourceFallback({
+  runPrimary,
+  runFallback,
+  emptyValue,
+  contextLabel,
+}) {
+  try {
+    return await runPrimary();
+  } catch (primaryError) {
+    if (!isMedicineSourceUnavailableError(primaryError)) {
+      throw primaryError;
+    }
+
+    console.warn(`${contextLabel}: primary medicine source unavailable`, primaryError);
+
+    try {
+      return await runFallback();
+    } catch (fallbackError) {
+      if (!isMedicineSourceUnavailableError(fallbackError)) {
+        throw fallbackError;
+      }
+
+      console.warn(
+        `${contextLabel}: fallback medicine source unavailable; returning empty payload`,
+        fallbackError,
+      );
+      return emptyValue;
+    }
+  }
 }
 
 function parsePagination(query) {
@@ -94,7 +146,7 @@ export async function getMedicines(req, res) {
       });
     }
 
-    const result = await getMedicinesFromDb({
+    const queryOptions = {
       page: pagination.page,
       limit: pagination.limit,
       search: req.query.search?.trim() ?? "",
@@ -104,6 +156,20 @@ export async function getMedicines(req, res) {
       actionClass: req.query.action_class?.trim() ?? "",
       category: req.query.category?.trim() ?? "",
       habitForming: habitForming.hasValue ? habitForming.value : undefined,
+    };
+    const result = await withMedicineSourceFallback({
+      runPrimary: () => getMedicinesFromDb(queryOptions),
+      runFallback: () => getMedicinesFromCsv(queryOptions),
+      emptyValue: {
+        data: [],
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          total: 0,
+          totalPages: 0,
+        },
+      },
+      contextLabel: "getMedicines",
     });
 
     return res.json({
@@ -126,7 +192,12 @@ export async function getMedicineById(req, res) {
       });
     }
 
-    const medicine = await getMedicineByIdFromDb(medicineId);
+    const medicine = await withMedicineSourceFallback({
+      runPrimary: () => getMedicineByIdFromDb(medicineId),
+      runFallback: () => getMedicineByIdFromCsv(medicineId),
+      emptyValue: null,
+      contextLabel: "getMedicineById",
+    });
     console.log("[medicine:getById] controller response", {
       medicineId,
       payload: medicine,
@@ -159,7 +230,12 @@ export async function searchMedicines(req, res) {
       });
     }
 
-    const medicines = await searchMedicinesInDb(query);
+    const medicines = await withMedicineSourceFallback({
+      runPrimary: () => searchMedicinesInDb(query),
+      runFallback: () => searchMedicinesInCsv(query),
+      emptyValue: [],
+      contextLabel: "searchMedicines",
+    });
 
     return res.json({
       success: true,
@@ -201,7 +277,17 @@ export async function lookupMedicineWithAiFallback(req, res) {
 
 export async function getMedicineFilters(req, res) {
   try {
-    const filters = await getMedicineFiltersFromDb();
+    const filters = await withMedicineSourceFallback({
+      runPrimary: () => getMedicineFiltersFromDb(),
+      runFallback: () => getMedicineFiltersFromCsv(),
+      emptyValue: {
+        chemical_class: [],
+        therapeutic_class: [],
+        action_class: [],
+        category: [],
+      },
+      contextLabel: "getMedicineFilters",
+    });
 
     return res.json({
       success: true,
@@ -222,7 +308,12 @@ export async function getMedicineSubstitutes(req, res) {
       });
     }
 
-    const substitutes = await getMedicineSubstitutesFromDb(medicineId);
+    const substitutes = await withMedicineSourceFallback({
+      runPrimary: () => getMedicineSubstitutesFromDb(medicineId),
+      runFallback: () => getMedicineSubstitutesFromCsv(medicineId),
+      emptyValue: null,
+      contextLabel: "getMedicineSubstitutes",
+    });
     if (substitutes === null) {
       return res.status(404).json({
         success: false,
@@ -249,7 +340,12 @@ export async function getMedicineSideEffects(req, res) {
       });
     }
 
-    const sideEffects = await getMedicineSideEffectsFromDb(medicineId);
+    const sideEffects = await withMedicineSourceFallback({
+      runPrimary: () => getMedicineSideEffectsFromDb(medicineId),
+      runFallback: () => getMedicineSideEffectsFromCsv(medicineId),
+      emptyValue: null,
+      contextLabel: "getMedicineSideEffects",
+    });
     if (sideEffects === null) {
       return res.status(404).json({
         success: false,
@@ -276,7 +372,12 @@ export async function getMedicineUses(req, res) {
       });
     }
 
-    const uses = await getMedicineUsesFromDb(medicineId);
+    const uses = await withMedicineSourceFallback({
+      runPrimary: () => getMedicineUsesFromDb(medicineId),
+      runFallback: () => getMedicineUsesFromCsv(medicineId),
+      emptyValue: null,
+      contextLabel: "getMedicineUses",
+    });
     if (uses === null) {
       return res.status(404).json({
         success: false,
