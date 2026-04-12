@@ -1,0 +1,369 @@
+.staff-dashboard-page {
+  min-height: 100vh;
+  padding: 32px 24px 48px;
+  background:
+    radial-gradient(circle at top left, rgba(21, 128, 61, 0.12), transparent 22%),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 26%),
+    linear-gradient(180deg, #f8fafc, #eef5ef);
+  color: #0f172a;
+}
+
+.staff-dashboard-hero {
+  max-width: 1280px;
+  margin: 0 auto 24px;
+  padding: 32px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #0f172a, #14532d);
+  color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.staff-dashboard-kicker {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #bbf7d0;
+}
+
+.staff-dashboard-hero h1 {
+  margin: 10px 0 14px;
+  font-size: clamp(2rem, 3.5vw, 3.8rem);
+  line-height: 0.96;
+}
+
+.staff-dashboard-hero p {
+  max-width: 60ch;
+  color: rgba(248, 250, 252, 0.82);
+  line-height: 1.7;
+}
+
+.staff-dashboard-actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.staff-dashboard-actions button,
+.staff-row-actions button,
+.staff-status-actions button,
+.staff-patient-form button,
+.staff-report-upload button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.staff-dashboard-actions button {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.staff-status-banner {
+  max-width: 1280px;
+  margin: 0 auto 20px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #ecfccb;
+  color: #365314;
+  border: 1px solid #bef264;
+}
+
+.staff-stats-grid,
+.staff-dashboard-grid {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.staff-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.staff-stat-card,
+.staff-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.06);
+}
+
+.staff-stat-card {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+}
+
+.staff-stat-card p,
+.staff-stat-card span,
+.staff-panel-header p,
+.staff-patient-summary p,
+.staff-patient-summary span,
+.staff-muted {
+  color: #475569;
+}
+
+.staff-stat-card strong {
+  display: block;
+  font-size: 1.9rem;
+  margin: 4px 0;
+}
+
+.staff-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #dcfce7;
+  color: #166534;
+  display: grid;
+  place-items: center;
+}
+
+.staff-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 18px;
+}
+
+.staff-panel {
+  padding: 22px;
+}
+
+.staff-panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.staff-panel-header h2,
+.staff-patient-summary h3,
+.staff-activity-grid h3 {
+  margin: 0;
+}
+
+.staff-panel-header select,
+.staff-patient-form input,
+.staff-patient-form textarea,
+.staff-report-upload input[type="file"] {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.staff-table-wrap {
+  overflow-x: auto;
+}
+
+.staff-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.staff-table th,
+.staff-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.staff-link-button {
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  padding: 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.staff-row-actions,
+.staff-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staff-row-actions button,
+.staff-status-actions button,
+.staff-patient-form button,
+.staff-report-upload button {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.staff-status-actions button.active {
+  background: #14532d;
+  color: #fff;
+}
+
+.staff-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: #e2e8f0;
+}
+
+.status-arrived,
+.status-waiting {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-in_progress,
+.status-in-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-visited,
+.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.staff-queue-list,
+.staff-log-list,
+.staff-performance-list {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-queue-card,
+.staff-log-row,
+.staff-performance-row {
+  padding: 16px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.staff-queue-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.staff-patient-summary {
+  margin-bottom: 18px;
+}
+
+.staff-patient-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.staff-patient-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.staff-patient-form .wide {
+  grid-column: 1 / -1;
+}
+
+.staff-patient-form button {
+  width: fit-content;
+  background: #14532d;
+  color: #fff;
+}
+
+.staff-report-panel {
+  margin-top: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.staff-report-upload {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.staff-report-upload input[type="file"] {
+  max-width: 320px;
+}
+
+.staff-report-list {
+  display: grid;
+  gap: 10px;
+}
+
+.staff-report-list a {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.staff-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.staff-log-row,
+.staff-performance-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.staff-log-row div,
+.staff-performance-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.staff-empty-state {
+  padding: 32px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .staff-stats-grid,
+  .staff-dashboard-grid,
+  .staff-activity-grid,
+  .staff-patient-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .staff-dashboard-page {
+    padding: 20px 14px 36px;
+  }
+
+  .staff-dashboard-hero,
+  .staff-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .staff-dashboard-hero {
+    flex-direction: column;
+  }
+
+  .staff-queue-card {
+    flex-direction: column;
+  }
+}

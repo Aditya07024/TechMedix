@@ -25,6 +25,8 @@ export const authApi = {
   signup: (data) => api.post("/auth/signup", data),
   logout: () => api.get("/auth/logout"),
   status: () => api.get("/auth/status"),
+  staffLogin: (data) => api.post("/auth/staff/login", data),
+  staffProfile: () => api.get("/auth/staff/profile"),
 };
 
 export const medicineApi = {
@@ -121,5 +123,47 @@ export const doctorApi = {
   // 👇 Patient data access
   getPatientData: (uniqueCode) =>
     api.get(`/api/doctor/patient-data/${uniqueCode}`),
+  createStaff: (data) => api.post("/api/doctor/staff/create", data),
+  getMyStaff: () => api.get("/api/doctor/staff"),
+  getStaffRequests: () => api.get("/api/doctor/staff/requests"),
+  resolveStaffRequest: (requestId, status) =>
+    api.patch(`/api/doctor/staff/request/${requestId}`, { status }),
+  removeStaff: (staffId) => api.delete(`/api/doctor/staff/${staffId}`),
+};
+
+export const staffApi = {
+  getOverview: (params = {}) => api.get("/api/staff/overview", { params }),
+  getTodayAppointments: (params = {}) =>
+    api.get("/api/staff/appointments/today", { params }),
+  markArrived: (appointmentId) =>
+    api.post(`/api/staff/appointments/${appointmentId}/arrive`),
+  generateToken: (appointmentId) =>
+    api.post("/api/staff/queue/token", { appointment_id: appointmentId }),
+  getLiveQueue: (doctorId, date) =>
+    api.get("/api/staff/queue/live", {
+      params: { doctor_id: doctorId, date },
+    }),
+  updateQueueStatus: (queueId, status) =>
+    api.patch(`/api/staff/queue/${queueId}/status`, { status }),
+  getPatient: (patientId) => api.get(`/api/staff/patients/${patientId}`),
+  updatePatient: (patientId, payload) =>
+    api.patch(`/api/staff/patients/${patientId}`, payload),
+  uploadReport: (formData) =>
+    api.post("/api/staff/reports", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  getPatientReports: (patientId) =>
+    api.get(`/api/staff/patients/${patientId}/reports`),
+  notifyDoctor: (payload) => api.post("/api/staff/notify-doctor", payload),
+  getActivity: (limit = 25) =>
+    api.get("/api/staff/activity", { params: { limit } }),
+  getPerformance: (params = {}) => api.get("/api/staff/performance", { params }),
+  getDoctors: () => api.get("/api/staff/doctors"),
+  requestDoctorAccess: (doctor_id) =>
+    api.post("/api/staff/request-doctor", { doctor_id }),
+  switchDoctor: (doctor_id) =>
+    api.post("/api/staff/switch-doctor", { doctor_id }),
 };
 export default api;

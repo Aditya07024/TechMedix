@@ -65,6 +65,7 @@ import cookieParser from "cookie-parser";
 import authRouter from "./routes/authRouter.js";
 import QRCode from "qrcode";
 import doctorAuthRouter from "./routes/doctorAuthRouter.js";
+import staffAuthRouter from "./routes/staffAuthRoutes.js";
 import { authenticate, authorizeRoles } from "./middleware/auth.js";
 import _ from "lodash";
 import ExcelJS from "exceljs";
@@ -124,6 +125,8 @@ import healthWalletRoutes from "./routes/healthWalletRoutes.js";
 import googleFitRoutes from "./routes/googleFitRoutes.js";
 import xrayRoutes from "./routes/xrayRoutes.js";
 import medicineRoutes from "./routes/medicine.routes.js";
+import staffRoutes from "./routes/staffRoutes.js";
+import doctorStaffRoutes from "./routes/doctorStaffRoutes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 
 process.on("unhandledRejection", (reason) => {
@@ -1108,6 +1111,7 @@ app.use("/api/appointments-v2", appointmentManagementRoutes);
 
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
+app.use("/auth/staff", staffAuthRouter);
 
 const PORT = process.env.PORT;
 
@@ -1160,6 +1164,7 @@ app.use("/api/recordings", recordingRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/notifications-v2", notificationManagementRoutes);
 app.use("/api/doctor", doctorDashboardRoutes);
+app.use("/api", doctorStaffRoutes);
 app.use("/api/patient-notifications", patientNotificationRoutes);
 app.use("/api/doctor", doctorDelayRoutes);
 app.use("/api/queue-v2", queueManagementRoutes);
@@ -1181,6 +1186,7 @@ app.use("/api/v2/queue", queueApiRoutes);
 app.use("/api/v2/timeline", timelineApiRoutes);
 app.use("/api/v2/notifications", notificationApiRoutes);
 app.use("/api/v2/schedule", scheduleApiRoutes);
+app.use("/api/staff", staffRoutes);
 
 app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
   const reqId = `M${Date.now().toString(36)}-${Math.random()

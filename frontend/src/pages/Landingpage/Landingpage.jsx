@@ -264,6 +264,9 @@ const Landingpage = ({ setShowLogin }) => {
             <Link className="landing-button landing-button--primary" to="/doctor/login">
               Doctor login
             </Link>
+            <Link className="landing-button landing-button--primary" to="/staff/login">
+              Staff login
+            </Link>
           </div>
         </div>
       </header>

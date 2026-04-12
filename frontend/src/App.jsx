@@ -24,6 +24,8 @@ import TermsAndConditions from "./pages/TermsAndConditions/TermsAndConditions";
 import PatientDashboard from "./pages/PatientDashboard/PatientDashboard";
 import DoctorDashboardNew from "./pages/DoctorDashboardNew/DoctorDashboardNew";
 import AdminDashboard from "./pages/AdminDashboard/AdminDashboard";
+import StaffDashboard from "./pages/StaffDashboard/StaffDashboard";
+import StaffLogin from "./pages/StaffLogin/StaffLogin";
 
 import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
 import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
@@ -133,6 +135,7 @@ const App = () => {
 
           <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/doctor/signup" element={<DoctorSignup />} />
+          <Route path="/staff/login" element={<StaffLogin />} />
           <Route
             path="/payment/:appointmentId"
             element={
@@ -177,10 +180,17 @@ const App = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/staff/dashboard"
+            element={
+              <ProtectedRoute requiredRole="staff">
+                <StaffDashboard />
+              </ProtectedRoute>
+            }
+          />
 
           {/* 📄 TERMS & CONDITIONS */}
           <Route path="/terms" element={<TermsAndConditions />} />
-          <Route path="/ui/liquid-glass" element={<LiquidGlassDemo />} />
 
           {/* 🔥 FALLBACK */}
           <Route path="*" element={<Notfound />} />

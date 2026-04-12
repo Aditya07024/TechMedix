@@ -132,7 +132,7 @@ const intelligenceBlocks = [
     description:
       "TechMedix includes a Python service that reads symptom inputs, turns them into a feature vector, and runs a trained decision-tree classifier to predict a likely disease label with confidence scores.",
     points: [
-      "Training data is loaded from a CSV file of symptom columns and prognosis labels.",
+      "Training data is loaded from a Cdsco dataset(a gov approved dataset).",
       "Only valid symptom columns are used for training to avoid schema mismatch issues.",
       "The API returns a predicted disease, confidence, related symptoms, and probabilities.",
       "This is assistive output and should support, not replace, clinical judgment.",

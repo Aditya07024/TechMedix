@@ -26,6 +26,36 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    await sql`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'patient',
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `;
+
+    // Normalize legacy role values before restoring the canonical users role check.
+    await sql`
+      UPDATE users
+      SET role = CASE
+        WHEN LOWER(TRIM(role)) = 'assistant' THEN 'staff'
+        ELSE LOWER(TRIM(role))
+      END
+      WHERE role IS NOT NULL;
+    `;
+
+    await sql`
+      ALTER TABLE users
+      DROP CONSTRAINT IF EXISTS users_role_check;
+    `;
+
+    await sql`
+      ALTER TABLE users
+      ADD CONSTRAINT users_role_check
+      CHECK (role IN ('patient', 'staff', 'admin', 'doctor'));
+    `;
+
     // 2️⃣ DOCTORS TABLE
     await sql`
       CREATE TABLE IF NOT EXISTS doctors (
@@ -49,6 +79,59 @@ export async function initializeCompletSchema() {
       ADD COLUMN IF NOT EXISTS consultation_fee NUMERIC DEFAULT 500;
     `;
 
+    // 2b STAFF TABLE
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        hospital_id INTEGER,
+        role VARCHAR(50) NOT NULL DEFAULT 'staff',
+        department VARCHAR(100),
+        phone VARCHAR(20),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_by_doctor_id UUID REFERENCES doctors(id) ON DELETE SET NULL,
+        active_doctor_id UUID REFERENCES doctors(id) ON DELETE SET NULL,
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      ALTER TABLE staff
+      ADD COLUMN IF NOT EXISTS created_by_doctor_id UUID REFERENCES doctors(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS active_doctor_id UUID REFERENCES doctors(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS username VARCHAR(255);
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS doctor_staff_map (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+        staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+        role VARCHAR(50) DEFAULT 'assistant',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (doctor_id, staff_id)
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+        doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (staff_id, doctor_id)
+      );
+    `;
+
     // 3️⃣ PATIENTS TABLE
     await sql`
       CREATE TABLE IF NOT EXISTS patients (
@@ -68,6 +151,11 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    await sql`
+      ALTER TABLE patients
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `;
+
     // 4️⃣ APPOINTMENTS TABLE
     await sql`
       CREATE TABLE IF NOT EXISTS appointments (
@@ -85,6 +173,35 @@ export async function initializeCompletSchema() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE
+      );
+    `;
+
+    await sql`
+      ALTER TABLE appointments
+      ADD COLUMN IF NOT EXISTS token_number INTEGER,
+      ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS handled_by_staff_id UUID REFERENCES staff(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS visit_notes TEXT;
+    `;
+
+    // 4b QUEUE TABLE
+    await sql`
+      CREATE TABLE IF NOT EXISTS queue (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        appointment_id UUID UNIQUE REFERENCES appointments(id) ON DELETE CASCADE,
+        token_no INTEGER NOT NULL,
+        patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
+        doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
+        hospital_id INTEGER,
+        queue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        status VARCHAR(30) NOT NULL DEFAULT 'waiting',
+        queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        assigned_staff_id UUID REFERENCES staff(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (doctor_id, queue_date, token_no)
       );
     `;
 
@@ -326,6 +443,17 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    await sql`
+      ALTER TABLE reports
+      ADD COLUMN IF NOT EXISTS patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS appointment_id UUID REFERENCES appointments(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS secure_url TEXT,
+      ADD COLUMN IF NOT EXISTS public_id VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(50) DEFAULT 'local',
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `;
+
     // 1️⃣4️⃣ VISITS TABLE
     await sql`
       CREATE TABLE IF NOT EXISTS visits (
@@ -355,30 +483,68 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    // 1️⃣6️⃣ AUDIT AND STAFF LOGS
+    await sql`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        entity_type VARCHAR(100),
+        entity_id VARCHAR(255),
+        action VARCHAR(150) NOT NULL,
+        performed_by UUID,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS staff_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        staff_id UUID REFERENCES staff(id) ON DELETE CASCADE,
+        action VARCHAR(150) NOT NULL,
+        target_type VARCHAR(100),
+        target_id VARCHAR(255),
+        metadata JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     // Create Indexes
     try {
       await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_doctors_email ON doctors(email)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_doctors_specialty ON doctors(specialty)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_hospital_role ON staff(hospital_id, role)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_active_doctor ON staff(active_doctor_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_doctor_staff_map_doctor_status ON doctor_staff_map(doctor_id, status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_doctor_staff_map_staff_status ON doctor_staff_map(staff_id, status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_requests_doctor_status ON staff_requests(doctor_id, status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_requests_staff_status ON staff_requests(staff_id, status)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_patients_email ON patients(email)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_patients_unique_code ON patients(unique_code)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_appointments_patient_id ON appointments(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_appointments_doctor_id ON appointments(doctor_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(appointment_date)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_appointments_doctor_date_status ON appointments(doctor_id, appointment_date, status)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_payments_appointment_id ON payments(appointment_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_payments_doctor_id ON payments(doctor_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_queue_doctor_date_status ON queue(doctor_id, queue_date, status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_queue_patient_date ON queue(patient_id, queue_date)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_recordings_doctor_id ON recordings(doctor_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_recordings_patient_id ON recordings(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_patient_data_patient_id ON patient_data(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines(name)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_reports_patient_id ON reports(patient_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_reports_appointment_id ON reports(appointment_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_doctor_schedule_doctor_id ON doctor_schedule(doctor_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_health_metrics_patient_id ON health_metrics(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_health_metrics_type ON health_metrics(metric_type)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_health_metrics_recorded_at ON health_metrics(recorded_at)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_health_metrics_patient_type_date ON health_metrics(patient_id, metric_type, recorded_at)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_staff_logs_staff_created_at ON staff_logs(staff_id, created_at DESC)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)`;
     } catch (err) {
       console.warn("⚠️ Some indexes may already exist:", err.message);
     }

@@ -62,3 +62,7 @@ export const authorizeRoles = (...roles) => {
     next();
   };
 };
+
+export const verifyDoctor = [authenticate, authorizeRoles("doctor")];
+
+export const verifyStaff = [authenticate, authorizeRoles("staff")];

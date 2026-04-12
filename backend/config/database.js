@@ -22,6 +22,7 @@ console.log(
 
 const sql = postgres(connectionString, {
   ssl: "require",
+  prepare: false,
 });
 
 sql.query = (query, params = []) => sql.unsafe(query, params);

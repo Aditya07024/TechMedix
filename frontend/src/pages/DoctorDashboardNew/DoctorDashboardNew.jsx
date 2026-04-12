@@ -47,6 +47,17 @@ export default function DoctorDashboardNew() {
   const [newMedicineDuration, setNewMedicineDuration] = useState("");
   const [patientPrescriptions, setPatientPrescriptions] = useState([]);
   const [patientRecordings, setPatientRecordings] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [staffRequests, setStaffRequests] = useState([]);
+  const [staffForm, setStaffForm] = useState({
+    name: "",
+    email: "",
+    username: "",
+    password: "",
+    role: "assistant",
+    department: "",
+    phone: "",
+  });
   const qrRefId = "doctor-qr-reader";
 
   useEffect(() => {
@@ -70,6 +81,12 @@ export default function DoctorDashboardNew() {
     }
     fetchProfile();
   }, [user, selectedDate]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadStaffData();
+    }
+  }, [user?.id]);
 
   /* ================= QR SCANNER ================= */
   useEffect(() => {
@@ -167,6 +184,19 @@ export default function DoctorDashboardNew() {
     }
   };
 
+  const loadStaffData = async () => {
+    try {
+      const [staffRes, requestRes] = await Promise.all([
+        doctorApi.getMyStaff(),
+        doctorApi.getStaffRequests(),
+      ]);
+      setStaffMembers(staffRes.data?.data || []);
+      setStaffRequests(requestRes.data?.data || []);
+    } catch (err) {
+      console.warn("Failed to load staff data", err);
+    }
+  };
+
   const handleMarkArrived = async (appointmentId) => {
     try {
       await queueAPI.markArrived(appointmentId);
@@ -254,6 +284,44 @@ export default function DoctorDashboardNew() {
       );
     } catch (err) {
       alert("Error: " + err.message);
+    }
+  };
+
+  const handleCreateStaff = async (event) => {
+    event.preventDefault();
+    try {
+      await doctorApi.createStaff(staffForm);
+      setStaffForm({
+        name: "",
+        email: "",
+        username: "",
+        password: "",
+        role: "assistant",
+        department: "",
+        phone: "",
+      });
+      await loadStaffData();
+      alert("Staff account created");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to create staff");
+    }
+  };
+
+  const handleResolveStaffRequest = async (requestId, status) => {
+    try {
+      await doctorApi.resolveStaffRequest(requestId, status);
+      await loadStaffData();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to update request");
+    }
+  };
+
+  const handleRemoveStaff = async (staffId) => {
+    try {
+      await doctorApi.removeStaff(staffId);
+      await loadStaffData();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to remove staff access");
     }
   };
 
@@ -469,6 +537,12 @@ export default function DoctorDashboardNew() {
             onClick={() => setActiveTab("scanner")}
           >
             📷 Scan Patient
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "staff" ? "active" : ""}`}
+            onClick={() => setActiveTab("staff")}
+          >
+            👥 Staff
           </button>
         </div>
 
@@ -1160,6 +1234,140 @@ export default function DoctorDashboardNew() {
                 )}
               </div>
             )}
+          </div>
+        )}
+        {activeTab === "staff" && (
+          <div className="tab-content appointments-tab">
+            <h3>Staff Management</h3>
+            <div className="appointments-grid">
+              <div className="appointment-item">
+                <h4>Create Staff</h4>
+                <form
+                  onSubmit={handleCreateStaff}
+                  style={{ display: "grid", gap: "10px", marginTop: "12px" }}
+                >
+                  <input
+                    placeholder="Full Name"
+                    value={staffForm.name}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    required
+                  />
+                  <input
+                    placeholder="Email"
+                    type="email"
+                    value={staffForm.email}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    required
+                  />
+                  <input
+                    placeholder="Username"
+                    value={staffForm.username}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, username: e.target.value }))
+                    }
+                  />
+                  <input
+                    placeholder="Password"
+                    type="password"
+                    value={staffForm.password}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                    required
+                  />
+                  <input
+                    placeholder="Assignment Role"
+                    value={staffForm.role}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, role: e.target.value }))
+                    }
+                  />
+                  <input
+                    placeholder="Department"
+                    value={staffForm.department}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, department: e.target.value }))
+                    }
+                  />
+                  <input
+                    placeholder="Phone"
+                    value={staffForm.phone}
+                    onChange={(e) =>
+                      setStaffForm((prev) => ({ ...prev, phone: e.target.value }))
+                    }
+                  />
+                  <button type="submit">Create Staff</button>
+                </form>
+              </div>
+
+              <div className="appointment-item">
+                <h4>My Staff</h4>
+                {staffMembers.length === 0 ? (
+                  <p>No staff assigned</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                    {staffMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        style={{
+                          border: "1px solid #ddd",
+                          borderRadius: "12px",
+                          padding: "12px",
+                        }}
+                      >
+                        <strong>{member.name}</strong>
+                        <p>{member.email}</p>
+                        <p>
+                          {member.assignment_role || "assistant"} | {member.department || "General"}
+                        </p>
+                        <button onClick={() => handleRemoveStaff(member.id)}>
+                          Remove Access
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="appointment-item">
+                <h4>Pending Requests</h4>
+                {staffRequests.length === 0 ? (
+                  <p>No pending staff requests</p>
+                ) : (
+                  <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                    {staffRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        style={{
+                          border: "1px solid #ddd",
+                          borderRadius: "12px",
+                          padding: "12px",
+                        }}
+                      >
+                        <strong>{request.staff_name}</strong>
+                        <p>{request.staff_email}</p>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            onClick={() => handleResolveStaffRequest(request.id, "approved")}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleResolveStaffRequest(request.id, "rejected")}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
         </div>
