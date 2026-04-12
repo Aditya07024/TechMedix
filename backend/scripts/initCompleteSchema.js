@@ -215,6 +215,7 @@ export async function initializeCompletSchema() {
         amount NUMERIC NOT NULL,
         payment_method VARCHAR(50) NOT NULL,
         status VARCHAR(50) DEFAULT 'pending',
+        booking_payload JSONB,
         transaction_id VARCHAR(255),
         razorpay_order_id VARCHAR(255),
         razorpay_payment_id VARCHAR(255),
@@ -222,6 +223,11 @@ export async function initializeCompletSchema() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE
       );
+    `;
+
+    await sql`
+      ALTER TABLE payments
+      ADD COLUMN IF NOT EXISTS booking_payload JSONB;
     `;
 
     // 5b️⃣ WALLETS

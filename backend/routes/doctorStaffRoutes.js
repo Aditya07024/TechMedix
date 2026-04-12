@@ -3,6 +3,7 @@ import { verifyDoctor, verifyStaff } from "../middleware/auth.js";
 import {
   createStaffForDoctor,
   getDoctorStaff,
+  resetDoctorStaffPassword,
   getStaffDoctors,
   removeDoctorStaffAccess,
   switchStaffDoctor,
@@ -89,6 +90,25 @@ router.delete("/doctor/staff/:staffId", ...verifyDoctor, async (req, res) => {
     await logStaffAction(
       req.params.staffId,
       "doctor_staff_access_removed",
+      "doctor",
+      doctorId,
+      {},
+    );
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/doctor/staff/:staffId/reset-password", ...verifyDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.doctor_id || req.user.id;
+    const result = await resetDoctorStaffPassword(doctorId, req.params.staffId);
+
+    await logStaffAction(
+      req.params.staffId,
+      "doctor_staff_password_reset",
       "doctor",
       doctorId,
       {},

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { adminAPI, analyticsAPI } from "../../api/techmedixAPI";
+import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import "./AdminDashboard.css";
 
 /**
@@ -87,6 +88,12 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("branches")}
         >
           🏢 Branches
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "profile" ? "active" : ""}`}
+          onClick={() => setActiveTab("profile")}
+        >
+          👤 Profile
         </button>
       </div>
 
@@ -246,6 +253,13 @@ export default function AdminDashboard() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === "profile" && (
+          <div className="tab-content profile-tab">
+            <h2>Admin Profile</h2>
+            <ProfileManager title="Admin Profile" roleOverride="admin" />
           </div>
         )}
       </div>

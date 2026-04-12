@@ -16,6 +16,7 @@ export default function AppointmentBooking({
   patientId,
   doctorName,
   doctorSpecialty,
+  consultationFee,
 }) {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -123,23 +124,22 @@ export default function AppointmentBooking({
 
       const dateStr = selectedDate.toISOString().split("T")[0];
 
-      const response = await appointmentAPI.book({
-        patient_id: patientId,
+      const bookingIntent = {
         doctor_id: doctorId,
+        patient_id: patientId,
         appointment_date: dateStr,
         slot_time: selectedSlot.start_time.slice(0, 5),
         share_history: shareHistory,
-      });
+        doctorName,
+        doctorSpecialty,
+        consultationFee: Number(consultationFee || 0),
+      };
 
-      setSuccess("Appointment booked successfully!");
+      sessionStorage.setItem("pending-booking-intent", JSON.stringify(bookingIntent));
+      setSuccess("Proceed to payment to confirm your appointment.");
 
       setTimeout(() => {
-        const appointmentId = response.data?.data?.id;
-        if (appointmentId) {
-          navigate(`/payment/${appointmentId}`);
-        } else {
-          setError("Failed to get appointment ID. Please try again.");
-        }
+        navigate("/payment", { state: { bookingIntent } });
       }, 1200);
     } catch (err) {
       console.error("Full booking error:", err);

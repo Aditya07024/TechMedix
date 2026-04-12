@@ -25,6 +25,10 @@ export const authApi = {
   signup: (data) => api.post("/auth/signup", data),
   logout: () => api.get("/auth/logout"),
   status: () => api.get("/auth/status"),
+  getProfile: () => api.get("/auth/profile"),
+  updateProfile: (data) => api.patch("/auth/profile", data),
+  deleteProfile: () => api.delete("/auth/profile"),
+  resetPatientQrCode: () => api.post("/auth/profile/reset-qr"),
   staffLogin: (data) => api.post("/auth/staff/login", data),
   staffProfile: () => api.get("/auth/staff/profile"),
 };
@@ -84,6 +88,8 @@ export const paymentApi = {
   markCashPaid: (data) => api.post("/api/payments/mark-cash-paid", data),
   getDoctorSummary: (doctorId) =>
     api.get(`/api/payments/doctor/${doctorId}/summary`),
+  getDoctorRevenueDetails: (doctorId) =>
+    api.get(`/api/payments/doctor/${doctorId}/details`),
   payWithWallet: (data) => api.post("/api/payments/pay-with-wallet", data),
   getWalletBalance: () => api.get("/api/payments/wallet/balance"),
 };
@@ -128,6 +134,8 @@ export const doctorApi = {
   getStaffRequests: () => api.get("/api/doctor/staff/requests"),
   resolveStaffRequest: (requestId, status) =>
     api.patch(`/api/doctor/staff/request/${requestId}`, { status }),
+  resetStaffPassword: (staffId) =>
+    api.post(`/api/doctor/staff/${staffId}/reset-password`),
   removeStaff: (staffId) => api.delete(`/api/doctor/staff/${staffId}`),
 };
 

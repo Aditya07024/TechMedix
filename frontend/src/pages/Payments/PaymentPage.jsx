@@ -1,29 +1,65 @@
-import { useState, useEffect } from "react";
-import { paymentApi } from "../../api";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { paymentApi, patientApi } from "../../api";
 import { appointmentAPI } from "../../api/techmedixAPI";
-import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "./PaymentPage.css";
+
+const getNormalizedPhone = (value) =>
+  String(value || "")
+    .replace(/\D/g, "")
+    .slice(-10);
+
+const getRazorpayContact = (value) => {
+  const phone = getNormalizedPhone(value);
+  return phone ? `+91${phone}` : "";
+};
+
+const formatCurrency = (amount) => `₹${Number(amount || 0).toFixed(2)}`;
 
 export default function PaymentPage() {
   const { appointmentId } = useParams();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [bookingIntent, setBookingIntent] = useState(() => {
+    const stateIntent = location.state?.bookingIntent;
+    if (stateIntent) return stateIntent;
+
+    try {
+      const stored = sessionStorage.getItem("pending-booking-intent");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [appointment, setAppointment] = useState(null);
   const [wallet, setWallet] = useState({ balance: 0 });
-  const [lastOrderAmount, setLastOrderAmount] = useState(null); // paise
+  const [checkoutProfile, setCheckoutProfile] = useState(null);
+  const [lastOrderAmount, setLastOrderAmount] = useState(null);
+  const [paymentSession, setPaymentSession] = useState(null);
 
-  // Validate appointment ID on mount
+  const hasBookingIntent = Boolean(bookingIntent?.doctor_id);
+
   useEffect(() => {
-    if (authLoading) {
-      return;
+    if (location.state?.bookingIntent) {
+      sessionStorage.setItem(
+        "pending-booking-intent",
+        JSON.stringify(location.state.bookingIntent),
+      );
+      setBookingIntent(location.state.bookingIntent);
     }
+  }, [location.state]);
 
-    if (!appointmentId) {
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!appointmentId && !hasBookingIntent) {
       setError("No appointment ID provided. Please book an appointment first.");
-      setTimeout(() => navigate("/appointments"), 2000);
+      setTimeout(() => navigate("/dashboard"), 2000);
       return;
     }
 
@@ -33,8 +69,29 @@ export default function PaymentPage() {
       return;
     }
 
-    // load appointment details including fee
+    async function fetchLatestPatientProfile() {
+      try {
+        if (user?.id) {
+          const res = await patientApi.getPatient(user.id);
+          setCheckoutProfile(res.data || null);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch latest patient profile for checkout", err);
+      }
+    }
+
+    async function fetchWallet() {
+      try {
+        const res = await paymentApi.getWalletBalance();
+        setWallet({ balance: Number(res.data?.balance || 0) });
+      } catch (err) {
+        console.warn("Failed to fetch wallet balance", err);
+      }
+    }
+
     async function fetchAppt() {
+      if (!appointmentId || hasBookingIntent) return;
+
       try {
         const res = await appointmentAPI.get(appointmentId);
         setAppointment(res.data?.data || res.data);
@@ -42,59 +99,110 @@ export default function PaymentPage() {
         console.warn("Failed to fetch appointment", err);
       }
     }
+
     fetchAppt();
-    // load wallet balance
-    async function fetchWallet() {
-      try {
-        const res = await paymentApi.getWalletBalance();
-        setWallet({ balance: Number(res.data?.balance || 0) });
-      } catch (_) {}
-    }
+    fetchLatestPatientProfile();
     fetchWallet();
-  }, [appointmentId, user, navigate, authLoading]);
+  }, [appointmentId, user, navigate, authLoading, hasBookingIntent]);
+
+  const checkoutIdentity = {
+    name:
+      checkoutProfile?.name ||
+      checkoutProfile?.full_name ||
+      user?.name ||
+      user?.full_name ||
+      "",
+    email: checkoutProfile?.email || user?.email || "",
+    phone: getNormalizedPhone(checkoutProfile?.phone || user?.phone),
+    razorpayContact: getRazorpayContact(checkoutProfile?.phone || user?.phone),
+  };
+
+  const consultationFee = Number(
+    appointment?.consultation_fee || bookingIntent?.consultationFee || 0,
+  );
+  const billingAmount =
+    lastOrderAmount != null ? Number(lastOrderAmount) / 100 : consultationFee;
+  const walletBalance = Number(wallet?.balance || 0);
+  const walletInsufficient = walletBalance < consultationFee;
+  const doctorName = appointment?.doctor_name
+    ? `Dr. ${String(appointment.doctor_name).replace(/^Dr\.?\s*/i, "")}`
+    : bookingIntent?.doctorName
+      ? `Dr. ${String(bookingIntent.doctorName).replace(/^Dr\.?\s*/i, "")}`
+      : "Doctor Assigned";
+
+  const paymentPayload = hasBookingIntent
+    ? {
+        booking_details: {
+          doctor_id: bookingIntent.doctor_id,
+          appointment_date: bookingIntent.appointment_date,
+          slot_time: bookingIntent.slot_time,
+          share_history: Boolean(bookingIntent.share_history),
+        },
+      }
+    : {
+        appointment_id: appointmentId,
+      };
+
+  const clearBookingIntent = () => {
+    sessionStorage.removeItem("pending-booking-intent");
+    setBookingIntent(null);
+  };
 
   const handleOnlinePayment = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Validate appointmentId is not empty
-      if (!appointmentId || appointmentId.trim() === "") {
-        setError("Invalid appointment ID.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("Creating online payment with:", {
-        appointment_id: appointmentId,
-        payment_method: "online",
-        user_id: user?.id,
-      });
-
-      const paymentRes = await paymentApi.createPayment({
-        appointment_id: appointmentId,
-        payment_method: "online",
-      });
+      const paymentRes =
+        paymentSession?.order?.id && paymentSession?.id
+          ? { data: paymentSession }
+          : await paymentApi.createPayment({
+              ...paymentPayload,
+              payment_method: "online",
+            });
 
       const backendPaymentId = paymentRes.data.id;
       const order = paymentRes.data.order;
-      setLastOrderAmount(order?.amount ?? null);
+      const razorpayKey =
+        paymentRes.data.razorpay_key || import.meta.env.VITE_RAZORPAY_KEY;
 
-      if (!order || !order.id) {
+      setLastOrderAmount(order?.amount ?? null);
+      setPaymentSession(paymentRes.data);
+
+      if (!order?.id) {
         setError("Failed to create payment order. Please try again.");
-        setLoading(false);
         return;
       }
 
-      // 3️⃣ Open Razorpay Checkout
+      if (!razorpayKey) {
+        setError("Razorpay key is missing. Please check payment configuration.");
+        return;
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY,
+        key: razorpayKey,
         amount: order.amount,
         currency: "INR",
         name: "TechMedix",
         description: "Doctor Consultation Payment",
         order_id: order.id,
-        handler: async function (response) {
+        prefill: {
+          name: checkoutIdentity.name,
+          email: checkoutIdentity.email,
+          contact: checkoutIdentity.razorpayContact || undefined,
+        },
+        readonly: {
+          name: Boolean(checkoutIdentity.name),
+          email: Boolean(checkoutIdentity.email),
+          contact: Boolean(checkoutIdentity.phone),
+        },
+        notes: {
+          appointment_id: appointmentId || "",
+          appointment_date: bookingIntent?.appointment_date || "",
+          appointment_slot: bookingIntent?.slot_time || "",
+          patient_phone: checkoutIdentity.razorpayContact || "",
+        },
+        handler: async (response) => {
           try {
             await paymentApi.verifyRazorpayPayment({
               razorpay_order_id: response.razorpay_order_id,
@@ -104,6 +212,7 @@ export default function PaymentPage() {
             });
 
             alert("Payment Successful!");
+            clearBookingIntent();
             navigate("/dashboard");
           } catch (verifyErr) {
             console.error("Payment verification error:", verifyErr);
@@ -111,26 +220,27 @@ export default function PaymentPage() {
           }
         },
         theme: {
-          color: "#1976d2",
+          color: "#0e7490",
         },
       };
 
-          const rzp = new window.Razorpay(options);
-          rzp.open();
-    } catch (error) {
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
       console.error("Payment error FULL:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        appointmentId: appointmentId,
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+        appointmentId: appointmentId || null,
+        bookingIntent,
       });
 
       const errorMessage =
-        (error.response?.status === 401
+        (err.response?.status === 401
           ? "Your session expired. Please log in again before paying."
           : null) ||
-        error.response?.data?.error ||
-        error.message ||
+        err.response?.data?.error ||
+        err.message ||
         "Payment creation failed. Please try again.";
 
       setError(errorMessage);
@@ -144,39 +254,27 @@ export default function PaymentPage() {
       setLoading(true);
       setError(null);
 
-      // Validate appointmentId is not empty
-      if (!appointmentId || appointmentId.trim() === "") {
-        setError("Invalid appointment ID.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("Creating CASH payment with:", {
-        appointment_id: appointmentId,
-        payment_method: "cash",
-        user_id: user?.id,
-      });
-
-      const response = await paymentApi.createPayment({
-        appointment_id: appointmentId,
+      await paymentApi.createPayment({
+        ...paymentPayload,
         payment_method: "cash",
       });
 
-      alert("Cash payment marked as pending. Pay at clinic.");
+      clearBookingIntent();
+      alert("Appointment booked. Pay at clinic.");
       navigate("/dashboard");
-    } catch (error) {
+    } catch (err) {
       console.error("Cash payment error:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        appointmentId: appointmentId,
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+        appointmentId: appointmentId || null,
       });
 
       const errorMessage =
-        (error.response?.status === 401
+        (err.response?.status === 401
           ? "Your session expired. Please log in again before paying."
           : null) ||
-        error.response?.data?.error ||
+        err.response?.data?.error ||
         "Failed to process cash payment. Please try again.";
 
       setError(errorMessage);
@@ -190,23 +288,19 @@ export default function PaymentPage() {
       setLoading(true);
       setError(null);
 
-      if (!appointmentId || appointmentId.trim() === "") {
-        setError("Invalid appointment ID.");
-        setLoading(false);
-        return;
-      }
-
-      await paymentApi.payWithWallet({ appointment_id: appointmentId });
+      await paymentApi.payWithWallet(paymentPayload);
+      clearBookingIntent();
       alert("Paid with wallet successfully");
       navigate("/dashboard");
-    } catch (error) {
+    } catch (err) {
       const errorMessage =
-        (error.response?.status === 401
+        (err.response?.status === 401
           ? "Your session expired. Please log in again before paying."
           : null) ||
-        error.response?.data?.error ||
-        error.message ||
+        err.response?.data?.error ||
+        err.message ||
         "Wallet payment failed.";
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -214,106 +308,135 @@ export default function PaymentPage() {
   };
 
   return (
-    <div className="payment-page">
-      <h2 className="payment-title">Choose Payment Method</h2>
-
-      {error && (
-        <div
-          className="error-message"
-          style={{
-            marginBottom: "20px",
-            padding: "12px",
-            backgroundColor: "#fee",
-            border: "1px solid #fcc",
-            borderRadius: "4px",
-            color: "#c33",
-          }}
-        >
-          <p>
-            <strong>Error:</strong> {error}
+    <div className="payment-shell">
+      <div className="payment-page">
+        <div className="payment-hero">
+          <span className="payment-badge">Secure consultation billing</span>
+          <h1 className="payment-title">Choose Payment Method</h1>
+          <p className="payment-subtitle">
+            Confirm this appointment and continue with the payment option that
+            works best for this visit.
           </p>
         </div>
-      )}
 
-      {authLoading ? (
-        <div
-          style={{
-            padding: "20px",
-            backgroundColor: "#eef4ff",
-            border: "1px solid #c8dafc",
-            borderRadius: "4px",
-          }}
-        >
-          <p>Checking your session…</p>
-        </div>
-      ) : !appointmentId ? (
-        <div
-          style={{
-            padding: "20px",
-            backgroundColor: "#fef3cd",
-            border: "1px solid #ffc107",
-            borderRadius: "4px",
-          }}
-        >
-          <p>Invalid appointment ID. Redirecting...</p>
-        </div>
-      ) : !user ? (
-        <div
-          style={{
-            padding: "20px",
-            backgroundColor: "#fef3cd",
-            border: "1px solid #ffc107",
-            borderRadius: "4px",
-          }}
-        >
-          <p>You must be logged in to proceed. Redirecting...</p>
-        </div>
-      ) : (
-        <> 
-          {appointment && (
-            <div className="appointment-summary">
-              <p>
-                <strong>Doctor:</strong> Dr. {appointment.doctor_name}
-              </p>
-              <p>
-                <strong>Consultation Fee:</strong> ₹
-                {appointment.consultation_fee}
-              </p>
-              {lastOrderAmount != null && (
-                <p style={{ marginTop: 4, fontSize: 13, color: "#555" }}>
-                  Billing this session: ₹{(lastOrderAmount / 100).toFixed(2)}
+        {error && (
+          <div className="payment-alert payment-alert-error">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {authLoading ? (
+          <div className="payment-alert payment-alert-info">
+            Checking your session...
+          </div>
+        ) : !appointmentId && !hasBookingIntent ? (
+          <div className="payment-alert payment-alert-warn">
+            Invalid booking context. Redirecting...
+          </div>
+        ) : !user ? (
+          <div className="payment-alert payment-alert-warn">
+            You must be logged in to proceed. Redirecting...
+          </div>
+        ) : (
+          <div className="payment-layout">
+            <section className="payment-summary-card">
+              <div className="payment-summary-head">
+                <div>
+                  <span className="summary-kicker">Appointment Summary</span>
+                  <h2>Session Billing</h2>
+                </div>
+                <div className="payment-total-pill">
+                  {formatCurrency(billingAmount)}
+                </div>
+              </div>
+
+              <div className="payment-summary-list">
+                <div className="summary-row">
+                  <span>Doctor</span>
+                  <strong>{doctorName}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Consultation Fee</span>
+                  <strong>{formatCurrency(consultationFee)}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Billing this session</span>
+                  <strong>{formatCurrency(billingAmount)}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Wallet Balance</span>
+                  <strong>{formatCurrency(walletBalance)}</strong>
+                </div>
+              </div>
+
+              <div className="payment-contact-card">
+                <span className="summary-kicker">Razorpay Contact</span>
+                <strong>{checkoutIdentity.phone || "Phone number not available"}</strong>
+                <p>
+                  {checkoutIdentity.phone
+                    ? "Your saved phone number will be prefilled automatically in Razorpay checkout."
+                    : "Add a valid 10-digit phone number to your profile to prefill Razorpay checkout."}
                 </p>
-              )}
-              <p>
-                <strong>Wallet Balance:</strong> ₹{wallet.balance}
-              </p>
-            </div>
-          )}
-          <button
-            className="payment-btn online"
-            onClick={handleOnlinePayment}
-            disabled={loading}
-          >
-            {loading ? "Processing..." : "Pay Online (Razorpay)"}
-          </button>
+              </div>
+            </section>
 
-          <button
-            className="payment-btn cash"
-            onClick={handleCashPayment}
-            disabled={loading}
-          >
-            {loading ? "Processing..." : "Pay at Clinic (Cash)"}
-          </button>
+            <section className="payment-methods-card">
+              <div className="payment-methods-head">
+                <span className="summary-kicker">Payment Options</span>
+                <h2>Select how you want to pay</h2>
+              </div>
 
-          <button
-            className="payment-btn cash"
-            onClick={handleWalletPayment}
-            disabled={loading || wallet.balance < (appointment?.consultation_fee || 0)}
-          >
-            {loading ? "Processing..." : `Pay with Wallet${wallet.balance < (appointment?.consultation_fee || 0) ? " (Insufficient)" : ""}`}
-          </button>
-        </>
-      )}
+              <button
+                type="button"
+                className="payment-option payment-option-primary"
+                onClick={handleOnlinePayment}
+                disabled={loading}
+              >
+                <div>
+                  <strong>Pay Online (Razorpay)</strong>
+                  <span>
+                    UPI, cards, net banking, and wallets with your saved contact
+                    prefilled.
+                  </span>
+                </div>
+                <b>{loading ? "Processing..." : formatCurrency(billingAmount)}</b>
+              </button>
+
+              <button
+                type="button"
+                className="payment-option"
+                onClick={handleCashPayment}
+                disabled={loading}
+              >
+                <div>
+                  <strong>Pay at Clinic (Cash)</strong>
+                  <span>Reserve this booking and settle the amount at the clinic.</span>
+                </div>
+                <b>{loading ? "Processing..." : "Due at visit"}</b>
+              </button>
+
+              <button
+                type="button"
+                className={`payment-option ${walletInsufficient ? "is-disabled" : "payment-option-wallet"}`}
+                onClick={handleWalletPayment}
+                disabled={loading || walletInsufficient}
+              >
+                <div>
+                  <strong>
+                    Pay with Wallet{walletInsufficient ? " (Insufficient)" : ""}
+                  </strong>
+                  <span>
+                    {walletInsufficient
+                      ? "Your wallet balance is lower than the consultation fee."
+                      : "Use your available TechMedix wallet balance instantly."}
+                  </span>
+                </div>
+                <b>{formatCurrency(walletBalance)}</b>
+              </button>
+            </section>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

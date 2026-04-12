@@ -13,6 +13,7 @@ import {
 import { staffApi } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { subscribeToQueue } from "../../api/socketService";
+import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import "./StaffDashboard.css";
 
 const QUEUE_STATUS_OPTIONS = ["waiting", "in-progress", "completed"];
@@ -322,6 +323,12 @@ export default function StaffDashboard() {
           value={overview?.staff_actions_today ?? 0}
           helper="Logged staff activity"
         />
+      </section>
+
+      <section className="staff-dashboard-grid">
+        <article className="staff-panel">
+          <ProfileManager title="Staff Profile" roleOverride="staff" />
+        </article>
       </section>
 
       <section className="staff-dashboard-grid">

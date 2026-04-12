@@ -137,6 +137,14 @@ const App = () => {
           <Route path="/doctor/signup" element={<DoctorSignup />} />
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route
+            path="/payment"
+            element={
+              <ProtectedRoute requiredRole="patient">
+                <PaymentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/payment/:appointmentId"
             element={
               <ProtectedRoute requiredRole="patient">

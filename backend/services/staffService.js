@@ -164,6 +164,63 @@ export async function getStaffProfile(userId) {
   return rows[0] || null;
 }
 
+export async function updateStaffProfile(userId, payload = {}) {
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      UPDATE staff
+      SET name = COALESCE(${payload.name}, name),
+          email = COALESCE(${payload.email}, email),
+          department = COALESCE(${payload.department}, department),
+          phone = COALESCE(${payload.phone}, phone)
+      WHERE user_id = ${userId}
+        AND is_active = TRUE
+      RETURNING id, user_id, name, email, username, hospital_id, role, department, phone, is_active, created_at, active_doctor_id, created_by_doctor_id
+    `;
+
+    if (!rows.length) {
+      throw new Error("Staff profile not found");
+    }
+
+    await tx`
+      UPDATE users
+      SET email = COALESCE(${payload.email}, email),
+          full_name = COALESCE(${payload.name}, full_name),
+          phone = COALESCE(${payload.phone}, phone),
+          updated_at = NOW()
+      WHERE id = ${userId}
+        AND COALESCE(is_deleted, FALSE) = FALSE
+    `;
+
+    return rows[0];
+  });
+}
+
+export async function deleteStaffProfile(userId) {
+  return sql.begin(async (tx) => {
+    const staffRows = await tx`
+      UPDATE staff
+      SET is_active = FALSE
+      WHERE user_id = ${userId}
+        AND is_active = TRUE
+      RETURNING id, user_id
+    `;
+
+    if (!staffRows.length) {
+      throw new Error("Staff profile not found");
+    }
+
+    await tx`
+      UPDATE users
+      SET is_deleted = TRUE,
+          updated_at = NOW()
+      WHERE id = ${userId}
+        AND COALESCE(is_deleted, FALSE) = FALSE
+    `;
+
+    return staffRows[0];
+  });
+}
+
 export async function generateQueueToken({ appointmentId, staffId, hospitalId = null, requiredDoctorId = null }) {
   const today = getTodayIsoDate();
 

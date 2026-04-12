@@ -10,59 +10,13 @@ export async function bookAppointment(data) {
     recording_consent_patient = false,
   } = data;
 
-  // -----------------------------
-  // 1️⃣ Validate Doctor Schedule
-  // -----------------------------
-  const day = new Date(appointment_date).getDay();
+  const preparedBooking = await validateAppointmentBookingData({
+    patient_id,
+    doctor_id,
+    appointment_date,
+    slot_time,
+  });
 
-  const schedule = await sql`
-    SELECT * FROM doctor_schedule
-    WHERE doctor_id = ${doctor_id}
-    AND day_of_week = ${day}
-  `;
-
-  if (schedule.length === 0) {
-    throw new Error("Doctor not available on this day");
-  }
-
-  const { start_time, end_time } = schedule[0];
-
-  if (slot_time < start_time || slot_time > end_time) {
-    throw new Error("Slot outside doctor's working hours");
-  }
-
-  // -----------------------------
-  // 2️⃣ Check if slot already booked
-  // -----------------------------
-  const existing = await sql`
-    SELECT id FROM appointments
-    WHERE doctor_id = ${doctor_id}
-      AND appointment_date = ${appointment_date}
-      AND slot_time = ${slot_time}
-      AND is_deleted = FALSE
-  `;
-
-  if (existing.length > 0) {
-    throw new Error("Slot already booked");
-  }
-
-  // -----------------------------
-  // 3️⃣ Fetch Doctor Branch
-  // -----------------------------
-  const doctor = await sql`
-    SELECT branch_id FROM doctors
-    WHERE id = ${doctor_id}
-  `;
-
-  if (!doctor.length) {
-    throw new Error("Doctor not found");
-  }
-
-  const branch_id = doctor[0].branch_id;
-
-  // -----------------------------
-  // 4️⃣ Insert Appointment
-  // -----------------------------
   const result = await sql`
     INSERT INTO appointments
     (
@@ -83,13 +37,64 @@ export async function bookAppointment(data) {
       ${slot_time},
       ${share_history},
       ${recording_consent_patient},
-      ${branch_id},
+      ${preparedBooking.branch_id},
       'booked'
     )
     RETURNING *
   `;
 
   return result[0];
+}
+
+export async function validateAppointmentBookingData(data) {
+  const { doctor_id, appointment_date, slot_time } = data;
+
+  const day = new Date(appointment_date).getDay();
+
+  const schedule = await sql`
+    SELECT * FROM doctor_schedule
+    WHERE doctor_id = ${doctor_id}
+      AND day_of_week = ${day}
+  `;
+
+  if (schedule.length === 0) {
+    throw new Error("Doctor not available on this day");
+  }
+
+  const { start_time, end_time } = schedule[0];
+
+  if (slot_time < start_time || slot_time > end_time) {
+    throw new Error("Slot outside doctor's working hours");
+  }
+
+  const existing = await sql`
+    SELECT id FROM appointments
+    WHERE doctor_id = ${doctor_id}
+      AND appointment_date = ${appointment_date}
+      AND slot_time = ${slot_time}
+      AND is_deleted = FALSE
+  `;
+
+  if (existing.length > 0) {
+    throw new Error("Slot already booked");
+  }
+
+  const doctor = await sql`
+    SELECT branch_id, consultation_fee, name
+    FROM doctors
+    WHERE id = ${doctor_id}
+      AND is_deleted = FALSE
+  `;
+
+  if (!doctor.length) {
+    throw new Error("Doctor not found");
+  }
+
+  return {
+    branch_id: doctor[0].branch_id,
+    consultation_fee: Number(doctor[0].consultation_fee) || 500,
+    doctor_name: doctor[0].name || "Doctor",
+  };
 }
 
 export async function getPatientAppointments(patientId) {

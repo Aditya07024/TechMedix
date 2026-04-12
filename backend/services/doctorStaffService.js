@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import sql from "../config/database.js";
+import crypto from "crypto";
 
 export async function createStaffForDoctor({
   doctorId,
@@ -87,6 +88,7 @@ export async function getDoctorStaff(doctorId) {
       s.username,
       s.department,
       s.phone,
+      s.user_id,
       dsm.role AS assignment_role,
       dsm.status,
       dsm.created_at
@@ -95,6 +97,48 @@ export async function getDoctorStaff(doctorId) {
     WHERE dsm.doctor_id = ${doctorId}
     ORDER BY dsm.created_at DESC
   `;
+}
+
+export async function resetDoctorStaffPassword(doctorId, staffId) {
+  const assigned = await sql`
+    SELECT s.id, s.user_id, s.name
+    FROM doctor_staff_map dsm
+    JOIN staff s ON s.id = dsm.staff_id
+    WHERE dsm.doctor_id = ${doctorId}
+      AND dsm.staff_id = ${staffId}
+      AND dsm.status = 'active'
+    LIMIT 1
+  `;
+
+  if (!assigned.length) {
+    throw new Error("Staff member is not assigned to this doctor");
+  }
+
+  const temporaryPassword = `TMX${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+  await sql.begin(async (tx) => {
+    await tx`
+      UPDATE staff
+      SET password_hash = ${passwordHash},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${staffId}
+    `;
+
+    await tx`
+      UPDATE users
+      SET password_hash = ${passwordHash},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${assigned[0].user_id}
+    `;
+  });
+
+  return {
+    staff_id: staffId,
+    user_id: assigned[0].user_id,
+    name: assigned[0].name,
+    temporary_password: temporaryPassword,
+  };
 }
 
 export async function removeDoctorStaffAccess(doctorId, staffId) {

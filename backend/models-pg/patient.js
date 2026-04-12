@@ -134,6 +134,7 @@ export const updatePatient = async (id, data) => {
         phone = COALESCE(${data.phone}, phone),
         blood_group = COALESCE(${data.bloodGroup}, blood_group),
         medical_history = COALESCE(${data.medicalHistory}, medical_history),
+        unique_code = COALESCE(${data.uniqueCode}, unique_code),
         updated_at = NOW()
     WHERE id = ${id}
       AND is_deleted = FALSE
@@ -157,6 +158,34 @@ export const deletePatient = async (id) => {
     RETURNING id
   `;
   return result.length ? result[0] : null;
+};
+
+export const resetPatientUniqueCode = async (id) => {
+  let uniqueCode;
+  let exists = true;
+
+  while (exists) {
+    uniqueCode = crypto.randomBytes(4).toString("hex").toUpperCase();
+    const check = await sql`
+      SELECT id
+      FROM patients
+      WHERE unique_code = ${uniqueCode}
+        AND id <> ${id}
+    `;
+    exists = check.length > 0;
+  }
+
+  const result = await sql`
+    UPDATE patients
+    SET unique_code = ${uniqueCode},
+        updated_at = NOW()
+    WHERE id = ${id}
+      AND is_deleted = FALSE
+    RETURNING id, name, email, age, gender, phone,
+              blood_group, medical_history, unique_code, created_at
+  `;
+
+  return result[0] || null;
 };
 
 

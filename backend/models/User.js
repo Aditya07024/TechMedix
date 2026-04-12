@@ -74,11 +74,50 @@ export const getUserByEmail = async (email) => {
       SELECT *
       FROM users
       WHERE email = ${email}
+        AND COALESCE(is_deleted, FALSE) = FALSE
     `;
     return result.length ? result[0] : null;
 
   } catch (error) {
     console.error("Get user by email failed:", error);
+    return null;
+  }
+};
+
+export const updateUserById = async (id, data) => {
+  try {
+    const result = await sql`
+      UPDATE users
+      SET email = COALESCE(${data.email}, email),
+          full_name = COALESCE(${data.full_name}, full_name),
+          phone = COALESCE(${data.phone}, phone),
+          updated_at = NOW()
+      WHERE id = ${id}
+        AND COALESCE(is_deleted, FALSE) = FALSE
+      RETURNING id, email, full_name, phone, role, created_at, updated_at
+    `;
+
+    return result[0] || null;
+  } catch (error) {
+    console.error("Update user failed:", error);
+    return null;
+  }
+};
+
+export const deleteUserById = async (id) => {
+  try {
+    const result = await sql`
+      UPDATE users
+      SET is_deleted = TRUE,
+          updated_at = NOW()
+      WHERE id = ${id}
+        AND COALESCE(is_deleted, FALSE) = FALSE
+      RETURNING id
+    `;
+
+    return result[0] || null;
+  } catch (error) {
+    console.error("Delete user failed:", error);
     return null;
   }
 };

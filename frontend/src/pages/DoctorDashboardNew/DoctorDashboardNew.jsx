@@ -1,54 +1,109 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../../context/AuthContext";
-import { appointmentAPI, queueAPI, analyticsAPI } from "../../api/techmedixAPI";
-import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  CalendarDays,
+  Clock3,
+  Landmark,
+  Mic,
+  MicOff,
+  QrCode,
+  RefreshCcw,
+  Search,
+  ShieldPlus,
+  Stethoscope,
+  UserRound,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
+import { useAuth } from "../../context/AuthContext";
+import { appointmentAPI, analyticsAPI, queueAPI } from "../../api/techmedixAPI";
+import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
+import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import { doctorApi, paymentApi } from "../../api";
-import headerImage from "../../assets/doctor-dashboard-hero.png";
 import "./DoctorDashboardNew.css";
 
-/**
- * DOCTOR DASHBOARD - Complete doctor interface
- * View queue, manage appointments, analytics, earnings, schedule
- */
+const NAV_ITEMS = [
+  { id: "overview", label: "Overview", icon: Activity },
+  { id: "queue", label: "Queue", icon: Stethoscope },
+  { id: "revenue", label: "Revenue", icon: Landmark },
+  { id: "patients", label: "Patient Workspace", icon: UserRound },
+  { id: "staff", label: "Staff Hub", icon: Users },
+  { id: "schedule", label: "Schedule", icon: CalendarDays },
+  { id: "profile", label: "Profile", icon: Wallet },
+];
+
+const qrRefId = "doctor-dashboard-qr-reader";
+const getTodayIso = () => new Date().toISOString().split("T")[0];
+const formatMoney = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+const readErrorMessage = (error, fallback) =>
+  error?.response?.data?.error || error?.message || fallback;
+
+function EmptyState({ title, text }) {
+  return (
+    <div className="doctor-empty-state">
+      <strong>{title}</strong>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, detail, accent = "blue" }) {
+  return (
+    <article className={`doctor-metric-card accent-${accent}`}>
+      <div className="doctor-metric-icon">
+        <Icon size={18} />
+      </div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <p>{detail}</p>
+      </div>
+    </article>
+  );
+}
+
 export default function DoctorDashboardNew() {
   const { user } = useAuth();
-  const doctorDisplayName = (user?.name || "Doctor")
-    .replace(/^dr\.?\s+/i, "")
-    .trim();
-  const [activeTab, setActiveTab] = useState("queue");
+  const [activeView, setActiveView] = useState("overview");
+  const [selectedDate, setSelectedDate] = useState(getTodayIso());
   const [queue, setQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [earnings, setEarnings] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [analytics, setAnalytics] = useState({});
+  const [earnings, setEarnings] = useState({});
+  const [revenueDetails, setRevenueDetails] = useState({
+    daily_revenue: [],
+    method_breakdown: [],
+    recent_payments: [],
+    current_month: 0,
+    previous_month: 0,
+  });
   const [consultationFee, setConsultationFee] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busyMap, setBusyMap] = useState({});
 
-  /* ===== PATIENT SEARCH / QR ===== */
   const [uniqueCode, setUniqueCode] = useState("");
-  const [patientData, setPatientData] = useState(null);
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [patientData, setPatientData] = useState(null);
+  const [patientPrescriptions, setPatientPrescriptions] = useState([]);
+  const [patientRecordings, setPatientRecordings] = useState([]);
+  const [newMedicineName, setNewMedicineName] = useState("");
+  const [newMedicineDosage, setNewMedicineDosage] = useState("");
+  const [newMedicineFrequency, setNewMedicineFrequency] = useState("");
+  const [newMedicineDuration, setNewMedicineDuration] = useState("");
 
-  /* ===== AUDIO RECORDING ===== */
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioURL, setAudioURL] = useState("");
   const [mediaRecorder, setMediaRecorder] = useState(null);
 
-  /* ===== MANUAL MEDICINE ADD ===== */
-  const [newMedicineName, setNewMedicineName] = useState("");
-  const [newMedicineDosage, setNewMedicineDosage] = useState("");
-  const [newMedicineFrequency, setNewMedicineFrequency] = useState("");
-  const [newMedicineDuration, setNewMedicineDuration] = useState("");
-  const [patientPrescriptions, setPatientPrescriptions] = useState([]);
-  const [patientRecordings, setPatientRecordings] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [staffRequests, setStaffRequests] = useState([]);
+  const [staffPasswords, setStaffPasswords] = useState({});
   const [staffForm, setStaffForm] = useState({
     name: "",
     email: "",
@@ -58,239 +113,323 @@ export default function DoctorDashboardNew() {
     department: "",
     phone: "",
   });
-  const qrRefId = "doctor-qr-reader";
+
+  const doctorDisplayName = (user?.name || "Doctor").replace(/^dr\.?\s+/i, "").trim();
+  const patientProfile = patientData?.patient || patientData || null;
+
+  const queueStats = useMemo(() => {
+    const waiting = queue.filter((item) =>
+      ["booked", "arrived", "waiting"].includes(String(item.status || "").toLowerCase()),
+    ).length;
+    const active = queue.filter((item) =>
+      ["in_progress", "in-progress"].includes(String(item.status || "").toLowerCase()),
+    ).length;
+    const completed = queue.filter((item) =>
+      ["completed", "visited"].includes(String(item.status || "").toLowerCase()),
+    ).length;
+
+    return { total: queue.length, waiting, active, completed };
+  }, [queue]);
+
+  const todaySchedule = useMemo(
+    () =>
+      appointments
+        .slice()
+        .sort((a, b) => String(a.slot_time || "").localeCompare(String(b.slot_time || ""))),
+    [appointments],
+  );
+
+  const monthGrowth = useMemo(() => {
+    const currentMonth = Number(revenueDetails.current_month || 0);
+    const previousMonth = Number(revenueDetails.previous_month || 0);
+    if (previousMonth === 0) {
+      return currentMonth > 0 ? 100 : 0;
+    }
+    return Math.round(((currentMonth - previousMonth) / previousMonth) * 100);
+  }, [revenueDetails.current_month, revenueDetails.previous_month]);
 
   useEffect(() => {
-    if (user?.id) {
-      loadDoctorData();
-    }
-
-    // fetch doctor profile for fee
-    async function fetchProfile() {
-      setProfileLoading(true);
-      try {
-        const res = await doctorApi.getProfile();
-        if (res.data?.data) {
-          setConsultationFee(res.data.data.consultation_fee || 0);
-        }
-      } catch (err) {
-        console.warn("Failed to load profile", err);
-      } finally {
-        setProfileLoading(false);
-      }
-    }
+    if (!user?.id) return;
+    loadDoctorData(true);
+    loadStaffData();
     fetchProfile();
-  }, [user, selectedDate]);
+  }, [user?.id, selectedDate]);
 
   useEffect(() => {
-    if (user?.id) {
-      loadStaffData();
-    }
-  }, [user?.id]);
+    let qrScanner;
 
-  /* ================= QR SCANNER ================= */
-  useEffect(() => {
-    let qr;
-
-    const startScanner = async () => {
+    async function startScanner() {
       try {
-        qr = new Html5Qrcode(qrRefId);
-
-        await qr.start(
+        qrScanner = new Html5Qrcode(qrRefId);
+        await qrScanner.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
+          { fps: 10, qrbox: 240 },
           async (decodedText) => {
             setUniqueCode(decodedText);
             setScannerVisible(false);
-
             try {
-              await qr.stop();
+              await qrScanner.stop();
             } catch {}
-
-            try {
-              const res = await doctorApi.getPatientData(decodedText);
-              console.log("Scanned patient data:", res.data);
-              setPatientData(res.data);
-              loadPatientPrescriptions((res.data.patient || res.data).id);
-            } catch {
-              setError("Failed to load patient data");
-            }
+            await searchPatient(decodedText);
           },
         );
-      } catch (err) {
-        console.error("QR scanner error:", err);
+      } catch (scannerError) {
+        setError(readErrorMessage(scannerError, "Unable to start QR scanner"));
+        setScannerVisible(false);
       }
-    };
+    }
 
     if (scannerVisible) {
       startScanner();
     }
 
     return () => {
-      if (qr) {
+      if (qrScanner) {
         try {
-          qr.stop();
+          qrScanner.stop();
         } catch {}
       }
     };
   }, [scannerVisible]);
 
-  const loadDoctorData = async () => {
+  async function fetchProfile() {
+    setProfileLoading(true);
     try {
-      setLoading(true);
-      const [queueRes, apptRes, analyticsRes, earningsRes] =
+      const response = await doctorApi.getProfile();
+      const profile = response.data?.data;
+      if (profile) {
+        setConsultationFee(Number(profile.consultation_fee || 0));
+      }
+    } catch (profileError) {
+      setError(readErrorMessage(profileError, "Failed to load doctor profile"));
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function loadDoctorData(initialLoad = false) {
+    if (!user?.id) return;
+
+    if (initialLoad) setLoading(true);
+    else setRefreshing(true);
+
+    setError("");
+
+    try {
+      const [queueRes, appointmentsRes, analyticsRes, earningsRes, revenueRes] =
         await Promise.allSettled([
           queueAPI.getForDoctor(user.id, selectedDate),
           appointmentAPI.getByDoctor(user.id, selectedDate),
           analyticsAPI.getDoctorStats(user.id),
           paymentApi.getDoctorSummary(user.id),
+          paymentApi.getDoctorRevenueDetails(user.id),
         ]);
 
-      let queueData = [];
-      let appointmentData = [];
+      const nextAppointments =
+        appointmentsRes.status === "fulfilled"
+          ? appointmentsRes.value.data?.data || []
+          : [];
 
-      if (queueRes.status === "fulfilled") {
-        queueData = queueRes.value.data.data || [];
-      }
+      let nextQueue =
+        queueRes.status === "fulfilled"
+          ? queueRes.value.data?.data?.queue || []
+          : [];
 
-      if (apptRes.status === "fulfilled") {
-        appointmentData = apptRes.value.data.data || [];
-        setAppointments(appointmentData);
-      }
-
-      /* If queue API returns empty but appointments exist,
-   generate queue from appointments */
-      if (queueData.length === 0 && appointmentData.length > 0) {
-        queueData = appointmentData.map((apt, index) => ({
-          appointment_id: apt.id,
-          patient_name: apt.patient_name,
-          token_number: index + 1,
+      if (nextQueue.length === 0 && nextAppointments.length > 0) {
+        nextQueue = nextAppointments.map((appointment, index) => ({
+          appointment_id: appointment.id,
+          patient_name: appointment.patient_name,
+          token_number: appointment.token_number || index + 1,
           position_in_queue: index + 1,
-          status: apt.status || "booked",
+          status: appointment.status || "booked",
+          slot_time: appointment.slot_time || null,
         }));
       }
 
-      setQueue(queueData);
-      if (analyticsRes.status === "fulfilled") {
-        setAnalytics(analyticsRes.value.data.data || {});
+      setAppointments(nextAppointments);
+      setQueue(nextQueue);
+      setAnalytics(
+        analyticsRes.status === "fulfilled" ? analyticsRes.value.data?.data || {} : {},
+      );
+      setEarnings(earningsRes.status === "fulfilled" ? earningsRes.value.data || {} : {});
+      setRevenueDetails(
+        revenueRes.status === "fulfilled"
+          ? revenueRes.value.data || {
+              daily_revenue: [],
+              method_breakdown: [],
+              recent_payments: [],
+              current_month: 0,
+              previous_month: 0,
+            }
+          : {
+              daily_revenue: [],
+              method_breakdown: [],
+              recent_payments: [],
+              current_month: 0,
+              previous_month: 0,
+            },
+      );
+
+      const firstFailure = [
+        queueRes,
+        appointmentsRes,
+        analyticsRes,
+        earningsRes,
+        revenueRes,
+      ].find((result) => result.status === "rejected");
+
+      if (firstFailure) {
+        setError(
+          readErrorMessage(firstFailure.reason, "Some dashboard panels could not be loaded"),
+        );
       }
-      if (earningsRes && earningsRes.status === "fulfilled") {
-        setEarnings(earningsRes.value.data || {});
-      }
-    } catch (err) {
-      setError("Failed to load doctor data: " + err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }
 
-  const loadStaffData = async () => {
+  async function loadStaffData() {
     try {
-      const [staffRes, requestRes] = await Promise.all([
+      const [staffRes, requestRes] = await Promise.allSettled([
         doctorApi.getMyStaff(),
         doctorApi.getStaffRequests(),
       ]);
-      setStaffMembers(staffRes.data?.data || []);
-      setStaffRequests(requestRes.data?.data || []);
-    } catch (err) {
-      console.warn("Failed to load staff data", err);
-    }
-  };
 
-  const handleMarkArrived = async (appointmentId) => {
-    try {
-      await queueAPI.markArrived(appointmentId);
-      loadDoctorData();
-    } catch (err) {
-      alert("Error: " + err.message);
+      setStaffMembers(
+        staffRes.status === "fulfilled" ? staffRes.value.data?.data || [] : [],
+      );
+      setStaffRequests(
+        requestRes.status === "fulfilled" ? requestRes.value.data?.data || [] : [],
+      );
+    } catch (staffError) {
+      setError(readErrorMessage(staffError, "Failed to load staff hub"));
     }
-  };
-  const loadPatientPrescriptions = async (patientId) => {
+  }
+
+  async function loadPatientPrescriptions(patientId) {
     try {
-      const res = await fetch(`/api/v2/prescriptions/patient/${patientId}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
+      const response = await fetch(`/api/v2/prescriptions/patient/${patientId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("Prescription API error response:", text);
-        throw new Error("Prescription API request failed");
+      if (!response.ok) {
+        throw new Error("Failed to fetch prescriptions");
       }
 
-      const data = await res.json();
-      console.log("Prescription API response:", data);
+      const payload = await response.json();
+      const prescriptions = payload.data || payload || [];
 
-      const prescriptions = data.data || data || [];
-
-      let medicines = [];
-
-      // Case 1: prescriptions contain medicines array
-      if (
+      const medicines =
         Array.isArray(prescriptions) &&
-        prescriptions.length &&
-        prescriptions[0].medicines
-      ) {
-        medicines = prescriptions.flatMap((p) => p.medicines || []);
-      }
-      // Case 2: prescriptions are already medicine rows
-      else if (Array.isArray(prescriptions)) {
-        medicines = prescriptions;
-      }
-
-      console.log("Parsed medicines:", medicines);
+        prescriptions.length > 0 &&
+        prescriptions[0]?.medicines
+          ? prescriptions.flatMap((entry) => entry.medicines || [])
+          : Array.isArray(prescriptions)
+            ? prescriptions
+            : [];
 
       setPatientPrescriptions(medicines);
-      // also load recordings for this patient
+
       try {
-        const recRes = await fetch(`/api/recordings/patient/${patientId}`, {
+        const recordingsResponse = await fetch(`/api/recordings/patient/${patientId}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           credentials: "include",
         });
-        const recData = await recRes.json();
-        if (recRes.ok && Array.isArray(recData)) setPatientRecordings(recData);
-        else setPatientRecordings([]);
-      } catch (e) {
+        const recordingsPayload = await recordingsResponse.json();
+        setPatientRecordings(
+          recordingsResponse.ok && Array.isArray(recordingsPayload) ? recordingsPayload : [],
+        );
+      } catch {
         setPatientRecordings([]);
       }
-    } catch (err) {
-      console.error("Failed to load prescriptions:", err);
+    } catch (prescriptionError) {
+      setError(readErrorMessage(prescriptionError, "Failed to load patient treatment data"));
     }
-  };
-  const handleStartConsultation = async (appointmentId) => {
+  }
+
+  async function searchPatient(code = uniqueCode) {
+    if (!code) return;
+
     try {
+      setError("");
+      const response = await doctorApi.getPatientData(code);
+      const payload = response.data;
+      const patient = payload?.patient || payload;
+      setPatientData(payload);
+      setActiveView("patients");
+      if (patient?.id) {
+        await loadPatientPrescriptions(patient.id);
+      }
+    } catch (searchError) {
+      setError(readErrorMessage(searchError, "Patient not found"));
+    }
+  }
+
+  async function withBusy(key, action) {
+    setBusyMap((current) => ({ ...current, [key]: true }));
+    setStatusMessage("");
+    try {
+      await action();
+    } catch (busyError) {
+      setError(readErrorMessage(busyError, "Action failed"));
+    } finally {
+      setBusyMap((current) => ({ ...current, [key]: false }));
+    }
+  }
+
+  async function handleSaveConsultationFee() {
+    await withBusy("save-fee", async () => {
+      await doctorApi.updateProfile({
+        consultation_fee: Number(consultationFee),
+      });
+      setStatusMessage("Consultation fee updated.");
+    });
+  }
+
+  async function handleStartConsultation(appointmentId) {
+    await withBusy(`start-${appointmentId}`, async () => {
       await queueAPI.startConsultation(appointmentId);
-      loadDoctorData();
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  };
+      setStatusMessage("Consultation started.");
+      await loadDoctorData();
+    });
+  }
 
-  const handleCompleteConsultation = async (appointmentId) => {
-    try {
+  async function handleCompleteConsultation(appointmentId) {
+    await withBusy(`complete-${appointmentId}`, async () => {
       await queueAPI.completeConsultation(appointmentId);
-
-      // Remove completed patient from queue instantly
-      setQueue((prevQueue) =>
-        prevQueue.filter((p) => p.appointment_id !== appointmentId),
+      setQueue((current) =>
+        current.filter((entry) => entry.appointment_id !== appointmentId),
       );
-
-      // Update appointments status locally
-      setAppointments((prev) =>
-        prev.map((a) =>
-          a.id === appointmentId ? { ...a, status: "completed" } : a,
+      setAppointments((current) =>
+        current.map((entry) =>
+          entry.id === appointmentId ? { ...entry, status: "completed" } : entry,
         ),
       );
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  };
+      setStatusMessage("Consultation completed.");
+    });
+  }
 
-  const handleCreateStaff = async (event) => {
+  async function handleMarkCashPaid(paymentId) {
+    await withBusy(`cash-${paymentId}`, async () => {
+      await paymentApi.markCashPaid({ payment_id: paymentId });
+      setStatusMessage("Cash payment marked received.");
+      await loadDoctorData();
+    });
+  }
+
+  async function handleCreateStaff(event) {
     event.preventDefault();
-    try {
-      await doctorApi.createStaff(staffForm);
+    await withBusy("create-staff", async () => {
+      const submittedPassword = staffForm.password;
+      const response = await doctorApi.createStaff(staffForm);
+      const createdStaffId = response.data?.data?.id;
+      if (createdStaffId && submittedPassword) {
+        setStaffPasswords((current) => ({
+          ...current,
+          [createdStaffId]: submittedPassword,
+        }));
+      }
       setStaffForm({
         name: "",
         email: "",
@@ -300,113 +439,116 @@ export default function DoctorDashboardNew() {
         department: "",
         phone: "",
       });
+      setStatusMessage("Staff account created.");
       await loadStaffData();
-      alert("Staff account created");
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to create staff");
-    }
-  };
+    });
+  }
 
-  const handleResolveStaffRequest = async (requestId, status) => {
-    try {
+  async function handleResolveStaffRequest(requestId, status) {
+    await withBusy(`request-${requestId}-${status}`, async () => {
       await doctorApi.resolveStaffRequest(requestId, status);
+      setStatusMessage(`Staff request ${status}.`);
       await loadStaffData();
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to update request");
-    }
-  };
+    });
+  }
 
-  const handleRemoveStaff = async (staffId) => {
-    try {
+  async function handleRemoveStaff(staffId) {
+    await withBusy(`remove-staff-${staffId}`, async () => {
       await doctorApi.removeStaff(staffId);
+      setStatusMessage("Staff access removed.");
       await loadStaffData();
-    } catch (err) {
-      setError(err.response?.data?.error || "Failed to remove staff access");
-    }
-  };
+    });
+  }
 
-  /* ================= PATIENT SEARCH ================= */
-  const handleSearchPatient = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await doctorApi.getPatientData(uniqueCode);
-      console.log("Searched patient data:", res.data);
-      setPatientData(res.data);
-      loadPatientPrescriptions((res.data.patient || res.data).id);
-    } catch (err) {
-      setError("Patient not found");
-    }
-  };
+  async function handleResetStaffPassword(staffId) {
+    await withBusy(`reset-password-${staffId}`, async () => {
+      const response = await doctorApi.resetStaffPassword(staffId);
+      const nextPassword = response.data?.data?.temporary_password || "";
+      if (nextPassword) {
+        setStaffPasswords((current) => ({ ...current, [staffId]: nextPassword }));
+        setStatusMessage(`Temporary password reset for staff member ${staffId}.`);
+      }
+    });
+  }
 
-  /* ================= RECORD PRESCRIPTION ================= */
-  const startRecording = async () => {
+  async function startRecording() {
     try {
+      setError("");
       setIsRecording(true);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
-      let chunks = [];
+      const chunks = [];
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
       };
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: recorder.mimeType });
         setAudioBlob(blob);
         setAudioURL(URL.createObjectURL(blob));
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       recorder.start();
       setMediaRecorder(recorder);
-    } catch {
+    } catch (recordingError) {
       setIsRecording(false);
-      setError("Microphone access denied");
+      setError(readErrorMessage(recordingError, "Microphone access denied"));
     }
-  };
+  }
 
-  const stopRecording = () => {
+  function stopRecording() {
     if (mediaRecorder) {
       mediaRecorder.stop();
       setIsRecording(false);
     }
-  };
+  }
 
-  const uploadRecording = async () => {
-    if (!audioBlob) {
-      alert("Record audio first");
+  async function uploadRecording() {
+    if (!audioBlob || !patientProfile?.id) {
+      setError("Select a patient and record audio first");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("audio", audioBlob);
+    await withBusy("upload-recording", async () => {
+      const formData = new FormData();
+      formData.append("audio", audioBlob);
+      formData.append("patient_id", patientProfile.id);
 
-    try {
+      const liveAppointment = appointments.find(
+        (entry) =>
+          entry.patient_name === patientProfile.name &&
+          ["booked", "arrived", "in_progress"].includes(entry.status),
+      );
+
+      if (liveAppointment?.id) {
+        formData.append("appointment_id", liveAppointment.id);
+      }
+
       await doctorApi.uploadRecording(formData);
       setAudioBlob(null);
       setAudioURL("");
-      alert("Recording uploaded successfully");
-    } catch {
-      setError("Upload failed");
-    }
-  };
+      setStatusMessage("Voice prescription uploaded.");
+      await loadPatientPrescriptions(patientProfile.id);
+    });
+  }
 
-  /* ================= ADD MEDICINE ================= */
-  const handleAddMedicine = async () => {
-    if (!newMedicineName) {
-      alert("Enter medicine name");
+  async function handleAddMedicine() {
+    if (!newMedicineName || !patientProfile?.id) {
+      setError("Select a patient and enter a medicine name");
       return;
     }
 
-    try {
-      await fetch("/api/prescriptions/manual", {
+    await withBusy("add-medicine", async () => {
+      const response = await fetch("/api/prescriptions/manual", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify({
-          patient_id: (patientData.patient || patientData).id,
+          patient_id: patientProfile.id,
           medicine_name: newMedicineName,
           dosage: newMedicineDosage,
           frequency: newMedicineFrequency,
@@ -414,962 +556,1064 @@ export default function DoctorDashboardNew() {
         }),
       });
 
-      alert("Medicine added to prescription");
-      loadPatientPrescriptions((patientData.patient || patientData).id);
+      if (!response.ok) {
+        throw new Error("Failed to add medicine");
+      }
 
       setNewMedicineName("");
       setNewMedicineDosage("");
       setNewMedicineFrequency("");
       setNewMedicineDuration("");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add medicine");
-    }
-  };
+      setStatusMessage("Medicine added to active prescription.");
+      await loadPatientPrescriptions(patientProfile.id);
+    });
+  }
 
-  if (loading)
+  async function updatePrescriptionMedicine(medicine) {
+    const medicineId =
+      medicine.id ||
+      medicine.medicine_id ||
+      medicine.prescription_medicine_id ||
+      medicine.pm_id ||
+      medicine._id;
+
+    if (!medicineId) {
+      setError("Medicine ID missing for this prescription entry");
+      return;
+    }
+
+    const dosage = window.prompt("Enter new dosage", medicine.dosage || "");
+    if (dosage === null) return;
+    const frequency = window.prompt("Enter new frequency", medicine.frequency || "");
+    if (frequency === null) return;
+    const duration = window.prompt("Enter new duration", medicine.duration || "");
+    if (duration === null) return;
+
+    await withBusy(`edit-medicine-${medicineId}`, async () => {
+      const response = await fetch(`/api/v2/prescriptions/medicine/${medicineId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ dosage, frequency, duration }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update medicine");
+      }
+
+      setStatusMessage("Prescription updated.");
+      await loadPatientPrescriptions(patientProfile.id);
+    });
+  }
+
+  async function stopPrescriptionMedicine(medicine) {
+    const medicineId =
+      medicine.medicine_id ||
+      medicine.id ||
+      medicine.prescription_medicine_id ||
+      medicine.pm_id ||
+      medicine._id;
+
+    if (!medicineId) {
+      setError("Medicine ID missing for this prescription entry");
+      return;
+    }
+
+    await withBusy(`delete-medicine-${medicineId}`, async () => {
+      const response = await fetch(`/api/v2/prescriptions/medicine/${medicineId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to stop medicine");
+      }
+
+      setStatusMessage("Medicine removed from active prescription.");
+      await loadPatientPrescriptions(patientProfile.id);
+    });
+  }
+
+  if (loading) {
     return (
       <div className="doctor-dashboard">
         <div className="doctor-dashboard-shell doctor-dashboard-loading">
-          <p>Loading...</p>
+          <div className="doctor-loading-panel">
+            <span className="doctor-loading-spinner" />
+            <p>Building your clinical workspace…</p>
+          </div>
         </div>
       </div>
     );
+  }
 
   return (
     <div className="doctor-dashboard">
       <div className="doctor-dashboard-shell">
-        <header className="doc-header">
-          <div className="doc-header-copy">
-            <span className="doc-header-kicker">Doctor workspace</span>
-            <h1>Welcome, Dr. {doctorDisplayName}</h1>
-            <p className="doc-header-description">
-              Review your patient flow, appointments, and daily performance from
-              one calm clinical workspace.
+        <header className="doctor-command-bar">
+          <div className="doctor-command-copy">
+            <span className="doctor-kicker">Doctor Command Center</span>
+            <h1>Dr. {doctorDisplayName}</h1>
+            <p>
+              Review your practice performance, run consultations, manage staff,
+              and work patient cases from a cleaner doctor workspace.
             </p>
+          </div>
 
-            <div className="doc-hero-meta">
-              <div className="doc-meta-card">
-                <span className="meta-label">Branch</span>
-                <strong>{user?.branch_name || "N/A"}</strong>
-              </div>
+          <div className="doctor-command-actions">
+            <div className="doctor-date-filter">
+              <label htmlFor="doctor-dashboard-date">Day</label>
+              <input
+                id="doctor-dashboard-date"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+              />
             </div>
 
-            <div className="fee-management">
-              <label>Consultation Fee</label>
-              <div className="fee-input-group">
-                <span className="fee-currency">₹</span>
+            <div className="doctor-fee-editor">
+              <label htmlFor="doctor-fee">Consultation Fee</label>
+              <div className="doctor-fee-input-wrap">
+                <span>₹</span>
                 <input
+                  id="doctor-fee"
                   type="number"
-                  min={0}
-                  step="1"
+                  min="0"
                   value={consultationFee}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "") {
-                      setConsultationFee(0);
-                      return;
-                    }
-                    const n = Number(v);
-                    if (!Number.isNaN(n) && n >= 0) setConsultationFee(n);
-                  }}
+                  onChange={(event) => setConsultationFee(Number(event.target.value || 0))}
                   disabled={profileLoading}
                 />
                 <button
-                  onClick={async () => {
-                    try {
-                      await doctorApi.updateProfile({
-                        consultation_fee: Number(consultationFee),
-                      });
-                      alert("Consultation fee updated");
-                    } catch (err) {
-                      setError("Failed to update fee");
-                    }
-                  }}
+                  type="button"
+                  onClick={handleSaveConsultationFee}
+                  disabled={busyMap["save-fee"] || profileLoading}
                 >
                   Save
                 </button>
               </div>
             </div>
-          </div>
 
-          <div className="doc-header-visual" aria-hidden="true">
-            <div className="doc-header-visual-frame">
-              <img src={headerImage} alt="" />
-            </div>
+            <button
+              type="button"
+              className="doctor-secondary-button"
+              onClick={() => loadDoctorData()}
+              disabled={refreshing}
+            >
+              <RefreshCcw size={16} />
+              {refreshing ? "Refreshing" : "Refresh"}
+            </button>
           </div>
         </header>
 
-        <div className="doc-tabs" role="tablist" aria-label="Doctor dashboard">
-          <button
-            className={`tab-btn ${activeTab === "queue" ? "active" : ""}`}
-            onClick={() => setActiveTab("queue")}
-          >
-            🚦 Queue
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "appointments" ? "active" : ""}`}
-            onClick={() => setActiveTab("appointments")}
-          >
-            📅 Appointments
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => setActiveTab("analytics")}
-          >
-            📊 Analytics
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "earnings" ? "active" : ""}`}
-            onClick={() => setActiveTab("earnings")}
-          >
-            💰 Earnings
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "schedule" ? "active" : ""}`}
-            onClick={() => setActiveTab("schedule")}
-          >
-            🗓️ My Schedule
-          </button>
+        {(statusMessage || error) && (
+          <div className={`doctor-banner ${error ? "is-error" : "is-success"}`}>
+            {error || statusMessage}
+          </div>
+        )}
 
-          <button
-            className={`tab-btn ${activeTab === "scanner" ? "active" : ""}`}
-            onClick={() => setActiveTab("scanner")}
-          >
-            📷 Scan Patient
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "staff" ? "active" : ""}`}
-            onClick={() => setActiveTab("staff")}
-          >
-            👥 Staff
-          </button>
-        </div>
-
-        <div className="doc-content">
-        {error && <div className="error-message">{error}</div>}
-
-        {/* QUEUE TAB */}
-        {activeTab === "queue" && (
-          <div className="tab-content queue-tab">
-            <div className="date-picker">
-              <label>Select Date:</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
-            </div>
-
-            <div className="queue-stats">
-              <div className="stat">
-                <h4>{queue.length}</h4>
-                <p>Total</p>
-              </div>
-
-              <div className="stat">
-                <h4>
-                  {
-                    queue.filter(
-                      (p) => p.status === "booked" || p.status === "arrived",
-                    ).length
-                  }
-                </h4>
-                <p>Waiting</p>
-              </div>
-
-              <div className="stat">
-                <h4>
-                  {
-                    queue.filter(
-                      (p) => p.status === "completed" || p.status === "visited",
-                    ).length
-                  }
-                </h4>
-                <p>Completed</p>
-              </div>
-            </div>
-
-            <div className="queue-list">
-              <h3>Queue Order</h3>
-              {queue.length === 0 ? (
-                <p>No patients in queue for this date</p>
-              ) : (
-                queue.map((patient, idx) => (
-                  <div
-                    key={patient.appointment_id}
-                    className={`queue-item ${patient.status}`}
+        <div className="doctor-workspace">
+          <aside className="doctor-sidebar">
+            <div className="doctor-sidebar-card">
+              <span className="doctor-sidebar-label">Navigation</span>
+              <div className="doctor-sidebar-nav">
+                {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={activeView === id ? "active" : ""}
+                    onClick={() => setActiveView(id)}
                   >
-                    <div className="token">#{patient.token_number}</div>
-                    <div className="patient-info">
-                      <p className="name">{patient.patient_name}</p>
-                      <p className="time">
-                        Position: {patient.position_in_queue}
-                      </p>
-                      <p className="status">{patient.status.toUpperCase()}</p>
-                    </div>
-                    <div className="queue-actions">
-                      {(patient.status === "arrived" ||
-                        patient.status === "booked") && (
-                        <button
-                          className="btn-start"
-                          onClick={() =>
-                            handleStartConsultation(patient.appointment_id)
-                          }
-                        >
-                          ▶ Start Consultation
-                        </button>
-                      )}
-
-                      {(patient.status === "in_progress" ||
-                        patient.status === "arrived") && (
-                        <button
-                          className="btn-complete"
-                          onClick={() =>
-                            handleCompleteConsultation(patient.appointment_id)
-                          }
-                        >
-                          ✓ Complete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* APPOINTMENTS TAB */}
-        {activeTab === "appointments" && (
-          <div className="tab-content appointments-tab">
-            <h3>Today's Appointments ({appointments.length})</h3>
-            <div className="appointments-grid">
-              {appointments.length === 0 ? (
-                <p>No appointments scheduled</p>
-              ) : (
-                appointments.map((apt) => (
-                  <div key={apt.id} className="appointment-item">
-                    <h4>{apt.patient_name}</h4>
-                    <p>🕐 {apt.slot_time}</p>
-                    <p>Status: {apt.status}</p>
-                    <p>
-                      Payment: {apt.payment_status || "N/A"} (
-                      {apt.payment_method || "-"})
-                    </p>
-                    <small>ID: {apt.id}</small>
-                    {apt.payment_method === "cash" &&
-                      apt.payment_status === "due" && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              await paymentApi.markCashPaid({
-                                payment_id: apt.payment_id,
-                              });
-                              loadDoctorData();
-                              alert("Cash payment received");
-                            } catch (err) {
-                              setError("Failed to mark cash payment");
-                            }
-                          }}
-                        >
-                          Mark Payment Received
-                        </button>
-                      )}
-                    {/*
-                    {apt.status === "booked" && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await doctorApi.updateAppointmentStatus(
-                              apt.id,
-                              "visited",
-                            );
-                            loadDoctorData();
-                            alert("Appointment marked visited");
-                          } catch (err) {
-                            setError("Failed to update status");
-                          }
-                        }}
-                      >
-                        Mark Visited
-                      </button>
-                    )}
-                    */}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ANALYTICS TAB */}
-        {activeTab === "analytics" && (
-          <div className="tab-content analytics-tab">
-            <h3>Analytics</h3>
-            {analytics && (
-              <div className="analytics-grid">
-                <div className="analytics-card">
-                  <h4>Patients Today</h4>
-                  <p className="big-number">{analytics.patients_today || 0}</p>
+            <div className="doctor-sidebar-card">
+              <span className="doctor-sidebar-label">Today at a glance</span>
+              <div className="doctor-mini-stats">
+                <div>
+                  <strong>{appointments.length}</strong>
+                  <span>Appointments</span>
                 </div>
-                <div className="analytics-card">
-                  <h4>Avg Consultation Time</h4>
-                  <p className="big-number">
-                    {analytics.avg_consultation_time || 15}m
-                  </p>
+                <div>
+                  <strong>{queueStats.waiting}</strong>
+                  <span>Waiting</span>
                 </div>
-                <div className="analytics-card">
-                  <h4>Completion Rate</h4>
-                  <p className="big-number">
-                    {analytics.completion_rate || 0}%
-                  </p>
-                </div>
-                <div className="analytics-card">
-                  <h4>No-Show Rate</h4>
-                  <p className="big-number">{analytics.no_show_rate || 0}%</p>
+                <div>
+                  <strong>{formatMoney(earnings.today_earnings)}</strong>
+                  <span>Today’s revenue</span>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
 
-        {/* EARNINGS TAB */}
-        {activeTab === "earnings" && (
-          <div className="tab-content earnings-tab">
-            <h3>Earnings Summary</h3>
-            {analytics && (
-              <div className="earnings-grid">
-                <div className="earnings-card">
-                  <h4>Today's Earnings</h4>
-                  <p className="amount">₹{earnings?.today_earnings || 0}</p>
-                </div>
-                <div className="earnings-card">
-                  <h4>This Month</h4>
-                  <p className="amount">₹{earnings?.monthly_earnings || 0}</p>
-                </div>
-                <div className="earnings-card">
-                  <h4>Total Earnings</h4>
-                  <p className="amount">₹{earnings?.total_earnings || 0}</p>
-                </div>
-                <div className="earnings-card">
-                  <h4>Total Paid Appointments</h4>
-                  <p className="amount">{earnings?.total_paid_appointments || 0}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* SCHEDULE TAB */}
-        {activeTab === "schedule" && (
-          <div className="tab-content schedule-tab">
-            <DoctorScheduleManager doctorId={user?.id} />
-          </div>
-        )}
-
-        {/* SCANNER TAB */}
-        {activeTab === "scanner" && (
-          <div className="tab-content">
-            <h3 className="section-title">Scan Patient QR</h3>
-
-            <div className="scanner-controls">
-              <button
-                className="primary-btn"
-                onClick={() => setScannerVisible(!scannerVisible)}
+            {/* <div className="doctor-sidebar-card">
+              <span className="doctor-sidebar-label">Patient Search</span>
+              <form
+                className="doctor-quick-search"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  searchPatient();
+                }}
               >
-                {scannerVisible ? "Close Scanner" : "Open Scanner"}
+                <input
+                  type="text"
+                  value={uniqueCode}
+                  onChange={(event) => setUniqueCode(event.target.value)}
+                  placeholder="Patient code"
+                />
+                <button type="submit">
+                  <Search size={16} />
+                </button>
+              </form>
+              <button
+                type="button"
+                className="doctor-secondary-button doctor-secondary-button--full"
+                onClick={() => setScannerVisible((current) => !current)}
+              >
+                <QrCode size={16} />
+                {scannerVisible ? "Close Scanner" : "Scan QR"}
               </button>
-            </div>
+            </div> */}
+          </aside>
 
-            {scannerVisible && (
-              <div className="scanner-box">
-                <div id={qrRefId} />
-              </div>
+          <main className="doctor-main">
+            {activeView === "overview" && (
+              <>
+                <section className="doctor-metrics-grid">
+                  <MetricCard
+                    icon={CalendarDays}
+                    label="Appointments"
+                    value={appointments.length}
+                    detail={`For ${selectedDate}`}
+                    accent="blue"
+                  />
+                  <MetricCard
+                    icon={Clock3}
+                    label="Waiting Patients"
+                    value={queueStats.waiting}
+                    detail={`${queueStats.active} in progress now`}
+                    accent="teal"
+                  />
+                  <MetricCard
+                    icon={Wallet}
+                    label="Today’s Revenue"
+                    value={formatMoney(earnings.today_earnings)}
+                    detail={`${earnings.total_paid_appointments || 0} paid visits`}
+                    accent="amber"
+                  />
+                  <MetricCard
+                    icon={Activity}
+                    label="Completion Rate"
+                    value={`${analytics.completion_rate || 0}%`}
+                    detail={`Avg consult ${analytics.avg_consultation_time || 0} min`}
+                    accent="rose"
+                  />
+                </section>
+
+                <section className="doctor-layout-grid">
+                  <article className="doctor-panel">
+                    <div className="doctor-panel-heading">
+                      <div>
+                        <span>Practice Snapshot</span>
+                        <h2>Operational summary</h2>
+                      </div>
+                    </div>
+                    <div className="doctor-summary-grid">
+                      <div className="doctor-summary-card">
+                        <strong>{queueStats.completed}</strong>
+                        <span>Completed today</span>
+                      </div>
+                      <div className="doctor-summary-card">
+                        <strong>{analytics.patients_today || 0}</strong>
+                        <span>Patients handled</span>
+                      </div>
+                      <div className="doctor-summary-card">
+                        <strong>{formatMoney(earnings.monthly_earnings)}</strong>
+                        <span>This month</span>
+                      </div>
+                      <div className="doctor-summary-card">
+                        <strong>{`${analytics.no_show_rate || 0}%`}</strong>
+                        <span>No-show rate</span>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="doctor-panel">
+                    <div className="doctor-panel-heading">
+                      <div>
+                        <span>Quick Focus</span>
+                        <h2>Where to go next</h2>
+                      </div>
+                    </div>
+                    <div className="doctor-priority-list">
+                      <button
+                        type="button"
+                        className="doctor-priority-card"
+                        onClick={() => setActiveView("queue")}
+                      >
+                        <strong>Open Queue</strong>
+                        <p>Manage waiting patients and start consultations.</p>
+                      </button>
+                      <button
+                        type="button"
+                        className="doctor-priority-card"
+                        onClick={() => setActiveView("revenue")}
+                      >
+                        <strong>Review Revenue</strong>
+                        <p>Inspect payment trend, methods, and recent collections.</p>
+                      </button>
+                      <button
+                        type="button"
+                        className="doctor-priority-card"
+                        onClick={() => setActiveView("schedule")}
+                      >
+                        <strong>Update Schedule</strong>
+                        <p>Adjust weekly availability and slot duration.</p>
+                      </button>
+                    </div>
+                  </article>
+                </section>
+              </>
             )}
 
-            <h4 className="section-subtitle">Search Patient</h4>
-
-            <form className="patient-search" onSubmit={handleSearchPatient}>
-              <input
-                className="search-input"
-                value={uniqueCode}
-                onChange={(e) => setUniqueCode(e.target.value)}
-                placeholder="Enter Patient Code"
-                required
-              />
-              <button className="primary-btn" type="submit">
-                Search
-              </button>
-            </form>
-
-            {(patientData?.patient || patientData?.id) && (
-              <div className="patient-dashboard-card modern-card">
-                <div className="patient-header">
-                  <h3>Patient Profile</h3>
-                </div>
-
-                <div className="patient-info-grid">
-                  <div className="info-item">
-                    <span className="label">Name</span>
-                    <span className="value">
-                      {(patientData.patient || patientData).name}
-                    </span>
+            {activeView === "queue" && (
+              <section className="doctor-layout-grid">
+                <article className="doctor-panel doctor-panel--queue">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Live Queue</span>
+                      <h2>Patient flow for {selectedDate}</h2>
+                    </div>
+                    <div className="doctor-chip-row">
+                      <span className="doctor-chip">{queueStats.waiting} waiting</span>
+                      <span className="doctor-chip">{queueStats.active} active</span>
+                    </div>
                   </div>
 
-                  <div className="info-item">
-                    <span className="label">Email</span>
-                    <span className="value">
-                      {(patientData.patient || patientData).email}
-                    </span>
+                  {queue.length === 0 ? (
+                    <EmptyState
+                      title="No queue yet"
+                      text="Queue entries will appear here as appointments arrive."
+                    />
+                  ) : (
+                    <div className="doctor-queue-list">
+                      {queue.map((entry) => (
+                        <div key={entry.appointment_id} className="doctor-queue-item">
+                          <div className="doctor-token-badge">
+                            #{entry.token_number || entry.position_in_queue || "-"}
+                          </div>
+                          <div className="doctor-queue-copy">
+                            <strong>{entry.patient_name}</strong>
+                            <p>
+                              Position {entry.position_in_queue || "-"} •{" "}
+                              {String(entry.status || "booked").replace("_", " ")}
+                            </p>
+                          </div>
+                          <div className="doctor-queue-actions">
+                            {["booked", "arrived"].includes(entry.status) && (
+                              <button
+                                type="button"
+                                className="doctor-primary-button"
+                                onClick={() => handleStartConsultation(entry.appointment_id)}
+                                disabled={busyMap[`start-${entry.appointment_id}`]}
+                              >
+                                Start
+                              </button>
+                            )}
+                            {["in_progress", "arrived"].includes(entry.status) && (
+                              <button
+                                type="button"
+                                className="doctor-secondary-button"
+                                onClick={() => handleCompleteConsultation(entry.appointment_id)}
+                                disabled={busyMap[`complete-${entry.appointment_id}`]}
+                              >
+                                Complete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Appointments</span>
+                      <h2>Day board</h2>
+                    </div>
                   </div>
 
-                  <div className="info-item">
-                    <span className="label">Age</span>
-                    <span className="value">
-                      {(patientData.patient || patientData).age}
-                    </span>
+                  {todaySchedule.length === 0 ? (
+                    <EmptyState
+                      title="No appointments scheduled"
+                      text="Your confirmed appointments will appear here."
+                    />
+                  ) : (
+                    <div className="doctor-appointments-list">
+                      {todaySchedule.map((appointment) => (
+                        <div key={appointment.id} className="doctor-appointment-card">
+                          <div className="doctor-appointment-meta">
+                            <strong>{appointment.patient_name}</strong>
+                            <span>{appointment.slot_time || "Time pending"}</span>
+                          </div>
+                          <p>
+                            Status:{" "}
+                            <span className="doctor-inline-pill">{appointment.status}</span>
+                          </p>
+                          <p>
+                            Payment: {appointment.payment_status || "N/A"} /{" "}
+                            {appointment.payment_method || "-"}
+                          </p>
+                          <div className="doctor-inline-actions">
+                            {appointment.payment_method === "cash" &&
+                              appointment.payment_status === "due" &&
+                              appointment.payment_id && (
+                                <button
+                                  type="button"
+                                  className="doctor-link-button"
+                                  onClick={() => handleMarkCashPaid(appointment.payment_id)}
+                                  disabled={busyMap[`cash-${appointment.payment_id}`]}
+                                >
+                                  Mark paid
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </section>
+            )}
+
+            {activeView === "revenue" && (
+              <>
+                <section className="doctor-metrics-grid">
+                  <MetricCard
+                    icon={Wallet}
+                    label="Total Revenue"
+                    value={formatMoney(revenueDetails.total_earnings)}
+                    detail="Collected from paid appointments"
+                    accent="amber"
+                  />
+                  <MetricCard
+                    icon={Landmark}
+                    label="This Month"
+                    value={formatMoney(revenueDetails.current_month)}
+                    detail={`${monthGrowth >= 0 ? "+" : ""}${monthGrowth}% vs last month`}
+                    accent="blue"
+                  />
+                  <MetricCard
+                    icon={Activity}
+                    label="Online Payments"
+                    value={formatMoney(revenueDetails.online_earnings)}
+                    detail="Digital collections"
+                    accent="teal"
+                  />
+                  <MetricCard
+                    icon={Clock3}
+                    label="Cash Payments"
+                    value={formatMoney(revenueDetails.cash_earnings)}
+                    detail="Counter collections"
+                    accent="rose"
+                  />
+                </section>
+
+                <section className="doctor-layout-grid">
+                  <article className="doctor-panel">
+                    <div className="doctor-panel-heading">
+                      <div>
+                        <span>Daily Trend</span>
+                        <h2>Last 14 days</h2>
+                      </div>
+                    </div>
+                    {revenueDetails.daily_revenue?.length ? (
+                      <div className="doctor-trend-list">
+                        {revenueDetails.daily_revenue.map((entry) => (
+                          <div key={String(entry.day)} className="doctor-trend-row">
+                            <div>
+                              <strong>
+                                {new Date(entry.day).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                })}
+                              </strong>
+                              <span>{entry.payment_count} payments</span>
+                            </div>
+                            <b>{formatMoney(entry.revenue)}</b>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="No revenue trend yet"
+                        text="Paid payments will populate this trend."
+                      />
+                    )}
+                  </article>
+
+                  <article className="doctor-panel">
+                    <div className="doctor-panel-heading">
+                      <div>
+                        <span>Method Split</span>
+                        <h2>Collection channels</h2>
+                      </div>
+                    </div>
+                    {revenueDetails.method_breakdown?.length ? (
+                      <div className="doctor-trend-list">
+                        {revenueDetails.method_breakdown.map((entry) => (
+                          <div key={entry.payment_method} className="doctor-trend-row">
+                            <div>
+                              <strong>{entry.payment_method}</strong>
+                              <span>{entry.payment_count} payments</span>
+                            </div>
+                            <b>{formatMoney(entry.revenue)}</b>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="No breakdown available"
+                        text="Payment methods will appear here after collections start."
+                      />
+                    )}
+                  </article>
+                </section>
+
+                <section className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Recent Payments</span>
+                      <h2>Latest paid appointments</h2>
+                    </div>
                   </div>
-                </div>
+                  {revenueDetails.recent_payments?.length ? (
+                    <div className="doctor-table-wrap">
+                      <table className="doctor-table">
+                        <thead>
+                          <tr>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Slot</th>
+                            <th>Method</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {revenueDetails.recent_payments.map((payment) => (
+                            <tr key={payment.id}>
+                              <td>{payment.patient_name || "Unknown patient"}</td>
+                              <td>{new Date(payment.created_at).toLocaleDateString()}</td>
+                              <td>{payment.slot_time || "-"}</td>
+                              <td>{payment.payment_method}</td>
+                              <td>{formatMoney(payment.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="No recent payments"
+                      text="Paid appointments will be listed here once revenue starts flowing."
+                    />
+                  )}
+                </section>
+              </>
+            )}
 
-                <h4 className="section-subtitle">Add Medicine</h4>
+            {activeView === "patients" && (
+              <section className="doctor-patient-workspace">
+                <article className="doctor-panel doctor-panel--search">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Patient Intake</span>
+                      <h2>Search or scan a patient</h2>
+                    </div>
+                  </div>
 
-                <div
-                  style={{ display: "grid", gap: "8px", marginBottom: "16px" }}
-                >
-                  <input
-                    placeholder="Medicine Name"
-                    value={newMedicineName}
-                    onChange={(e) => setNewMedicineName(e.target.value)}
-                  />
-
-                  <input
-                    placeholder="Dosage (e.g. 500mg)"
-                    value={newMedicineDosage}
-                    onChange={(e) => setNewMedicineDosage(e.target.value)}
-                  />
-
-                  <input
-                    placeholder="Frequency (e.g. Twice a day)"
-                    value={newMedicineFrequency}
-                    onChange={(e) => setNewMedicineFrequency(e.target.value)}
-                  />
-
-                  <input
-                    placeholder="Duration (e.g. 5 days)"
-                    value={newMedicineDuration}
-                    onChange={(e) => setNewMedicineDuration(e.target.value)}
-                  />
-
-                  <button className="primary-btn" onClick={handleAddMedicine}>
-                    ➕ Add Medicine
-                  </button>
-                </div>
-
-                <h4 className="section-subtitle">Record Voice Prescription</h4>
-
-                {!isRecording && (
-                  <button className="primary-btn" onClick={startRecording}>
-                    🎤 Start Recording
-                  </button>
-                )}
-
-                {isRecording && (
-                  <button className="danger-btn" onClick={stopRecording}>
-                    ⏹ Stop Recording
-                  </button>
-                )}
-
-                {audioURL && (
-                  <>
-                    <audio controls src={audioURL} />
-                    <button
-                      className="primary-btn"
-                      onClick={async () => {
-                        if (!audioBlob) return;
-
-                        const formData = new FormData();
-                        formData.append("audio", audioBlob);
-                        formData.append(
-                          "patient_id",
-                          (patientData.patient || patientData).id,
-                        );
-                        // Best-effort: attach appointment_id if we can match today's appointment by patient name
-                        try {
-                          const pname = (patientData.patient || patientData).name || (patientData.patient || patientData).patient_name;
-                          const today = new Date().toISOString().split("T")[0];
-                          const match = appointments.find(a => a.patient_name === pname && (a.status === 'booked' || a.status === 'in_progress' || a.status === 'arrived') && String(a.appointment_date || '').startsWith(today));
-                          if (match?.id) {
-                            formData.append("appointment_id", match.id);
-                          }
-                        } catch {}
-
-                        try {
-                          await doctorApi.uploadRecording(formData);
-                          // alert("Prescription uploaded successfully");
-                          setAudioBlob(null);
-                          setAudioURL("");
-                          // refresh recordings list
-                          await (async () => {
-                            const pid = (patientData.patient || patientData).id;
-                            const recRes = await fetch(`/api/recordings/patient/${pid}`, {
-                              headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-                              credentials: "include",
-                            });
-                            const recData = await recRes.json();
-                            if (recRes.ok && Array.isArray(recData)) setPatientRecordings(recData);
-                          })();
-                        } catch {
-                          setError("Upload failed");
-                        }
+                  <div className="doctor-patient-search-grid">
+                    <form
+                      className="doctor-patient-search-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        searchPatient();
                       }}
                     >
-                      Upload Prescription
+                      <input
+                        type="text"
+                        value={uniqueCode}
+                        onChange={(event) => setUniqueCode(event.target.value)}
+                        placeholder="Enter patient unique code"
+                        required
+                      />
+                      <button type="submit" className="doctor-primary-button">
+                        <Search size={16} />
+                        Search
+                      </button>
+                    </form>
+
+                    <button
+                      type="button"
+                      className="doctor-secondary-button"
+                      onClick={() => setScannerVisible((current) => !current)}
+                    >
+                      <QrCode size={16} />
+                      {scannerVisible ? "Close Scanner" : "Open QR Scanner"}
                     </button>
-                  </>
-                )}
-                <h4 className="section-subtitle">Active Prescriptions</h4>
-
-                {patientPrescriptions.length === 0 ? (
-                  <p>No active prescriptions</p>
-                ) : (
-                  <div style={{ marginBottom: "20px" }}>
-                    {patientPrescriptions.map((pres, i) => (
-                      <div
-                        key={
-                          pres.id ||
-                          pres.medicine_id ||
-                          pres.prescription_medicine_id ||
-                          i
-                        }
-                        style={{
-                          border: "1px solid #ddd",
-                          padding: "10px",
-                          borderRadius: "8px",
-                          marginBottom: "8px",
-                          background: "#f9f9f9",
-                        }}
-                      >
-                        <strong>{pres.medicine_name}</strong>
-                        <div>Dosage: {pres.dosage || "-"}</div>
-                        <div>Frequency: {pres.frequency || "-"}</div>
-                        <div>Duration: {pres.duration || "-"}</div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "8px",
-                            marginTop: "8px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          {/* Compare With Salt */}
-                          <button
-                            className="primary-btn"
-                            onClick={() => {
-                              window.location.href = `/search?medicine=${encodeURIComponent(
-                                pres.medicine_name,
-                              )}`;
-                            }}
-                          >
-                            🔍 Compare with Salt
-                          </button>
-
-                          {/* Edit Dose */}
-                          <button
-                            className="primary-btn"
-                            onClick={async () => {
-                              const medId =
-                                pres.id ||
-                                pres.medicine_id ||
-                                pres.prescription_medicine_id ||
-                                pres.pm_id ||
-                                pres._id;
-                              if (!medId) {
-                                alert(
-                                  "Medicine ID not found. Cannot update this medicine.",
-                                );
-                                console.error("Missing medicine id:", pres);
-                                return;
-                              }
-
-                              const newDosage = prompt(
-                                "Enter new dosage:",
-                                pres.dosage || "",
-                              );
-                              if (newDosage === null) return;
-
-                              const newFrequency = prompt(
-                                "Enter new frequency:",
-                                pres.frequency || "",
-                              );
-                              if (newFrequency === null) return;
-
-                              const newDuration = prompt(
-                                "Enter new duration:",
-                                pres.duration || "",
-                              );
-                              if (newDuration === null) return;
-
-                              try {
-                                const res = await fetch(
-                                  `/api/v2/prescriptions/medicine/${medId}`,
-                                  {
-                                    method: "PATCH",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                      Authorization: `Bearer ${localStorage.getItem("token")}`,
-                                    },
-                                    body: JSON.stringify({
-                                      dosage: newDosage,
-                                      frequency: newFrequency,
-                                      duration: newDuration,
-                                    }),
-                                  },
-                                );
-
-                                if (!res.ok) {
-                                  const text = await res.text();
-                                  console.error("Update medicine error:", text);
-                                  throw new Error("Update failed");
-                                }
-
-                                alert("Medicine updated");
-                                loadPatientPrescriptions(
-                                  (patientData.patient || patientData).id,
-                                );
-                              } catch (err) {
-                                console.error(err);
-                                alert("Failed to update medicine");
-                              }
-                            }}
-                          >
-                            ✏ Edit Dose
-                          </button>
-
-                          {/* Stop Medicine */}
-                          <button
-                            className="danger-btn"
-                            onClick={async () => {
-                              const medId =
-                                pres.medicine_id ??
-                                pres.id ??
-                                pres.prescription_medicine_id ??
-                                pres.pm_id ??
-                                pres._id;
-                              if (!medId) {
-                                // alert("Medicine ID not found. Cannot stop this medicine.");
-                                console.error("Missing medicine id:", pres);
-                                return;
-                              }
-
-                              // if (!window.confirm("Stop this medicine?")) return;
-
-                              try {
-                                const res = await fetch(
-                                  `/api/v2/prescriptions/medicine/${medId}`,
-                                  {
-                                    method: "DELETE",
-                                    headers: {
-                                      Authorization: `Bearer ${localStorage.getItem("token")}`,
-                                    },
-                                  },
-                                );
-
-                                if (!res.ok) {
-                                  const text = await res.text();
-                                  console.error("Stop medicine error:", text);
-                                  throw new Error("Delete failed");
-                                }
-
-                                // alert("Medicine stopped");
-                                loadPatientPrescriptions(
-                                  (patientData.patient || patientData).id,
-                                );
-                              } catch (err) {
-                                console.error(err);
-                                alert("Failed to stop medicine");
-                              }
-                            }}
-                          >
-                            🛑 Stop Medicine
-                          </button>
-                        </div>
-                      </div>
-                    ))}
                   </div>
-                )}
 
-                <h4 className="section-subtitle" style={{ marginTop: 16 }}>Patient Voice Notes</h4>
-                {patientRecordings.length === 0 ? (
-                  <p>No recordings yet for this patient.</p>
-                ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {patientRecordings.slice(0, 5).map((r) => (
-                      <div key={r.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <strong>Date:</strong>
-                          <span>{r.appointment_date ? new Date(r.appointment_date).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <audio controls src={r.file_url} style={{ width: "100%" }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* ===== FULL EHR HISTORY ===== */}
-                {patientData?.ehrHistory &&
-                  patientData.ehrHistory.length > 0 && (
-                    <>
-                      <h4 style={{ marginTop: 20 }}>Patient Medical Records</h4>
-
-                      {patientData.ehrHistory.map((record, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            border: "1px solid #ddd",
-                            padding: "12px",
-                            borderRadius: "8px",
-                            marginBottom: "10px",
-                            background: "#fafafa",
-                          }}
-                        >
-                          <p>
-                            <strong>Date:</strong>{" "}
-                            {new Date(record.timestamp).toLocaleDateString()}
-                          </p>
-
-                          {/* Health Metrics */}
-                          {record.ehr && (
-                            <>
-                              <p>
-                                <strong>Health Metrics:</strong>
-                              </p>
-                              <ul>
-                                {Object.entries(record.ehr).map(
-                                  ([key, value]) =>
-                                    typeof value !== "object" ? (
-                                      <li key={key}>
-                                        {key}: {String(value)}
-                                      </li>
-                                    ) : null,
-                                )}
-                              </ul>
-                            </>
-                          )}
-
-                          {/* Blood Pressure */}
-                          {record.ehr?.bloodPressure && (
-                            <p>
-                              <strong>Blood Pressure:</strong>{" "}
-                              {record.ehr.bloodPressure.systolic}/
-                              {record.ehr.bloodPressure.diastolic}
-                            </p>
-                          )}
-
-                          {/* Symptoms */}
-                          {record.symptoms &&
-                            Object.keys(record.symptoms).length > 0 && (
-                              <>
-                                <p>
-                                  <strong>Symptoms:</strong>
-                                </p>
-                                <ul>
-                                  {Object.entries(record.symptoms).map(
-                                    ([k, v]) => (
-                                      <li key={k}>
-                                        {k}: {v}
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </>
-                            )}
-
-                          {/* Medicines */}
-                          {record.medicines && record.medicines.length > 0 && (
-                            <>
-                              <p>
-                                <strong>Medicines:</strong>
-                              </p>
-                              <ul>
-                                {record.medicines.map((med, i) => (
-                                  <li key={i}>
-                                    {med.name} — {med.dosage} ({med.frequency})
-                                  </li>
-                                ))}
-                              </ul>
-                            </>
-                          )}
-
-                          {/* Predicted Disease */}
-                          {record.predictedDisease && (
-                            <p>
-                              <strong>AI Predicted Disease:</strong>{" "}
-                              {record.predictedDisease}
-                            </p>
-                          )}
-
-                          {/* AI Insights */}
-                          {record.aiInsights && (
-                            <p>
-                              <strong>AI Insights:</strong> {record.aiInsights}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </>
+                  {scannerVisible && (
+                    <div className="doctor-scanner-shell">
+                      <div id={qrRefId} />
+                    </div>
                   )}
+                </article>
 
-                {patientData.history && (
+                {!patientProfile ? (
+                  <article className="doctor-panel">
+                    <EmptyState
+                      title="No patient selected"
+                      text="Use a patient code or QR scan to open the case workspace."
+                    />
+                  </article>
+                ) : (
                   <>
-                    <h4 style={{ marginTop: 20 }}>Medical History</h4>
-                    <ul>
-                      {patientData.history.map((h, i) => (
-                        <li key={i}>
-                          {h.description || h.notes || JSON.stringify(h)}
-                        </li>
-                      ))}
-                    </ul>
+                    <section className="doctor-layout-grid doctor-layout-grid--patient">
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
+                          <div>
+                            <span>Patient Profile</span>
+                            <h2>{patientProfile.name}</h2>
+                          </div>
+                          <div className="doctor-chip-row">
+                            <span className="doctor-chip">{patientProfile.age || "N/A"} yrs</span>
+                            <span className="doctor-chip">{patientProfile.gender || "Unknown"}</span>
+                          </div>
+                        </div>
+
+                        <div className="doctor-detail-grid">
+                          <div>
+                            <span>Email</span>
+                            <strong>{patientProfile.email || "Not available"}</strong>
+                          </div>
+                          <div>
+                            <span>Phone</span>
+                            <strong>{patientProfile.phone || "Not available"}</strong>
+                          </div>
+                          <div>
+                            <span>Unique Code</span>
+                            <strong>
+                              {patientProfile.uniqueCode ||
+                                patientProfile.unique_code ||
+                                uniqueCode}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {patientData?.ehrHistory?.length > 0 && (
+                          <div className="doctor-history-list">
+                            <h3>Medical record snapshots</h3>
+                            {patientData.ehrHistory.slice(0, 4).map((record, index) => (
+                              <div key={`${record.timestamp || index}`} className="doctor-history-card">
+                                <strong>
+                                  {new Date(record.timestamp).toLocaleDateString()}
+                                </strong>
+                                <p>
+                                  Predicted disease: {record.predictedDisease || "Not available"}
+                                </p>
+                                <p>{record.aiInsights || "No AI insight stored for this record."}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
+                          <div>
+                            <span>Prescription Builder</span>
+                            <h2>Add and adjust treatment</h2>
+                          </div>
+                        </div>
+
+                        <div className="doctor-form-grid">
+                          <input
+                            placeholder="Medicine name"
+                            value={newMedicineName}
+                            onChange={(event) => setNewMedicineName(event.target.value)}
+                          />
+                          <input
+                            placeholder="Dosage"
+                            value={newMedicineDosage}
+                            onChange={(event) => setNewMedicineDosage(event.target.value)}
+                          />
+                          <input
+                            placeholder="Frequency"
+                            value={newMedicineFrequency}
+                            onChange={(event) => setNewMedicineFrequency(event.target.value)}
+                          />
+                          <input
+                            placeholder="Duration"
+                            value={newMedicineDuration}
+                            onChange={(event) => setNewMedicineDuration(event.target.value)}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          className="doctor-primary-button doctor-primary-button--full"
+                          onClick={handleAddMedicine}
+                          disabled={busyMap["add-medicine"]}
+                        >
+                          <ShieldPlus size={16} />
+                          Add Medicine
+                        </button>
+
+                        <div className="doctor-recording-panel">
+                          <div>
+                            <h3>Voice prescription</h3>
+                            <p>Capture a quick note and attach it to the patient case.</p>
+                          </div>
+                          <div className="doctor-inline-actions">
+                            {!isRecording ? (
+                              <button
+                                type="button"
+                                className="doctor-secondary-button"
+                                onClick={startRecording}
+                              >
+                                <Mic size={16} />
+                                Start Recording
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="doctor-danger-button"
+                                onClick={stopRecording}
+                              >
+                                <MicOff size={16} />
+                                Stop
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="doctor-primary-button"
+                              onClick={uploadRecording}
+                              disabled={!audioURL || busyMap["upload-recording"]}
+                            >
+                              Upload Note
+                            </button>
+                          </div>
+                          {audioURL && <audio controls src={audioURL} className="doctor-audio-player" />}
+                        </div>
+                      </article>
+                    </section>
+
+                    <section className="doctor-layout-grid doctor-layout-grid--patient">
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
+                          <div>
+                            <span>Active Prescriptions</span>
+                            <h2>{patientPrescriptions.length} medicines</h2>
+                          </div>
+                        </div>
+
+                        {patientPrescriptions.length === 0 ? (
+                          <EmptyState
+                            title="No active prescriptions"
+                            text="Added medicines and prescription entries will appear here."
+                          />
+                        ) : (
+                          <div className="doctor-prescription-list">
+                            {patientPrescriptions.map((medicine, index) => (
+                              <div
+                                key={
+                                  medicine.id ||
+                                  medicine.medicine_id ||
+                                  medicine.prescription_medicine_id ||
+                                  index
+                                }
+                                className="doctor-prescription-card"
+                              >
+                                <div>
+                                  <strong>{medicine.medicine_name}</strong>
+                                  <p>
+                                    {medicine.dosage || "-"} • {medicine.frequency || "-"} •{" "}
+                                    {medicine.duration || "-"}
+                                  </p>
+                                </div>
+                                <div className="doctor-inline-actions">
+                                  <button
+                                    type="button"
+                                    className="doctor-link-button"
+                                    onClick={() =>
+                                      window.location.assign(
+                                        `/search?medicine=${encodeURIComponent(medicine.medicine_name)}`,
+                                      )
+                                    }
+                                  >
+                                    Compare
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="doctor-link-button"
+                                    onClick={() => updatePrescriptionMedicine(medicine)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="doctor-link-button danger"
+                                    onClick={() => stopPrescriptionMedicine(medicine)}
+                                  >
+                                    Stop
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
+                          <div>
+                            <span>Patient Voice Notes</span>
+                            <h2>Recent recordings</h2>
+                          </div>
+                        </div>
+
+                        {patientRecordings.length === 0 ? (
+                          <EmptyState
+                            title="No recordings yet"
+                            text="Uploaded voice notes and prescription recordings will appear here."
+                          />
+                        ) : (
+                          <div className="doctor-recordings-list">
+                            {patientRecordings.slice(0, 5).map((recording) => (
+                              <div key={recording.id} className="doctor-recording-card">
+                                <div className="doctor-recording-meta">
+                                  <strong>
+                                    {recording.appointment_date
+                                      ? new Date(recording.appointment_date).toLocaleDateString()
+                                      : new Date(recording.created_at).toLocaleDateString()}
+                                  </strong>
+                                  <span>Recorded case note</span>
+                                </div>
+                                <audio controls src={recording.file_url} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    </section>
                   </>
                 )}
-              </div>
+              </section>
             )}
-          </div>
-        )}
-        {activeTab === "staff" && (
-          <div className="tab-content appointments-tab">
-            <h3>Staff Management</h3>
-            <div className="appointments-grid">
-              <div className="appointment-item">
-                <h4>Create Staff</h4>
-                <form
-                  onSubmit={handleCreateStaff}
-                  style={{ display: "grid", gap: "10px", marginTop: "12px" }}
-                >
-                  <input
-                    placeholder="Full Name"
-                    value={staffForm.name}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    required
-                  />
-                  <input
-                    placeholder="Email"
-                    type="email"
-                    value={staffForm.email}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, email: e.target.value }))
-                    }
-                    required
-                  />
-                  <input
-                    placeholder="Username"
-                    value={staffForm.username}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, username: e.target.value }))
-                    }
-                  />
-                  <input
-                    placeholder="Password"
-                    type="password"
-                    value={staffForm.password}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, password: e.target.value }))
-                    }
-                    required
-                  />
-                  <input
-                    placeholder="Assignment Role"
-                    value={staffForm.role}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, role: e.target.value }))
-                    }
-                  />
-                  <input
-                    placeholder="Department"
-                    value={staffForm.department}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, department: e.target.value }))
-                    }
-                  />
-                  <input
-                    placeholder="Phone"
-                    value={staffForm.phone}
-                    onChange={(e) =>
-                      setStaffForm((prev) => ({ ...prev, phone: e.target.value }))
-                    }
-                  />
-                  <button type="submit">Create Staff</button>
-                </form>
-              </div>
 
-              <div className="appointment-item">
-                <h4>My Staff</h4>
-                {staffMembers.length === 0 ? (
-                  <p>No staff assigned</p>
-                ) : (
-                  <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                    {staffMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        style={{
-                          border: "1px solid #ddd",
-                          borderRadius: "12px",
-                          padding: "12px",
-                        }}
-                      >
-                        <strong>{member.name}</strong>
-                        <p>{member.email}</p>
-                        <p>
-                          {member.assignment_role || "assistant"} | {member.department || "General"}
-                        </p>
-                        <button onClick={() => handleRemoveStaff(member.id)}>
-                          Remove Access
-                        </button>
-                      </div>
-                    ))}
+            {activeView === "staff" && (
+              <section className="doctor-layout-grid">
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Staff Builder</span>
+                      <h2>Create a new staff account</h2>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div className="appointment-item">
-                <h4>Pending Requests</h4>
-                {staffRequests.length === 0 ? (
-                  <p>No pending staff requests</p>
-                ) : (
-                  <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-                    {staffRequests.map((request) => (
-                      <div
-                        key={request.id}
-                        style={{
-                          border: "1px solid #ddd",
-                          borderRadius: "12px",
-                          padding: "12px",
-                        }}
-                      >
-                        <strong>{request.staff_name}</strong>
-                        <p>{request.staff_email}</p>
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                          <button
-                            onClick={() => handleResolveStaffRequest(request.id, "approved")}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleResolveStaffRequest(request.id, "rejected")}
-                          >
-                            Reject
-                          </button>
+                  <form className="doctor-form-grid doctor-form-grid--staff" onSubmit={handleCreateStaff}>
+                    <input
+                      placeholder="Full name"
+                      value={staffForm.name}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                      required
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={staffForm.email}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, email: event.target.value }))
+                      }
+                      required
+                    />
+                    <input
+                      placeholder="Username"
+                      value={staffForm.username}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, username: event.target.value }))
+                      }
+                    />
+                    <input
+                      type="password"
+                      placeholder="Password"
+                      value={staffForm.password}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, password: event.target.value }))
+                      }
+                      required
+                    />
+                    <input
+                      placeholder="Assignment role"
+                      value={staffForm.role}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, role: event.target.value }))
+                      }
+                    />
+                    <input
+                      placeholder="Department"
+                      value={staffForm.department}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, department: event.target.value }))
+                      }
+                    />
+                    <input
+                      placeholder="Phone"
+                      value={staffForm.phone}
+                      onChange={(event) =>
+                        setStaffForm((current) => ({ ...current, phone: event.target.value }))
+                      }
+                    />
+                    <button
+                      type="submit"
+                      className="doctor-primary-button doctor-primary-button--full"
+                      disabled={busyMap["create-staff"]}
+                    >
+                      <Users size={16} />
+                      Create Staff Member
+                    </button>
+                  </form>
+                </article>
+
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Assigned Team</span>
+                      <h2>Current staff members</h2>
+                    </div>
+                  </div>
+
+                  {staffMembers.length === 0 ? (
+                    <EmptyState
+                      title="No staff assigned"
+                      text="Create or approve a staff member to build your support team."
+                    />
+                  ) : (
+                    <div className="doctor-staff-list">
+                      {staffMembers.map((member) => (
+                        <div key={member.id} className="doctor-staff-card">
+                          <div>
+                            <strong>{member.name}</strong>
+                            <p>{member.email}</p>
+                            <span>
+                              {member.assignment_role || "assistant"} •{" "}
+                              {member.department || "General"}
+                            </span>
+                            {staffPasswords[member.id] ? (
+                              <p>Temporary password: {staffPasswords[member.id]}</p>
+                            ) : null}
+                          </div>
+                          <div className="doctor-inline-actions">
+                            <button
+                              type="button"
+                              className="doctor-link-button"
+                              onClick={() => handleResetStaffPassword(member.id)}
+                              disabled={busyMap[`reset-password-${member.id}`]}
+                            >
+                              Reset Password
+                            </button>
+                            <button
+                              type="button"
+                              className="doctor-link-button danger"
+                              onClick={() => handleRemoveStaff(member.id)}
+                              disabled={busyMap[`remove-staff-${member.id}`]}
+                            >
+                              Remove Access
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Pending Requests</span>
+                      <h2>Staff approvals</h2>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+
+                  {staffRequests.length === 0 ? (
+                    <EmptyState
+                      title="No pending requests"
+                      text="Incoming access requests from staff will show up here."
+                    />
+                  ) : (
+                    <div className="doctor-staff-list">
+                      {staffRequests.map((request) => (
+                        <div key={request.id} className="doctor-staff-card">
+                          <div>
+                            <strong>{request.staff_name}</strong>
+                            <p>{request.staff_email}</p>
+                            <span>{request.department || "General"}</span>
+                          </div>
+                          <div className="doctor-inline-actions">
+                            <button
+                              type="button"
+                              className="doctor-primary-button"
+                              onClick={() => handleResolveStaffRequest(request.id, "approved")}
+                              disabled={busyMap[`request-${request.id}-approved`]}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="doctor-secondary-button"
+                              onClick={() => handleResolveStaffRequest(request.id, "rejected")}
+                              disabled={busyMap[`request-${request.id}-rejected`]}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </section>
+            )}
+
+            {activeView === "schedule" && (
+              <section className="doctor-panel doctor-panel--schedule">
+                <div className="doctor-panel-heading">
+                  <div>
+                    <span>Availability Studio</span>
+                    <h2>Shape your weekly consultation rhythm</h2>
+                  </div>
+                </div>
+                <DoctorScheduleManager doctorId={user?.id} />
+              </section>
+            )}
+
+            {activeView === "profile" && (
+              <section className="doctor-panel doctor-panel--schedule">
+                <ProfileManager title="Doctor Profile" roleOverride="doctor" />
+              </section>
+            )}
+          </main>
         </div>
       </div>
     </div>

@@ -1,6 +1,10 @@
 import sql from "../config/database.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import {
+  bookAppointment,
+  validateAppointmentBookingData,
+} from "./appointmentService.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -8,58 +12,108 @@ const razorpay = new Razorpay({
 });
 
 // Create Payment Entry
-export async function createPayment(
-  appointmentId,
+export async function createPayment({
+  appointmentId = null,
   paymentMethod,
   patientIdFromAuth,
-) {
+  bookingDetails = null,
+}) {
   try {
-    // Type validation
-    if (
-      !appointmentId ||
-      typeof appointmentId !== "string" ||
-      appointmentId.trim() === ""
-    ) {
-      throw new Error("Invalid appointment ID");
-    }
-
+    let resolvedAppointmentId = appointmentId;
     if (!paymentMethod) {
       throw new Error("Payment method is required");
     }
+
+    const normalizedBookingDetails = bookingDetails
+      ? {
+          patient_id: patientIdFromAuth,
+          doctor_id: bookingDetails.doctor_id,
+          appointment_date: bookingDetails.appointment_date,
+          slot_time: bookingDetails.slot_time,
+          share_history: Boolean(bookingDetails.share_history),
+          recording_consent_patient: Boolean(
+            bookingDetails.recording_consent_patient,
+          ),
+        }
+      : null;
 
     console.log("Creating payment for:", {
       appointmentId,
       paymentMethod,
       patientIdFromAuth,
+      hasBookingDetails: Boolean(normalizedBookingDetails),
     });
 
-    const appointment = await sql`
-      SELECT * FROM appointments
-      WHERE id = ${appointmentId}
-    `;
+    let appointment = [];
+    let patient_id = patientIdFromAuth;
+    let doctor_id = null;
+    let amount = 0;
+    let bookingPayload = normalizedBookingDetails;
 
-    if (appointment.length === 0) {
-      throw new Error("Appointment not found");
-    }
+    if (resolvedAppointmentId) {
+      if (typeof resolvedAppointmentId !== "string" || resolvedAppointmentId.trim() === "") {
+        throw new Error("Invalid appointment ID");
+      }
 
-    // Verify the appointment belongs to the logged-in patient
-    if (patientIdFromAuth && appointment[0].patient_id !== patientIdFromAuth) {
-      console.warn("Authorization check failed:", {
-        appointmentPatientId: appointment[0].patient_id,
-        authPatientId: patientIdFromAuth,
-      });
-      throw new Error("You can only pay for your own appointments");
-    }
+      appointment = await sql`
+        SELECT * FROM appointments
+        WHERE id = ${resolvedAppointmentId}
+      `;
 
-    // Only block payment if appointment is cancelled or completed
-    if (["cancelled", "completed"].includes(appointment[0].status)) {
-      console.log("Appointment status:", appointment[0].status);
-      throw new Error("Appointment not eligible for payment");
+      if (appointment.length === 0) {
+        throw new Error("Appointment not found");
+      }
+
+      if (patientIdFromAuth && appointment[0].patient_id !== patientIdFromAuth) {
+        console.warn("Authorization check failed:", {
+          appointmentPatientId: appointment[0].patient_id,
+          authPatientId: patientIdFromAuth,
+        });
+        throw new Error("You can only pay for your own appointments");
+      }
+
+      if (["cancelled", "completed"].includes(appointment[0].status)) {
+        console.log("Appointment status:", appointment[0].status);
+        throw new Error("Appointment not eligible for payment");
+      }
+
+      patient_id = patientIdFromAuth || appointment[0].patient_id;
+      doctor_id = appointment[0].doctor_id;
+    } else if (normalizedBookingDetails) {
+      if (
+        !normalizedBookingDetails.doctor_id ||
+        !normalizedBookingDetails.appointment_date ||
+        !normalizedBookingDetails.slot_time
+      ) {
+        throw new Error("Booking details are incomplete");
+      }
+
+      const preparedBooking = await validateAppointmentBookingData(
+        normalizedBookingDetails,
+      );
+      doctor_id = normalizedBookingDetails.doctor_id;
+      amount = preparedBooking.consultation_fee;
+      bookingPayload = {
+        ...normalizedBookingDetails,
+        consultation_fee: preparedBooking.consultation_fee,
+        doctor_name: preparedBooking.doctor_name,
+      };
+    } else {
+      throw new Error("Appointment or booking details are required");
     }
 
     const existingPayment = await sql`
       SELECT * FROM payments
-      WHERE appointment_id = ${appointmentId}
+      WHERE (
+        (${resolvedAppointmentId}::uuid IS NOT NULL AND appointment_id = ${resolvedAppointmentId})
+        OR (
+          ${resolvedAppointmentId}::uuid IS NULL
+          AND patient_id = ${patient_id}
+          AND doctor_id = ${doctor_id}
+          AND COALESCE(booking_payload->>'appointment_date', '') = ${bookingPayload?.appointment_date || ""}
+          AND COALESCE(booking_payload->>'slot_time', '') = ${bookingPayload?.slot_time || ""}
+        )
+      )
         AND status IN ('pending','paid')
     `;
 
@@ -68,17 +122,13 @@ export async function createPayment(
       let razorpayOrder = null;
 
       if (paymentMethod === "online") {
-        // fetch up-to-date consultation fee in case doctor changed it
-        const doc = await sql`
-          SELECT consultation_fee FROM doctors
-          WHERE id = ${appointment[0].doctor_id}
-        `;
-        const fee = Number(doc[0]?.consultation_fee) || 500;
+        const fee = amount || Number(existingPayment[0]?.amount) || 500;
         const razorAmount = Math.round(fee * 100);
+        const receiptSource =
+          resolvedAppointmentId ||
+          `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
 
-        // Create a short receipt within 40-char limit
-        // Format: "rcpt_" + first 8 chars of appointmentId + timestamp (last 8 digits)
-        const shortReceipt = `rcpt_${appointmentId.substring(0, 8)}_${Date.now().toString().slice(-8)}`;
+        const shortReceipt = `rcpt_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 8)}_${Date.now().toString().slice(-8)}`;
         const order = await razorpay.orders.create({
           amount: razorAmount,
           currency: "INR",
@@ -115,36 +165,45 @@ export async function createPayment(
       throw new Error("Payment already completed for this appointment");
     }
 
-    // Use patient id from auth if provided, otherwise fallback to appointment record
-    const patient_id = patientIdFromAuth || appointment[0].patient_id;
-    const doctor_id = appointment[0].doctor_id;
+    if (!amount) {
+      const doctor = await sql`
+        SELECT consultation_fee FROM doctors
+        WHERE id = ${doctor_id}
+      `;
 
-    const doctor = await sql`
-      SELECT consultation_fee FROM doctors
-      WHERE id = ${doctor_id}
-    `;
+      if (!doctor.length) {
+        console.error("Doctor not found for payment", {
+          doctor_id,
+          appointmentId: resolvedAppointmentId,
+        });
+        throw new Error("Doctor not found for this appointment");
+      }
 
-    if (!doctor.length) {
-      console.error("Doctor not found for payment", {
-        doctor_id,
-        appointmentId,
-      });
-      throw new Error("Doctor not found for this appointment");
+      amount = Number(doctor[0].consultation_fee) || 500;
     }
-
-    // Use doctor's consultation fee instead of fixed amount
-    const amount = Number(doctor[0].consultation_fee) || 500;
 
     let razorpayOrderId = null;
     let razorpayOrder = null;
 
-    if (paymentMethod === "online") {
-      // convert to paise for Razorpay (integer)
-      const razorAmount = Math.round(amount * 100);
+    if (
+      !resolvedAppointmentId &&
+      bookingPayload &&
+      ["cash", "wallet"].includes(paymentMethod)
+    ) {
+      const bookedAppointment = await bookAppointment({
+        ...bookingPayload,
+        patient_id,
+      });
+      resolvedAppointmentId = bookedAppointment.id;
+    }
 
-      // Create a short receipt within 40-char limit
-      // Format: "rcpt_" + first 8 chars of appointmentId + timestamp (last 8 digits)
-      const shortReceipt = `rcpt_${appointmentId.substring(0, 8)}_${Date.now().toString().slice(-8)}`;
+    if (paymentMethod === "online") {
+      const razorAmount = Math.round(amount * 100);
+      const receiptSource =
+        resolvedAppointmentId ||
+        `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
+
+      const shortReceipt = `rcpt_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 8)}_${Date.now().toString().slice(-8)}`;
       const order = await razorpay.orders.create({
         amount: razorAmount,
         currency: "INR",
@@ -164,7 +223,7 @@ export async function createPayment(
       console.error("Invalid payment identifiers", {
         patient_id,
         doctor_id,
-        appointmentId,
+        appointmentId: resolvedAppointmentId,
       });
       throw new Error("Invalid payment identifiers");
     }
@@ -178,17 +237,19 @@ export async function createPayment(
   currency,
   payment_method,
   status,
-  razorpay_order_id
+  razorpay_order_id,
+  booking_payload
 )
 VALUES (
-  ${appointmentId},
+  ${resolvedAppointmentId},
   ${patient_id},
   ${doctor_id},
   ${amount},
   'INR',
   ${paymentMethod},
   ${paymentMethod === 'cash' ? 'due' : 'pending'},
-  ${razorpayOrderId}
+  ${razorpayOrderId},
+  ${bookingPayload ? sql.json(bookingPayload) : null}
 )
       RETURNING *
     `;
@@ -220,7 +281,7 @@ VALUES (
 
     console.error("Payment service error:", {
       message: errorMessage,
-      appointmentId,
+      appointmentId: resolvedAppointmentId,
       paymentMethod,
       fullError: JSON.stringify(error, null, 2),
     });
@@ -280,42 +341,58 @@ export async function confirmOnlinePayment(
   console.log("Updating payment status to paid...");
 
   try {
-    await sql`
-      UPDATE payments
-      SET status = 'paid',
-          razorpay_payment_id = ${razorpayPaymentId},
-          razorpay_signature = ${razorpaySignature}
-      WHERE razorpay_order_id = ${razorpayOrderId}
-    `;
+    await sql.begin(async (tx) => {
+      let appointmentId = payment[0].appointment_id;
+
+      if (!appointmentId && payment[0].booking_payload) {
+        const bookedAppointment = await bookAppointment({
+          ...payment[0].booking_payload,
+          patient_id: payment[0].patient_id,
+        });
+        appointmentId = bookedAppointment.id;
+      }
+
+      await tx`
+        UPDATE payments
+        SET status = 'paid',
+            razorpay_payment_id = ${razorpayPaymentId},
+            razorpay_signature = ${razorpaySignature},
+            appointment_id = COALESCE(${appointmentId}, appointment_id),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE razorpay_order_id = ${razorpayOrderId}
+      `;
+
+      if (appointmentId) {
+        await tx`
+          UPDATE appointments
+          SET status = 'booked'
+          WHERE id = ${appointmentId}
+        `;
+      }
+    });
     console.log("Payment status updated successfully");
   } catch (updateError) {
     console.error("Failed to update payment status:", updateError);
     throw new Error(`Payment update failed: ${updateError.message}`);
   }
 
-  console.log("Updating appointment status...");
-
-  try {
-    await sql`
-      UPDATE appointments
-      SET status = 'booked'
-      WHERE id = ${payment[0].appointment_id}
-    `;
-    console.log("Appointment status updated successfully");
-  } catch (apptUpdateError) {
-    console.error("Failed to update appointment status:", apptUpdateError);
-    throw new Error(`Appointment update failed: ${apptUpdateError.message}`);
-  }
-
   console.log("Payment confirmation completed successfully");
 
   // Update doctor analytics revenue for the appointment date
   try {
+    const paidPayment = await sql`
+      SELECT appointment_id
+      FROM payments
+      WHERE razorpay_order_id = ${razorpayOrderId}
+      LIMIT 1
+    `;
+    const confirmedAppointmentId =
+      paidPayment[0]?.appointment_id || payment[0].appointment_id;
     const appt = await sql`
       SELECT a.appointment_date::date as date, a.doctor_id, d.consultation_fee
       FROM appointments a
       JOIN doctors d ON d.id = a.doctor_id
-      WHERE a.id = ${payment[0].appointment_id}
+      WHERE a.id = ${confirmedAppointmentId}
     `;
     if (appt.length) {
       const fee = Number(appt[0].consultation_fee) || 0;
@@ -451,5 +528,97 @@ export async function getDoctorEarningsSummary(doctorId) {
     online_earnings: Number(online[0].total),
     cash_earnings: Number(cash[0].total),
     total_paid_appointments: Number(count[0].total),
+  };
+}
+
+export async function getDoctorRevenueDetails(doctorId) {
+  const summary = await getDoctorEarningsSummary(doctorId);
+
+  const recentPayments = await sql`
+    SELECT
+      p.id,
+      p.amount,
+      p.payment_method,
+      p.status,
+      p.created_at,
+      p.appointment_id,
+      pt.name AS patient_name,
+      a.appointment_date,
+      a.slot_time
+    FROM payments p
+    LEFT JOIN appointments a ON a.id = p.appointment_id
+    LEFT JOIN patients pt ON pt.id = p.patient_id
+    WHERE p.doctor_id = ${doctorId}
+      AND p.status = 'paid'
+      AND COALESCE(p.is_deleted, false) = false
+    ORDER BY p.created_at DESC
+    LIMIT 12
+  `;
+
+  const dailyRevenue = await sql`
+    SELECT
+      DATE(created_at) AS day,
+      COUNT(*)::int AS payment_count,
+      COALESCE(SUM(amount), 0)::numeric AS revenue
+    FROM payments
+    WHERE doctor_id = ${doctorId}
+      AND status = 'paid'
+      AND COALESCE(is_deleted, false) = false
+      AND created_at >= CURRENT_DATE - INTERVAL '13 days'
+    GROUP BY DATE(created_at)
+    ORDER BY day ASC
+  `;
+
+  const methodBreakdown = await sql`
+    SELECT
+      payment_method,
+      COUNT(*)::int AS payment_count,
+      COALESCE(SUM(amount), 0)::numeric AS revenue
+    FROM payments
+    WHERE doctor_id = ${doctorId}
+      AND status = 'paid'
+      AND COALESCE(is_deleted, false) = false
+    GROUP BY payment_method
+    ORDER BY revenue DESC
+  `;
+
+  const monthComparison = await sql`
+    SELECT
+      COALESCE(
+        SUM(amount) FILTER (
+          WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+        ),
+        0
+      )::numeric AS current_month,
+      COALESCE(
+        SUM(amount) FILTER (
+          WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+        ),
+        0
+      )::numeric AS previous_month
+    FROM payments
+    WHERE doctor_id = ${doctorId}
+      AND status = 'paid'
+      AND COALESCE(is_deleted, false) = false
+  `;
+
+  return {
+    ...summary,
+    current_month: Number(monthComparison[0]?.current_month || 0),
+    previous_month: Number(monthComparison[0]?.previous_month || 0),
+    daily_revenue: dailyRevenue.map((row) => ({
+      day: row.day,
+      payment_count: Number(row.payment_count || 0),
+      revenue: Number(row.revenue || 0),
+    })),
+    method_breakdown: methodBreakdown.map((row) => ({
+      payment_method: row.payment_method,
+      payment_count: Number(row.payment_count || 0),
+      revenue: Number(row.revenue || 0),
+    })),
+    recent_payments: recentPayments.map((row) => ({
+      ...row,
+      amount: Number(row.amount || 0),
+    })),
   };
 }

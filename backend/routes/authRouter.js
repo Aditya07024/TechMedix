@@ -5,8 +5,24 @@ import {
   getPatientByEmail,
   createPatient,
   comparePassword,
+  getPatientById,
+  updatePatient,
+  deletePatient,
+  resetPatientUniqueCode,
 } from "../models-pg/patient.js";
+import { getUserById, updateUserById, deleteUserById } from "../models/User.js";
+import {
+  getDoctorById,
+  updateDoctor,
+  deleteDoctor,
+} from "../models-pg/doctor.js";
+import {
+  getStaffProfile,
+  updateStaffProfile,
+  deleteStaffProfile,
+} from "../services/staffService.js";
 import sql from "../config/database.js";
+import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -36,6 +52,79 @@ async function usersTableExists() {
   }
 
   return usersTableExistsPromise;
+}
+
+function mapUserProfileByRole(role, record) {
+  if (!record) return null;
+
+  if (role === "patient") {
+    return {
+      id: record.id,
+      role: "patient",
+      name: record.name,
+      email: record.email,
+      age: record.age ?? null,
+      gender: record.gender ?? null,
+      phone: record.phone ?? "",
+      bloodGroup: record.blood_group ?? record.bloodGroup ?? null,
+      medicalHistory: record.medical_history ?? record.medicalHistory ?? null,
+      uniqueCode: record.unique_code ?? record.uniqueCode ?? null,
+      createdAt: record.created_at ?? record.createdAt ?? null,
+    };
+  }
+
+  if (role === "doctor") {
+    return {
+      id: record.id,
+      role: "doctor",
+      name: record.name,
+      email: record.email,
+      specialty: record.specialty ?? "",
+      consultation_fee: Number(record.consultation_fee || 0),
+      branch_id: record.branch_id ?? null,
+      createdAt: record.created_at ?? record.createdAt ?? null,
+    };
+  }
+
+  if (role === "staff") {
+    return {
+      id: record.user_id || record.id,
+      staff_id: record.id,
+      role: "staff",
+      name: record.name,
+      email: record.email,
+      phone: record.phone ?? "",
+      department: record.department ?? "",
+      staff_role: record.role ?? "staff",
+      hospital_id: record.hospital_id ?? null,
+      active_doctor_id: record.active_doctor_id ?? null,
+      createdAt: record.created_at ?? null,
+    };
+  }
+
+  return {
+    id: record.id,
+    role: role || record.role || "admin",
+    name: record.full_name || record.name || "",
+    email: record.email,
+    phone: record.phone ?? "",
+    createdAt: record.created_at ?? record.createdAt ?? null,
+  };
+}
+
+async function getCurrentProfile(user) {
+  switch (user?.role) {
+    case "patient":
+      return mapUserProfileByRole("patient", await getPatientById(user.id));
+    case "doctor":
+      return mapUserProfileByRole("doctor", await getDoctorById(user.id));
+    case "staff":
+      return mapUserProfileByRole("staff", await getStaffProfile(user.id));
+    case "admin":
+      return mapUserProfileByRole("admin", await getUserById(user.id));
+    default:
+      return null;
+  }
 }
 
 // Google OAuth login
@@ -104,6 +193,7 @@ router.post("/login", async (req, res) => {
         users = await sql`
           SELECT * FROM users
           WHERE email = ${email}
+            AND COALESCE(is_deleted, FALSE) = FALSE
         `;
       } catch (error) {
         console.warn("users table login lookup failed:", error.message);
@@ -221,6 +311,102 @@ router.get("/status", (req, res) => {
     return res.json({ ifLogin: true, role: decoded.role, user: decoded });
   } catch {
     return res.json({ ifLogin: false });
+  }
+});
+
+router.get("/profile", authenticate, async (req, res) => {
+  try {
+    const profile = await getCurrentProfile(req.user);
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    console.error("Profile fetch failed:", error);
+    return res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+router.patch("/profile", authenticate, async (req, res) => {
+  try {
+    let updated = null;
+
+    if (req.user.role === "patient") {
+      updated = await updatePatient(req.user.id, req.body);
+      updated = mapUserProfileByRole("patient", updated);
+    } else if (req.user.role === "doctor") {
+      updated = await updateDoctor(req.user.id, {
+        name: req.body.name,
+        email: req.body.email,
+        specialty: req.body.specialty,
+        consultation_fee: req.body.consultation_fee,
+      });
+      updated = mapUserProfileByRole("doctor", updated);
+    } else if (req.user.role === "staff") {
+      updated = await updateStaffProfile(req.user.id, req.body);
+      updated = mapUserProfileByRole("staff", updated);
+    } else if (req.user.role === "admin") {
+      updated = await updateUserById(req.user.id, {
+        email: req.body.email,
+        full_name: req.body.name || req.body.full_name,
+        phone: req.body.phone,
+      });
+      updated = mapUserProfileByRole("admin", updated);
+    }
+
+    if (!updated) {
+      return res.status(400).json({ error: "Profile update failed" });
+    }
+
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error("Profile update failed:", error);
+    return res.status(500).json({ error: error.message || "Failed to update profile" });
+  }
+});
+
+router.post("/profile/reset-qr", authenticate, authorizeRoles("patient"), async (req, res) => {
+  try {
+    const updated = await resetPatientUniqueCode(req.user.id);
+
+    if (!updated) {
+      return res.status(400).json({ error: "Failed to reset QR code" });
+    }
+
+    return res.json({
+      success: true,
+      data: mapUserProfileByRole("patient", updated),
+    });
+  } catch (error) {
+    console.error("QR reset failed:", error);
+    return res.status(500).json({ error: "Failed to reset QR code" });
+  }
+});
+
+router.delete("/profile", authenticate, async (req, res) => {
+  try {
+    let deleted = null;
+
+    if (req.user.role === "patient") {
+      deleted = await deletePatient(req.user.id);
+    } else if (req.user.role === "doctor") {
+      deleted = await deleteDoctor(req.user.id);
+    } else if (req.user.role === "staff") {
+      deleted = await deleteStaffProfile(req.user.id);
+    } else if (req.user.role === "admin") {
+      deleted = await deleteUserById(req.user.id);
+    }
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    return res.json({ success: true, message: "Account deleted successfully" });
+  } catch (error) {
+    console.error("Account delete failed:", error);
+    return res.status(500).json({ error: error.message || "Failed to delete account" });
   }
 });
 

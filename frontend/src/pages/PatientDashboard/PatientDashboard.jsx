@@ -15,6 +15,7 @@ import PatientQueuePosition from "../../components/PatientQueuePosition/PatientQ
 import MedicalTimeline from "../../components/MedicalTimeline/MedicalTimeline";
 import NotificationCenter from "../../components/NotificationCenter/NotificationCenter";
 import HealthMetrics from "../../components/HealthMetrics/HealthMetrics";
+import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import "./PatientDashboard.css";
 import HealthChat from "../../components/HealthChat/HealthChat";
 import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
@@ -1406,11 +1407,18 @@ export default function PatientDashboard() {
       icon: Wallet,
       action: () => setActiveTab("wallet"),
     },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: Settings,
+      action: () => setActiveTab("profile"),
+    },
   ];
   const topNavItems = [
     { id: "home", label: "Home", action: () => setActiveTab("home") },
     { id: "appointments", label: "Appointments", action: () => setActiveTab("appointments") },
     { id: "records", label: "Records", action: () => setActiveTab("records") },
+    { id: "profile", label: "Profile", action: () => setActiveTab("profile") },
     { id: "support", label: "Support", action: () => setHealthChatOpen(true) },
   ];
   const quickActionOptions = [
@@ -1646,24 +1654,7 @@ export default function PatientDashboard() {
               <span>Clinical sanctuary</span>
             </div>
           </div>
-          <button
-            type="button"
-            className="patient-theme-toggle"
-            onClick={toggleTheme}
-            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <span className="patient-theme-toggle-icon">
-              {isDarkMode ? (
-                <Sun size={18} strokeWidth={2} />
-              ) : (
-                <MoonStar size={18} strokeWidth={2} />
-              )}
-            </span>
-            <span className="patient-theme-toggle-copy">
-              <strong>{isDarkMode ? "Light mode" : "Dark mode"}</strong>
-              <small>{isDarkMode ? "Use the brighter dashboard palette" : "Switch to a low-light palette"}</small>
-            </span>
-          </button>
+          
           <div className="sidebar-nav">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -2020,6 +2011,11 @@ export default function PatientDashboard() {
                       doctors.find(
                         (d) => String(d.id) === String(selectedDoctorId),
                       )?.specialty
+                    }
+                    consultationFee={
+                      doctors.find(
+                        (d) => String(d.id) === String(selectedDoctorId),
+                      )?.consultation_fee
                     }
                   />
                 ) : (
@@ -2850,6 +2846,36 @@ export default function PatientDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "profile" && (
+          <div className="tab-content profile-tab">
+            <div className="section-intro">
+              <div>
+                <span className="section-kicker">Profile</span>
+                <h2>Manage Your Account</h2>
+                <p>Edit your patient details, delete your account, or reset your QR code.</p>
+              </div>
+            </div>
+            <ProfileManager
+              title="Patient Profile"
+              onQrReset={() => {
+                setQrData(null);
+                writeDashboardCache(user?.id, {
+                  appointments,
+                  prescriptions,
+                  medicines,
+                  notifications,
+                  walletBalance,
+                  recordings,
+                  ehrHistory,
+                  healthMetricsHistory,
+                  doctors,
+                  qrData: null,
+                });
+              }}
+            />
           </div>
         )}
         </div>
