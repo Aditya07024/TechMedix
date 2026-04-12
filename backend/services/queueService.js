@@ -1,127 +1,455 @@
-import express from "express";
 import sql from "../config/database.js";
-import { authenticate, authorizeRoles } from "../middleware/auth.js";
 
-const router = express.Router();
+let doctorScheduleDurationColumnPromise;
 
-/* ================= GET QUEUE FOR DOCTOR ================= */
-export async function getQueueForDoctor(doctorId, date) {
-  const rows = await sql`
-    SELECT 
-      a.id as appointment_id,
-      a.patient_id,
-      u.name as patient_name,
-      a.status,
-      a.token_number,
-      a.appointment_date,
-      ROW_NUMBER() OVER (ORDER BY a.token_number) as position_in_queue
-    FROM appointments a
-    LEFT JOIN users u ON a.patient_id = u.id
-    WHERE a.doctor_id = ${doctorId}
-      AND DATE(a.appointment_date) = ${date}
-      AND a.status IN ('booked','arrived','in_progress','completed','visited')
-    ORDER BY a.token_number ASC
-  `;
-
-  return rows;
-}
-
-/* ================= GET QUEUE POSITION ================= */
-export async function getQueuePosition(appointmentId) {
-  const result = await sql`
-    SELECT 
-      a.id,
-      a.status,
-      a.doctor_id,
-      a.appointment_date,
-      p.name as patient_name,
-      d.name as doctor_name,
-      (
-        SELECT COUNT(*) 
-        FROM appointments a2
-        WHERE a2.doctor_id = a.doctor_id
-        AND a2.appointment_date = a.appointment_date
-        AND a2.status IN ('booked','waiting','arrived','in_progress')
-        AND a2.created_at <= a.created_at
-      ) as position
-    FROM appointments a
-    JOIN patients p ON p.id = a.patient_id
-    JOIN doctors d ON d.id = a.doctor_id
-    WHERE a.id = ${appointmentId}
-  `;
-
-  if (!result.length) {
-    throw new Error("Appointment not found");
+async function getDoctorScheduleDurationColumn() {
+  if (!doctorScheduleDurationColumnPromise) {
+    doctorScheduleDurationColumnPromise = sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'doctor_schedule'
+        AND column_name IN ('consultation_duration_minutes', 'consultation_duration')
+    `
+      .then((rows) => {
+        const names = rows.map((row) => row.column_name);
+        if (names.includes("consultation_duration_minutes")) {
+          return "consultation_duration_minutes";
+        }
+        if (names.includes("consultation_duration")) {
+          return "consultation_duration";
+        }
+        return "consultation_duration_minutes";
+      })
+      .catch(() => "consultation_duration_minutes");
   }
 
-  const row = result[0];
+  return doctorScheduleDurationColumnPromise;
+}
+
+function getIsoDate(value = new Date()) {
+  return new Date(value).toISOString().split("T")[0];
+}
+
+async function getConsultationDurationMinutes(doctorId, queueDate) {
+  const dayOfWeek = new Date(queueDate).getDay();
+  const durationColumn = await getDoctorScheduleDurationColumn();
+
+  const rows =
+    durationColumn === "consultation_duration"
+      ? await sql`
+          SELECT consultation_duration
+          FROM doctor_schedule
+          WHERE doctor_id = ${doctorId}
+            AND day_of_week = ${dayOfWeek}
+            AND COALESCE(is_active, true) = true
+          LIMIT 1
+        `
+      : await sql`
+          SELECT consultation_duration_minutes
+          FROM doctor_schedule
+          WHERE doctor_id = ${doctorId}
+            AND day_of_week = ${dayOfWeek}
+            AND COALESCE(is_active, true) = true
+          LIMIT 1
+        `;
+
+  return Number(rows[0]?.[durationColumn]) || 30;
+}
+
+async function getQueueSnapshot(doctorId, queueDate) {
+  return sql`
+    SELECT
+      q.id,
+      q.appointment_id,
+      q.token_no,
+      q.status,
+      q.queue_date,
+      q.queued_at,
+      q.started_at,
+      q.completed_at,
+      a.patient_id,
+      a.doctor_id,
+      a.slot_time,
+      a.status AS appointment_status,
+      p.name AS patient_name,
+      p.phone AS patient_phone,
+      d.name AS doctor_name
+    FROM queue q
+    JOIN appointments a ON a.id = q.appointment_id
+    JOIN patients p ON p.id = a.patient_id
+    JOIN doctors d ON d.id = a.doctor_id
+    WHERE q.doctor_id = ${doctorId}
+      AND q.queue_date = ${queueDate}
+      AND COALESCE(a.is_deleted, false) = false
+    ORDER BY q.token_no ASC
+  `;
+}
+
+function mapQueueRow(row, index, consultationMinutes) {
+  const isCompleted = row.status === "completed";
+  const position = isCompleted ? null : index + 1;
+  const estimatedWaitMinutes = isCompleted
+    ? 0
+    : Math.max(0, index) * consultationMinutes;
 
   return {
-    position: row.position,
-    token_number: row.position,
-    estimated_wait_minutes: row.position * 10,
+    id: row.id,
+    queue_id: row.id,
+    appointment_id: row.appointment_id,
+    patient_id: row.patient_id,
     doctor_id: row.doctor_id,
     doctor_name: row.doctor_name,
-    status: row.status,
+    patient_name: row.patient_name,
+    patient_phone: row.patient_phone,
+    slot_time: row.slot_time,
+    token_number: row.token_no,
+    token_no: row.token_no,
+    status:
+      row.status === "in-progress"
+        ? "in_progress"
+        : row.status === "waiting"
+          ? "arrived"
+          : row.status,
+    raw_status: row.status,
+    position_in_queue: position,
+    position,
+    estimated_wait_minutes: estimatedWaitMinutes,
+    appointment_status: row.appointment_status,
+    queue_date: row.queue_date,
+    queued_at: row.queued_at,
+    started_at: row.started_at,
+    completed_at: row.completed_at,
   };
 }
 
-/* ================= MARK IN PROGRESS ================= */
-export async function markInProgress(appointmentId, io) {
-  await sql`
-    UPDATE appointments
-    SET status = 'in_progress'
+async function emitQueueState(io, doctorId, queueDate, changedAppointmentId = null) {
+  if (!io || !doctorId || !queueDate) return;
+
+  const consultationMinutes = await getConsultationDurationMinutes(
+    doctorId,
+    queueDate,
+  );
+  const rows = await getQueueSnapshot(doctorId, queueDate);
+  const queue = rows.map((row, index) =>
+    mapQueueRow(row, index, consultationMinutes),
+  );
+
+  io.to(`doctor-${doctorId}`).emit("queue-update", {
+    doctor_id: doctorId,
+    queue_date: queueDate,
+    queue_size: queue.filter((entry) => entry.raw_status !== "completed").length,
+    queue,
+    changed_appointment_id: changedAppointmentId,
+  });
+
+  queue.forEach((entry) => {
+    io.to(`patient-${entry.patient_id}`).emit("queue-position-updated", {
+      appointment_id: entry.appointment_id,
+      token_number: entry.token_number,
+      new_position: entry.position,
+      estimated_wait_minutes: entry.estimated_wait_minutes,
+      status: entry.status,
+      doctor_id: entry.doctor_id,
+      doctor_name: entry.doctor_name,
+    });
+
+    if (entry.raw_status === "in-progress") {
+      io.to(`patient-${entry.patient_id}`).emit("your-turn", {
+        appointment_id: entry.appointment_id,
+        status: "in_progress",
+        message: "Your turn to see the doctor",
+      });
+    }
+  });
+}
+
+async function ensureAppointmentBelongsToDoctor(appointmentId, doctorId) {
+  const rows = await sql`
+    SELECT id, doctor_id, patient_id, appointment_date, status, token_number
+    FROM appointments
     WHERE id = ${appointmentId}
+      AND COALESCE(is_deleted, false) = false
+    LIMIT 1
   `;
 
-  io.emit("queue_updated");
+  const appointment = rows[0];
+  if (!appointment) {
+    throw new Error("Appointment not found");
+  }
+
+  if (doctorId && String(appointment.doctor_id) !== String(doctorId)) {
+    throw new Error("Unauthorized for this appointment");
+  }
+
+  return appointment;
+}
+
+async function ensureQueueEntryForAppointment(appointmentId) {
+  const appointment = await ensureAppointmentBelongsToDoctor(appointmentId, null);
+  const queueDate = appointment.appointment_date || getIsoDate();
+
+  return sql.begin(async (tx) => {
+    const existing = await tx`
+      SELECT id, token_no, status, queue_date
+      FROM queue
+      WHERE appointment_id = ${appointmentId}
+      LIMIT 1
+    `;
+
+    if (existing.length) {
+      return { appointment, queue: existing[0] };
+    }
+
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`queue:${appointment.doctor_id}:${queueDate}`}))`;
+
+    const nextTokenRows = await tx`
+      SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
+      FROM queue
+      WHERE doctor_id = ${appointment.doctor_id}
+        AND queue_date = ${queueDate}
+    `;
+
+    const tokenNo = Number(nextTokenRows[0]?.next_token || 1);
+
+    const inserted = await tx`
+      INSERT INTO queue (
+        appointment_id,
+        token_no,
+        patient_id,
+        doctor_id,
+        queue_date,
+        status
+      )
+      VALUES (
+        ${appointmentId},
+        ${tokenNo},
+        ${appointment.patient_id},
+        ${appointment.doctor_id},
+        ${queueDate},
+        'waiting'
+      )
+      RETURNING id, token_no, status, queue_date
+    `;
+
+    await tx`
+      UPDATE appointments
+      SET status = 'arrived',
+          token_number = ${tokenNo},
+          checked_in_at = COALESCE(checked_in_at, CURRENT_TIMESTAMP),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${appointmentId}
+    `;
+
+    return { appointment, queue: inserted[0] };
+  });
+}
+
+export async function getQueueForDoctor(doctorId, date = getIsoDate()) {
+  const queueDate = date || getIsoDate();
+  const consultationMinutes = await getConsultationDurationMinutes(
+    doctorId,
+    queueDate,
+  );
+  const rows = await getQueueSnapshot(doctorId, queueDate);
+
+  return rows.map((row, index) => mapQueueRow(row, index, consultationMinutes));
+}
+
+export async function getQueuePosition(appointmentId, patientId = null) {
+  const rows = await sql`
+    SELECT
+      q.id,
+      q.appointment_id,
+      q.token_no,
+      q.status,
+      q.queue_date,
+      a.patient_id,
+      a.doctor_id,
+      d.name AS doctor_name
+    FROM queue q
+    JOIN appointments a ON a.id = q.appointment_id
+    JOIN doctors d ON d.id = a.doctor_id
+    WHERE q.appointment_id = ${appointmentId}
+      AND COALESCE(a.is_deleted, false) = false
+    LIMIT 1
+  `;
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("Queue entry not found");
+  }
+
+  if (patientId && String(row.patient_id) !== String(patientId)) {
+    throw new Error("Unauthorized");
+  }
+
+  const queue = await getQueueForDoctor(row.doctor_id, row.queue_date);
+  const current = queue.find(
+    (entry) => String(entry.appointment_id) === String(appointmentId),
+  );
+
+  if (!current) {
+    throw new Error("Queue entry not found");
+  }
+
+  return {
+    appointment_id: current.appointment_id,
+    queue_id: current.queue_id,
+    token_number: current.token_number,
+    position: current.position,
+    estimated_wait_minutes: current.estimated_wait_minutes,
+    doctor_id: current.doctor_id,
+    doctor_name: current.doctor_name,
+    patient_id: current.patient_id,
+    status: current.status,
+  };
+}
+
+export async function markArrived(appointmentId, io) {
+  const { appointment, queue } = await ensureQueueEntryForAppointment(appointmentId);
+  await emitQueueState(io, appointment.doctor_id, queue.queue_date, appointmentId);
 
   return {
     success: true,
+    appointment_id: appointmentId,
+    queue_id: queue.id,
+    token_number: queue.token_no,
+    status: "arrived",
+    message: "Patient marked as arrived",
+  };
+}
+
+export async function markInProgress(appointmentId, io, doctorId = null) {
+  const appointment = await ensureAppointmentBelongsToDoctor(appointmentId, doctorId);
+
+  const rows = await sql`
+    UPDATE queue
+    SET status = 'in-progress',
+        started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE appointment_id = ${appointmentId}
+      AND status IN ('waiting', 'in-progress')
+    RETURNING id, queue_date
+  `;
+
+  if (!rows.length) {
+    throw new Error("Queue entry not found");
+  }
+
+  await sql`
+    UPDATE appointments
+    SET status = 'in_progress',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${appointmentId}
+  `;
+
+  await emitQueueState(io, appointment.doctor_id, rows[0].queue_date, appointmentId);
+
+  return {
+    success: true,
+    appointment_id: appointmentId,
+    queue_id: rows[0].id,
+    status: "in_progress",
     message: "Consultation started",
   };
 }
 
-/* ================= MARK COMPLETED ================= */
-export async function markCompleted(appointmentId, io) {
+export async function markCompleted(appointmentId, io, doctorId = null, followUpDate = null) {
+  const appointment = await ensureAppointmentBelongsToDoctor(appointmentId, doctorId);
+
+  const rows = await sql`
+    UPDATE queue
+    SET status = 'completed',
+        completed_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE appointment_id = ${appointmentId}
+      AND status IN ('waiting', 'in-progress', 'completed')
+    RETURNING id, queue_date
+  `;
+
+  if (!rows.length) {
+    throw new Error("Queue entry not found");
+  }
+
   await sql`
     UPDATE appointments
-    SET status = 'visited'
+    SET status = 'visited',
+        follow_up_date = COALESCE(${followUpDate}, follow_up_date),
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = ${appointmentId}
   `;
 
-  io.emit("queue_updated");
+  await emitQueueState(io, appointment.doctor_id, rows[0].queue_date, appointmentId);
 
   return {
     success: true,
+    appointment_id: appointmentId,
+    queue_id: rows[0].id,
+    status: "visited",
     message: "Consultation completed",
   };
 }
 
-/* ================= SKIP PATIENT ================= */
-export async function skipPatient(appointmentId, io) {
+export async function finishConsultation(appointmentId, followUpDate, io) {
+  return markCompleted(appointmentId, io, null, followUpDate);
+}
+
+export async function skipPatient(appointmentId, io, doctorId = null) {
+  const appointment = await ensureAppointmentBelongsToDoctor(appointmentId, doctorId);
+
+  const rows = await sql`
+    UPDATE queue
+    SET status = 'waiting',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE appointment_id = ${appointmentId}
+      AND status IN ('waiting', 'in-progress')
+    RETURNING id, queue_date
+  `;
+
+  if (!rows.length) {
+    throw new Error("Queue entry not found");
+  }
+
   await sql`
     UPDATE appointments
-    SET status = 'skipped'
+    SET status = 'arrived',
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = ${appointmentId}
   `;
 
-  io.emit("queue_updated");
+  await emitQueueState(io, appointment.doctor_id, rows[0].queue_date, appointmentId);
 
   return {
     success: true,
-    message: "Patient skipped",
+    appointment_id: appointmentId,
+    queue_id: rows[0].id,
+    status: "arrived",
+    message: "Patient returned to waiting queue",
   };
 }
 
-/* ================= RESET QUEUE ================= */
-export async function resetQueue(doctorId, date) {
+export async function resetQueue(doctorId, date = getIsoDate(), io = null) {
+  await sql`
+    DELETE FROM queue
+    WHERE doctor_id = ${doctorId}
+      AND queue_date = ${date}
+  `;
+
   await sql`
     UPDATE appointments
-    SET status = 'booked'
+    SET status = 'booked',
+        token_number = NULL,
+        checked_in_at = NULL,
+        handled_by_staff_id = NULL,
+        updated_at = CURRENT_TIMESTAMP
     WHERE doctor_id = ${doctorId}
-      AND DATE(appointment_date) = ${date}
+      AND appointment_date = ${date}
+      AND status IN ('arrived', 'in_progress', 'visited', 'completed')
+      AND COALESCE(is_deleted, false) = false
   `;
+
+  await emitQueueState(io, doctorId, date, null);
 
   return {
     success: true,
@@ -129,222 +457,33 @@ export async function resetQueue(doctorId, date) {
   };
 }
 
-// ===== Queue Service Helpers =====
-export async function markArrived(appointmentId, io) {
-  await sql`
-    UPDATE appointments
-    SET status = 'arrived'
-    WHERE id = ${appointmentId}
-  `;
-
-  io.emit("queue_updated");
-
-  return {
-    success: true,
-    message: "Patient marked as arrived",
-  };
-}
-
-export async function finishConsultation(appointmentId, followUpDate, io) {
-  await sql`
-    UPDATE appointments
-    SET status = 'visited',
-        follow_up_date = ${followUpDate || null}
-    WHERE id = ${appointmentId}
-  `;
-
-  io.emit("queue_updated");
-
-  return {
-    success: true,
-    message: "Consultation finished",
-  };
-}
-
 export async function scanQrAndMarkArrived(uniqueCode, io) {
-  const patient = await sql`
-    SELECT id FROM users
+  const patients = await sql`
+    SELECT id
+    FROM patients
     WHERE unique_code = ${uniqueCode}
+      AND COALESCE(is_deleted, false) = false
     LIMIT 1
   `;
 
-  if (!patient.length) {
+  if (!patients.length) {
     throw new Error("Patient not found");
   }
 
-  const appointment = await sql`
-    SELECT id FROM appointments
-    WHERE patient_id = ${patient[0].id}
-    AND status = 'booked'
-    ORDER BY appointment_date ASC
+  const appointments = await sql`
+    SELECT id
+    FROM appointments
+    WHERE patient_id = ${patients[0].id}
+      AND appointment_date = CURRENT_DATE
+      AND status IN ('booked', 'arrived')
+      AND COALESCE(is_deleted, false) = false
+    ORDER BY slot_time ASC NULLS LAST, created_at ASC
     LIMIT 1
   `;
 
-  if (!appointment.length) {
+  if (!appointments.length) {
     throw new Error("No active appointment found");
   }
 
-  await sql`
-    UPDATE appointments
-    SET status = 'arrived'
-    WHERE id = ${appointment[0].id}
-  `;
-
-  io.emit("queue_updated");
-
-  return {
-    success: true,
-    appointment_id: appointment[0].id,
-    message: "Patient scanned and marked arrived",
-  };
+  return markArrived(appointments[0].id, io);
 }
-
-/* ================= START CONSULTATION ================= */
-router.post(
-  "/start-consultation/:appointmentId",
-  authenticate,
-  authorizeRoles("doctor"),
-  async (req, res) => {
-    try {
-      const { appointmentId } = req.params;
-      const io = req.app.get("io");
-
-      await sql`
-        UPDATE appointments
-        SET status = 'in_progress'
-        WHERE id = ${appointmentId}
-      `;
-
-      // optional socket update
-      io.emit("queue_updated");
-
-      res.json({
-        success: true,
-        message: "Consultation started",
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({
-        success: false,
-        error: "Failed to start consultation",
-      });
-    }
-  },
-);
-
-/* ================= MARK ARRIVED ================= */
-router.post(
-  "/arrived/:appointmentId",
-  authenticate,
-  authorizeRoles("doctor"),
-  async (req, res) => {
-    try {
-      const io = req.app.get("io");
-
-      const result = await markArrived(req.params.appointmentId, io);
-
-      res.json(result);
-    } catch (err) {
-      res.status(400).json({
-        success: false,
-        error: err.message,
-      });
-    }
-  },
-);
-
-/* ================= FINISH CONSULTATION ================= */
-router.post(
-  "/finish",
-  authenticate,
-  authorizeRoles("doctor"),
-  async (req, res) => {
-    try {
-      const { appointment_id, follow_up_date } = req.body;
-
-      if (!appointment_id) {
-        return res.status(400).json({
-          error: "appointment_id is required",
-        });
-      }
-
-      const io = req.app.get("io");
-
-      const result = await finishConsultation(
-        appointment_id,
-        follow_up_date,
-        io,
-      );
-
-      res.json(result);
-    } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  },
-);
-
-/* ================= SCAN QR AND MARK ARRIVED ================= */
-router.post(
-  "/scan",
-  authenticate,
-  authorizeRoles("doctor"),
-  async (req, res) => {
-    try {
-      const io = req.app.get("io");
-
-      const { unique_code } = req.body;
-
-      if (!unique_code) {
-        return res.status(400).json({
-          error: "unique_code is required",
-        });
-      }
-
-      const result = await scanQrAndMarkArrived(unique_code, io);
-
-      res.json(result);
-    } catch (err) {
-      res.status(400).json({
-        success: false,
-        error: err.message,
-      });
-    }
-  },
-);
-
-/* ================= COMPLETE CONSULTATION ================= */
-router.post(
-  "/complete-consultation/:appointmentId",
-  authenticate,
-  authorizeRoles("doctor"),
-  async (req, res) => {
-    try {
-      const { appointmentId } = req.params;
-      const io = req.app.get("io");
-
-      await sql`
-        UPDATE appointments
-        SET status = 'completed'
-        WHERE id = ${appointmentId}
-      `;
-
-      io.emit("queue_updated");
-
-      res.json({
-        success: true,
-        message: "Consultation completed",
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({
-        success: false,
-        error: "Failed to complete consultation",
-      });
-    }
-  },
-);
-
-export default router;

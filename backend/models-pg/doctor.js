@@ -90,15 +90,19 @@ export const getDoctorByEmail = async (email) => {
 */
 export const updateDoctor = async (id, doctorData) => {
   try {
-    const { name, email, specialty, consultation_fee, branch_id } = doctorData;
+    const name = doctorData?.name ?? null;
+    const email = doctorData?.email ?? null;
+    const specialty = doctorData?.specialty ?? null;
+    const consultationFee = doctorData?.consultation_fee ?? null;
+    const branchId = doctorData?.branch_id ?? null;
 
     const result = await sql`
       UPDATE doctors
       SET name = COALESCE(${name}, name),
           email = COALESCE(${email}, email),
           specialty = COALESCE(${specialty}, specialty),
-          consultation_fee = COALESCE(${consultation_fee}, consultation_fee),
-          branch_id = COALESCE(${branch_id}, branch_id),
+          consultation_fee = COALESCE(${consultationFee}, consultation_fee),
+          branch_id = COALESCE(${branchId}, branch_id),
           updated_at = NOW()
       WHERE id = ${id}
         AND is_deleted = FALSE

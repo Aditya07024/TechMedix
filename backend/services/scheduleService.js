@@ -1,5 +1,32 @@
 import sql from "../config/database.js";
 
+let doctorScheduleDurationColumnPromise;
+
+async function getDoctorScheduleDurationColumn() {
+  if (!doctorScheduleDurationColumnPromise) {
+    doctorScheduleDurationColumnPromise = sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'doctor_schedule'
+        AND column_name IN ('consultation_duration_minutes', 'consultation_duration')
+    `
+      .then((rows) => {
+        const names = rows.map((row) => row.column_name);
+        if (names.includes("consultation_duration_minutes")) {
+          return "consultation_duration_minutes";
+        }
+        if (names.includes("consultation_duration")) {
+          return "consultation_duration";
+        }
+        return "consultation_duration_minutes";
+      })
+      .catch(() => "consultation_duration_minutes");
+  }
+
+  return doctorScheduleDurationColumnPromise;
+}
+
 // -----------------------------
 // Medicine Frequency Helper
 // -----------------------------
@@ -44,6 +71,7 @@ export async function setDoctorSchedule(data) {
   // Use either field name
   const duration = consultation_duration_minutes || consultation_duration || 30;
   const safeDuration = Number(duration);
+  const durationColumn = await getDoctorScheduleDurationColumn();
 
   if (!safeDuration || safeDuration <= 0) {
     throw new Error("Invalid consultation duration");
@@ -62,6 +90,19 @@ export async function setDoctorSchedule(data) {
 
   // If exists, update it; otherwise insert
   if (existing.length > 0) {
+    if (durationColumn === "consultation_duration") {
+      return await sql`
+        UPDATE doctor_schedule
+        SET start_time = ${start_time},
+            end_time = ${end_time},
+            consultation_duration = ${safeDuration},
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE doctor_id = ${doctor_id}
+        RETURNING *
+      `;
+    }
+
     return await sql`
       UPDATE doctor_schedule
       SET start_time = ${start_time},
@@ -70,6 +111,16 @@ export async function setDoctorSchedule(data) {
           is_active = true,
           updated_at = CURRENT_TIMESTAMP
       WHERE doctor_id = ${doctor_id}
+      RETURNING *
+    `;
+  }
+
+  if (durationColumn === "consultation_duration") {
+    return await sql`
+      INSERT INTO doctor_schedule
+      (doctor_id, day_of_week, start_time, end_time, consultation_duration, is_active)
+      VALUES
+      (${doctor_id}, ${parseInt(day_of_week)}, ${start_time}, ${end_time}, ${safeDuration}, true)
       RETURNING *
     `;
   }

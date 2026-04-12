@@ -86,11 +86,15 @@ export const getUserByEmail = async (email) => {
 
 export const updateUserById = async (id, data) => {
   try {
+    const email = data?.email ?? null;
+    const fullName = data?.full_name ?? null;
+    const phone = data?.phone ?? null;
+
     const result = await sql`
       UPDATE users
-      SET email = COALESCE(${data.email}, email),
-          full_name = COALESCE(${data.full_name}, full_name),
-          phone = COALESCE(${data.phone}, phone),
+      SET email = COALESCE(${email}, email),
+          full_name = COALESCE(${fullName}, full_name),
+          phone = COALESCE(${phone}, phone),
           updated_at = NOW()
       WHERE id = ${id}
         AND COALESCE(is_deleted, FALSE) = FALSE

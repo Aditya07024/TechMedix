@@ -125,16 +125,25 @@ export const getPatientByUniqueCode = async (uniqueCode) => {
   SAFE UPDATE
 */
 export const updatePatient = async (id, data) => {
+  const name = data?.name ?? null;
+  const email = data?.email ?? null;
+  const age = data?.age ?? null;
+  const gender = data?.gender ?? null;
+  const phone = data?.phone ?? null;
+  const bloodGroup = data?.bloodGroup ?? null;
+  const medicalHistory = data?.medicalHistory ?? null;
+  const uniqueCode = data?.uniqueCode ?? null;
+
   const result = await sql`
     UPDATE patients
-    SET name = COALESCE(${data.name}, name),
-        email = COALESCE(${data.email}, email),
-        age = COALESCE(${data.age}, age),
-        gender = COALESCE(${data.gender}, gender),
-        phone = COALESCE(${data.phone}, phone),
-        blood_group = COALESCE(${data.bloodGroup}, blood_group),
-        medical_history = COALESCE(${data.medicalHistory}, medical_history),
-        unique_code = COALESCE(${data.uniqueCode}, unique_code),
+    SET name = COALESCE(${name}, name),
+        email = COALESCE(${email}, email),
+        age = COALESCE(${age}, age),
+        gender = COALESCE(${gender}, gender),
+        phone = COALESCE(${phone}, phone),
+        blood_group = COALESCE(${bloodGroup}, blood_group),
+        medical_history = COALESCE(${medicalHistory}, medical_history),
+        unique_code = COALESCE(${uniqueCode}, unique_code),
         updated_at = NOW()
     WHERE id = ${id}
       AND is_deleted = FALSE

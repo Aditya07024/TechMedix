@@ -1,6 +1,33 @@
 import sql from "../config/database.js";
 import { logAudit } from "./auditService.js";
 
+let doctorScheduleDurationColumnPromise;
+
+async function getDoctorScheduleDurationColumn() {
+  if (!doctorScheduleDurationColumnPromise) {
+    doctorScheduleDurationColumnPromise = sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'doctor_schedule'
+        AND column_name IN ('consultation_duration_minutes', 'consultation_duration')
+    `
+      .then((rows) => {
+        const names = rows.map((row) => row.column_name);
+        if (names.includes("consultation_duration_minutes")) {
+          return "consultation_duration_minutes";
+        }
+        if (names.includes("consultation_duration")) {
+          return "consultation_duration";
+        }
+        return "consultation_duration_minutes";
+      })
+      .catch(() => "consultation_duration_minutes");
+  }
+
+  return doctorScheduleDurationColumnPromise;
+}
+
 function getIsoDate(value = new Date()) {
   return new Date(value).toISOString().split("T")[0];
 }
@@ -11,22 +38,28 @@ function getQueueStatuses() {
 
 async function getScheduleDuration(doctorId, appointmentDate) {
   const dayOfWeek = new Date(appointmentDate).getDay();
+  const durationColumn = await getDoctorScheduleDurationColumn();
 
-  const schedule = await sql`
-    SELECT consultation_duration_minutes, consultation_duration
-    FROM doctor_schedule
-    WHERE doctor_id = ${doctorId}
-      AND day_of_week = ${dayOfWeek}
-      AND COALESCE(is_active, true) = true
-    LIMIT 1
-  `;
+  const schedule =
+    durationColumn === "consultation_duration"
+      ? await sql`
+          SELECT consultation_duration
+          FROM doctor_schedule
+          WHERE doctor_id = ${doctorId}
+            AND day_of_week = ${dayOfWeek}
+            AND COALESCE(is_active, true) = true
+          LIMIT 1
+        `
+      : await sql`
+          SELECT consultation_duration_minutes
+          FROM doctor_schedule
+          WHERE doctor_id = ${doctorId}
+            AND day_of_week = ${dayOfWeek}
+            AND COALESCE(is_active, true) = true
+          LIMIT 1
+        `;
 
-  return (
-    Number(
-      schedule[0]?.consultation_duration_minutes ||
-        schedule[0]?.consultation_duration,
-    ) || 30
-  );
+  return Number(schedule[0]?.[durationColumn]) || 30;
 }
 
 async function getQueueRowsForDoctor(doctorId, appointmentDate) {

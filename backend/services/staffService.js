@@ -166,12 +166,17 @@ export async function getStaffProfile(userId) {
 
 export async function updateStaffProfile(userId, payload = {}) {
   return sql.begin(async (tx) => {
+    const name = payload?.name ?? null;
+    const email = payload?.email ?? null;
+    const department = payload?.department ?? null;
+    const phone = payload?.phone ?? null;
+
     const rows = await tx`
       UPDATE staff
-      SET name = COALESCE(${payload.name}, name),
-          email = COALESCE(${payload.email}, email),
-          department = COALESCE(${payload.department}, department),
-          phone = COALESCE(${payload.phone}, phone)
+      SET name = COALESCE(${name}, name),
+          email = COALESCE(${email}, email),
+          department = COALESCE(${department}, department),
+          phone = COALESCE(${phone}, phone)
       WHERE user_id = ${userId}
         AND is_active = TRUE
       RETURNING id, user_id, name, email, username, hospital_id, role, department, phone, is_active, created_at, active_doctor_id, created_by_doctor_id
@@ -183,9 +188,9 @@ export async function updateStaffProfile(userId, payload = {}) {
 
     await tx`
       UPDATE users
-      SET email = COALESCE(${payload.email}, email),
-          full_name = COALESCE(${payload.name}, full_name),
-          phone = COALESCE(${payload.phone}, phone),
+      SET email = COALESCE(${email}, email),
+          full_name = COALESCE(${name}, full_name),
+          phone = COALESCE(${phone}, phone),
           updated_at = NOW()
       WHERE id = ${userId}
         AND COALESCE(is_deleted, FALSE) = FALSE
