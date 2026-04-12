@@ -10,8 +10,38 @@ const LoginPop = ({ setShowLogin }) => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const requestedPath = location.state?.from?.pathname || null;
 
-  const redirectTo = location.state?.from?.pathname || "/dashboard";
+  const getDefaultRouteForRole = (role) => {
+    if (role === "doctor") return "/doctor/dashboard";
+    if (role === "staff") return "/staff/dashboard";
+    if (role === "admin") return "/admin/dashboard";
+    return "/dashboard";
+  };
+
+  const canAccessRequestedPath = (role, path) => {
+    if (!path) return false;
+    if (path.startsWith("/doctor")) return role === "doctor";
+    if (path.startsWith("/staff")) return role === "staff";
+    if (path.startsWith("/admin")) return role === "admin";
+    if (
+      path === "/dashboard" ||
+      path === "/health-wallet" ||
+      path === "/xray-analyzer" ||
+      path === "/xray-history" ||
+      path.startsWith("/payment/") ||
+      path === "/appointments/history" ||
+      path.startsWith("/queue/")
+    ) {
+      return role === "patient";
+    }
+    return true;
+  };
+
+  const getRedirectPath = (role) =>
+    canAccessRequestedPath(role, requestedPath)
+      ? requestedPath
+      : getDefaultRouteForRole(role);
 
   const [currState, setCurrState] = useState("Sign Up");
   const [error, setError] = useState(null);
@@ -38,7 +68,7 @@ const LoginPop = ({ setShowLogin }) => {
         login(res.data.user, res.data.token || null);
 
         setShowLogin(false);
-        navigate(redirectTo, { replace: true });
+        navigate(getRedirectPath(res.data.user?.role || "patient"), { replace: true });
       } catch (err) {
         console.error(err);
         setError("Google login failed");
@@ -92,7 +122,7 @@ const LoginPop = ({ setShowLogin }) => {
         login(userData, res.data.token || null);
 
         setShowLogin(false);
-        navigate(redirectTo, { replace: true });
+        navigate(getRedirectPath(userData.role), { replace: true });
       }
     } catch (err) {
       console.error(err);
@@ -146,7 +176,7 @@ const LoginPop = ({ setShowLogin }) => {
         localStorage.setItem("user", JSON.stringify(userData));
         login(userData, res.data.token || null);
         setShowLogin(false);
-        navigate(redirectTo, { replace: true });
+        navigate(getRedirectPath(userData.role), { replace: true });
       }
     } catch (err) {
       console.error(err);

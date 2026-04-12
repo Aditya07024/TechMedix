@@ -7,7 +7,7 @@ let notificationSocket = null;
 export function initQueueSocket() {
   if (queueSocket) return queueSocket;
 
-  queueSocket = io(`${API_BASE_URL}/queue`, {
+  queueSocket = io(API_BASE_URL || undefined, {
     auth: {
       token: localStorage.getItem("token"),
     },
@@ -46,21 +46,21 @@ export function initNotificationSocket() {
 
 export function subscribeToQueue(doctorId, handler) {
   const socket = initQueueSocket();
-  socket.emit("doctor-join-queue", doctorId);
+  socket.emit("join-doctor-room", doctorId);
   socket.on("queue-update", handler);
   return () => socket.off("queue-update", handler);
 }
 
 export function subscribeToPatientQueue(appointmentId, patientId, handler) {
   const socket = initQueueSocket();
-  socket.emit("patient-join-queue", appointmentId, patientId);
-  socket.on("position-update", handler);
+  socket.emit("join-patient-room", patientId);
+  socket.on("queue-position-updated", handler);
   socket.on("your-turn", handler);
-  socket.on("in-consultation", handler);
+  socket.on("queue-joined", handler);
   return () => {
-    socket.off("position-update", handler);
+    socket.off("queue-position-updated", handler);
     socket.off("your-turn", handler);
-    socket.off("in-consultation", handler);
+    socket.off("queue-joined", handler);
   };
 }
 

@@ -7,6 +7,7 @@ export async function runAppointmentMigration() {
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(20)`,
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS follow_up_date DATE`,
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE payments ALTER COLUMN appointment_id DROP NOT NULL`,
   ];
 
   for (const statement of statements) {

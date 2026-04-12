@@ -230,6 +230,11 @@ export async function initializeCompletSchema() {
       ADD COLUMN IF NOT EXISTS booking_payload JSONB;
     `;
 
+    await sql`
+      ALTER TABLE payments
+      ALTER COLUMN appointment_id DROP NOT NULL;
+    `;
+
     // 5b️⃣ WALLETS
     await sql`
       CREATE TABLE IF NOT EXISTS wallets (

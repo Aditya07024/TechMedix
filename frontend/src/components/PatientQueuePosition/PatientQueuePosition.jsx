@@ -39,6 +39,18 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
     newSocket.on("queue-position-updated", (data) => {
       setQueuePosition(data.new_position);
       setTokenNumber(data.token_number);
+      if (typeof data.estimated_wait_minutes === "number") {
+        setEstimatedWait(data.estimated_wait_minutes);
+      }
+      if (data.status) {
+        setStatus(data.status);
+      }
+      if (data.doctor_name) {
+        setDoctorName(data.doctor_name);
+      }
+      if (data.doctor_id) {
+        setDoctorId(data.doctor_id);
+      }
     });
 
     newSocket.on("your-turn", () => {

@@ -18,8 +18,9 @@ export async function createPayment({
   patientIdFromAuth,
   bookingDetails = null,
 }) {
+  let resolvedAppointmentId = appointmentId;
+
   try {
-    let resolvedAppointmentId = appointmentId;
     if (!paymentMethod) {
       throw new Error("Payment method is required");
     }

@@ -25,7 +25,15 @@ export default function QueueFullPage() {
         setError("");
 
         const displayPromise = axios.get(
-          `${API_BASE_URL}/api/queue-v2/display/doctor/${doctorId}`,
+          `${API_BASE_URL}/api/v2/queue/doctor/${doctorId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            params: {
+              date: new Date().toISOString().split("T")[0],
+            },
+          },
         );
         const positionPromise = location.state?.appointmentId
           ? axios.get(`${API_BASE_URL}/api/v2/queue/position/${location.state.appointmentId}`, {
@@ -40,7 +48,7 @@ export default function QueueFullPage() {
           positionPromise,
         ]);
 
-        setQueueData(displayResponse.data);
+        setQueueData(displayResponse.data?.data || displayResponse.data || null);
         setPositionData(positionResponse?.data?.data || positionResponse?.data || null);
       } catch (err) {
         setError(err.response?.data?.error || "Failed to load full queue.");

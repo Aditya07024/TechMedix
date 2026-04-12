@@ -186,8 +186,8 @@ export const queueAPI = {
 
   skipPatient: (appointmentId) =>
     apiClient.post(
-      `${API_BASE}/queue/skip`,
-      { appointment_id: appointmentId },
+      `${API_BASE}/queue/${appointmentId}/skip`,
+      {},
       { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
     ),
 };
