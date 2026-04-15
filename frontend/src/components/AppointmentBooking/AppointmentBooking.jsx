@@ -18,6 +18,12 @@ export default function AppointmentBooking({
   doctorSpecialty,
   consultationFee,
 }) {
+  const SHARE_OPTIONS = [
+    { id: "ehr", label: "Medical history and vitals" },
+    { id: "prescriptions", label: "Prescriptions" },
+    { id: "recordings", label: "Voice notes and recordings" },
+    { id: "reports", label: "Reports, PDFs, and uploads" },
+  ];
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDates, setAvailableDates] = useState(new Set());
@@ -25,6 +31,9 @@ export default function AppointmentBooking({
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [shareHistory, setShareHistory] = useState(false);
+  const [shareHistoryScope, setShareHistoryScope] = useState(
+    SHARE_OPTIONS.map((option) => option.id),
+  );
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -130,6 +139,7 @@ export default function AppointmentBooking({
         appointment_date: dateStr,
         slot_time: selectedSlot.start_time.slice(0, 5),
         share_history: shareHistory,
+        share_history_scope: shareHistory ? shareHistoryScope : [],
         doctorName,
         doctorSpecialty,
         consultationFee: Number(consultationFee || 0),
@@ -351,17 +361,40 @@ export default function AppointmentBooking({
           </div>
 
           <div className="booking-footer">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={shareHistory}
-                onChange={(e) => setShareHistory(e.target.checked)}
-              />
-              <span>
-                <ShieldCheck size={16} strokeWidth={2} />
-                Share health history with doctor
-              </span>
-            </label>
+            <div>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={shareHistory}
+                  onChange={(e) => setShareHistory(e.target.checked)}
+                />
+                <span>
+                  <ShieldCheck size={16} strokeWidth={2} />
+                  Share health history with doctor
+                </span>
+              </label>
+
+              {shareHistory ? (
+                <div className="booking-share-options">
+                  {SHARE_OPTIONS.map((option) => (
+                    <label key={option.id} className="checkbox-label booking-share-option">
+                      <input
+                        type="checkbox"
+                        checked={shareHistoryScope.includes(option.id)}
+                        onChange={(event) => {
+                          setShareHistoryScope((current) =>
+                            event.target.checked
+                              ? [...new Set([...current, option.id])]
+                              : current.filter((value) => value !== option.id),
+                          );
+                        }}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
             <div className="booking-footer-actions">
               <p>Booking for Initial Consultation ({selectedSlot?.duration_minutes || 45} mins)</p>

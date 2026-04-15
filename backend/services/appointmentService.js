@@ -7,6 +7,7 @@ export async function bookAppointment(data) {
     appointment_date,
     slot_time,
     share_history = false,
+    share_history_scope = [],
     recording_consent_patient = false,
   } = data;
 
@@ -25,6 +26,7 @@ export async function bookAppointment(data) {
       appointment_date,
       slot_time,
       share_history,
+      share_history_scope,
       recording_consent_patient,
       branch_id,
       status
@@ -36,6 +38,7 @@ export async function bookAppointment(data) {
       ${appointment_date},
       ${slot_time},
       ${share_history},
+      ${sql.json(Array.isArray(share_history_scope) ? share_history_scope : [])},
       ${recording_consent_patient},
       ${preparedBooking.branch_id},
       'booked'

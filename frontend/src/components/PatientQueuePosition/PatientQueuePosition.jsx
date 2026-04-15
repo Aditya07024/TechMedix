@@ -1,29 +1,186 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/apiBase";
+import { formatTime12Hour } from "../../utils/dateTime";
 import { useNavigate } from "react-router-dom";
 import { assets } from "../../assets/assets";
+import { queueAPI } from "../../api/techmedixAPI";
 import {
+  Clock3,
   ExternalLink,
+  House,
   ShieldCheck,
   Ticket,
+  TimerReset,
+  Users,
   Wifi,
 } from "lucide-react";
 import "./QueuePosition.css";
 
-export default function PatientQueuePosition({ appointmentId, patientId }) {
+const ARRIVAL_BUFFER_MINUTES = 15;
+
+function parseAppointmentDateTime(appointmentDate, slotTime) {
+  if (!appointmentDate || !slotTime) return null;
+
+  const normalizedTime = String(slotTime).slice(0, 5);
+  const parsed = new Date(`${appointmentDate}T${normalizedTime}:00`);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function parseIsoDateTime(value) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatClockTime(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "--";
+  return formatTime12Hour(value.toISOString(), "--");
+}
+
+function formatMinutesUntil(value) {
+  if (!Number.isFinite(value)) return "";
+  if (value <= 0) return "Leave now";
+  if (value < 60) return `Leave in ${Math.ceil(value)} min`;
+
+  const hours = Math.floor(value / 60);
+  const minutes = Math.ceil(value % 60);
+  return minutes > 0
+    ? `Leave in ${hours}h ${minutes}m`
+    : `Leave in ${hours}h`;
+}
+
+function formatWaitTime(minutes) {
+  if (minutes == null || Number.isNaN(Number(minutes))) return "Calculating...";
+  if (Number(minutes) < 1) return "< 1 minute";
+  if (Number(minutes) === 1) return "1 minute";
+  return `${Math.round(Number(minutes))} minutes`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
+export default function PatientQueuePosition({
+  appointmentId,
+  patientId,
+  appointmentDate,
+  slotTime,
+  appointmentStatus,
+  doctorName: initialDoctorName = null,
+  doctorId: initialDoctorId = null,
+}) {
   const mobileCheckInQrUrl =
     "https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ";
   const navigate = useNavigate();
-  const [queuePosition, setQueuePosition] = useState(null);
-  const [estimatedWait, setEstimatedWait] = useState(null);
-  const [tokenNumber, setTokenNumber] = useState(null);
-  const [doctorName, setDoctorName] = useState(null);
-  const [doctorId, setDoctorId] = useState(null);
-  const [status, setStatus] = useState("waiting");
+  const [queueStatus, setQueueStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [error, setError] = useState(null);
+  const isMountedRef = useRef(false);
+  const inFlightRequestRef = useRef(null);
+
+  const applyQueueStatus = (data = {}) => {
+    setQueueStatus((prev) => ({
+      ...prev,
+      ...data,
+    }));
+    setError(null);
+  };
+
+  const fetchQueueStatus = async ({ silent = false } = {}) => {
+    if (!appointmentId) {
+      setQueueStatus(null);
+      setLoading(false);
+      return;
+    }
+
+    if (inFlightRequestRef.current) {
+      return inFlightRequestRef.current;
+    }
+
+    if (!silent) {
+      setLoading(true);
+    }
+
+    const request = queueAPI
+      .getPosition(appointmentId)
+      .then((response) => {
+        if (!isMountedRef.current) return;
+        applyQueueStatus(response.data.data || {});
+      })
+      .catch((err) => {
+        if (!isMountedRef.current || axios.isCancel(err)) {
+          return;
+        }
+
+        if (err.code === "ECONNABORTED") {
+          setError((prev) =>
+            queueStatus
+              ? prev
+              : "Queue update is taking longer than expected. Retrying automatically.",
+          );
+          return;
+        }
+
+        console.error("Queue fetch failed:", err);
+        setError("Failed to load queue status");
+      })
+      .finally(() => {
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
+        inFlightRequestRef.current = null;
+      });
+
+    inFlightRequestRef.current = request;
+
+    try {
+      await request;
+    } catch {
+      // Errors are handled in the request chain above.
+    }
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setQueueStatus({
+      appointment_id: appointmentId,
+      appointment_date: appointmentDate,
+      scheduled_time: slotTime,
+      status: appointmentStatus || "booked",
+      doctor_name: initialDoctorName,
+      doctor_id: initialDoctorId,
+      checked_in: ["arrived", "in_progress", "in-progress"].includes(
+        String(appointmentStatus || "").toLowerCase(),
+      ),
+      queue_mode: ["arrived", "in_progress", "in-progress"].includes(
+        String(appointmentStatus || "").toLowerCase(),
+      )
+        ? "live_queue"
+        : "pre_checkin",
+    });
+  }, [
+    appointmentDate,
+    appointmentId,
+    appointmentStatus,
+    initialDoctorId,
+    initialDoctorName,
+    slotTime,
+  ]);
 
   useEffect(() => {
     const newSocket = io(API_BASE_URL, {
@@ -37,92 +194,143 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
     });
 
     newSocket.on("queue-position-updated", (data) => {
-      setQueuePosition(data.new_position);
-      setTokenNumber(data.token_number);
-      if (typeof data.estimated_wait_minutes === "number") {
-        setEstimatedWait(data.estimated_wait_minutes);
+      if (String(data?.appointment_id) !== String(appointmentId)) {
+        return;
       }
-      if (data.status) {
-        setStatus(data.status);
-      }
-      if (data.doctor_name) {
-        setDoctorName(data.doctor_name);
-      }
-      if (data.doctor_id) {
-        setDoctorId(data.doctor_id);
-      }
+
+      applyQueueStatus(data);
     });
 
-    newSocket.on("your-turn", () => {
-      setStatus("being-served");
-    });
+    newSocket.on("your-turn", (data) => {
+      if (data?.appointment_id && String(data.appointment_id) !== String(appointmentId)) {
+        return;
+      }
 
-    newSocket.on("wait-time-updated", (data) => {
-      setEstimatedWait(data.estimated_wait_minutes);
+      applyQueueStatus({
+        status: "in_progress",
+        checked_in: true,
+        queue_mode: "live_queue",
+      });
     });
 
     return () => {
       newSocket.disconnect();
     };
-  }, [patientId]);
+  }, [appointmentId, patientId]);
 
   useEffect(() => {
-    const fetchQueuePosition = async () => {
-      try {
-        const response = await axios.get(`/api/v2/queue/position/${appointmentId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
+    let cancelled = false;
+    let timeoutId;
 
-        const queue = response.data.data || {};
-        setQueuePosition(queue.position ?? 0);
-        setTokenNumber(queue.token_number ?? "-");
-        setEstimatedWait(queue.estimated_wait_minutes ?? 0);
-        setDoctorName(queue.doctor_name ?? null);
-        setDoctorId(queue.doctor_id ?? null);
-        setStatus(queue.status ?? "waiting");
-        setError(null);
-      } catch (err) {
-        console.error("Queue fetch failed:", err);
-        setError("Failed to load queue position");
-      } finally {
-        setLoading(false);
-      }
+    const pollQueueStatus = async (isInitial = false) => {
+      if (cancelled) return;
+      await fetchQueueStatus({ silent: !isInitial });
+      if (cancelled) return;
+      timeoutId = window.setTimeout(() => {
+        pollQueueStatus(false);
+      }, 30000);
     };
 
-    setLoading(true);
-    fetchQueuePosition();
-    const interval = setInterval(fetchQueuePosition, 5000);
+    pollQueueStatus(true);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [appointmentId]);
 
-  const getPositionColor = (position) => {
-    if (position <= 2) return "#15803d";
-    if (position <= 5) return "#d97706";
-    return "#b42318";
+  const handleCheckIn = async () => {
+    try {
+      setCheckingIn(true);
+      await queueAPI.markArrived(appointmentId);
+      await fetchQueueStatus();
+    } catch (err) {
+      console.error("Check-in failed:", err);
+      setError(err?.response?.data?.error || "Failed to check in");
+    } finally {
+      setCheckingIn(false);
+    }
   };
 
-  const formatWaitTime = (minutes) => {
-    if (!minutes) return "Calculating...";
-    if (minutes < 1) return "< 1 minute";
-    if (minutes === 1) return "1 minute";
-    return `${minutes} minutes`;
-  };
-
+  const scheduledAppointmentTime = parseAppointmentDateTime(appointmentDate, slotTime);
+  const predictedAppointmentTime =
+    parseIsoDateTime(queueStatus?.expected_consultation_time) || scheduledAppointmentTime;
+  const leaveByTime =
+    parseIsoDateTime(queueStatus?.leave_for_clinic_at) ||
+    (predictedAppointmentTime
+      ? new Date(predictedAppointmentTime.getTime() - ARRIVAL_BUFFER_MINUTES * 60 * 1000)
+      : null);
+  const minutesUntilLeave = leaveByTime
+    ? (leaveByTime.getTime() - Date.now()) / (60 * 1000)
+    : null;
+  const leaveStatusLabel = formatMinutesUntil(minutesUntilLeave);
+  const expectedAppointmentLabel = formatClockTime(predictedAppointmentTime);
+  const leaveByLabel = formatClockTime(leaveByTime);
+  const checkedIn = Boolean(queueStatus?.checked_in);
+  const queueMode = queueStatus?.queue_mode || (checkedIn ? "live_queue" : "pre_checkin");
+  const doctorName = queueStatus?.doctor_name || initialDoctorName || "Doctor assigned";
+  const doctorId = queueStatus?.doctor_id || initialDoctorId || null;
+  const tokenNumber = queueStatus?.token_number ?? "--";
+  const peopleAhead = Number(queueStatus?.people_ahead ?? 0);
+  const queuePosition = queueStatus?.position ?? (checkedIn ? peopleAhead + 1 : null);
+  const estimatedWait = Number(queueStatus?.estimated_wait_minutes ?? 0);
+  const avgConsultationMinutes = Number(queueStatus?.avg_consultation_minutes ?? 0);
+  const doctorDelayMinutes = Number(queueStatus?.doctor_delay_minutes ?? 0);
+  const status = queueStatus?.status || appointmentStatus || "booked";
+  const normalizedStatus = String(status || "").toLowerCase();
+  const isInConsultation = ["in_progress", "in-progress", "being-served", "completed"].includes(
+    normalizedStatus,
+  );
+  const queueProgressPercent = !checkedIn
+    ? 0
+    : isInConsultation
+      ? 100
+      : peopleAhead <= 0
+        ? 84
+        : clamp(Math.round(84 / (peopleAhead + 1)), 18, 72);
+  const queueProgressMessage = !checkedIn
+    ? "Check in to start live queue tracking."
+    : isInConsultation
+      ? "It is your turn now."
+      : peopleAhead <= 0
+        ? "You are next."
+        : `${peopleAhead} ${peopleAhead === 1 ? "person is" : "people are"} ahead of you.`;
+  const appointmentIsToday = appointmentDate === getTodayIsoDate();
+  const canCheckIn = !checkedIn && appointmentIsToday;
+  const plannerTitle =
+    queueMode === "live_queue"
+      ? "Your likely consultation timing"
+      : "Leave-home plan before check-in";
+  const plannerBadge =
+    leaveStatusLabel || (queueMode === "live_queue" ? "Calculating" : "Scheduled visit");
+  const queueAheadLabel =
+    queueMode === "live_queue"
+      ? peopleAhead > 0
+        ? `${peopleAhead} people ahead of you`
+        : "You are next in queue"
+      : "Prediction based on today’s schedule and live clinic pace";
   const liveUpdateTime = new Date().toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const statusSteps = ["Entry", "Current Position", "Consultation"];
-  const progressStepIndex =
-    status === "being-served" ? 2 : status === "in-progress" ? 1 : 1;
-  const clinicActiveCount = Math.max(8, (queuePosition || 0) + 9);
-  const clinicWaitingCount = Math.max(1, queuePosition || 0);
-  const consultationAverage = estimatedWait ? `${Math.max(12, estimatedWait + 7)}m` : "22m";
-  const queueAheadLabel =
-    queuePosition > 1 ? `You are #${queuePosition} in queue` : "You are next in queue";
+  const leaveAdvice =
+    minutesUntilLeave == null
+      ? "We will keep recalculating your leave window as the queue changes."
+      : minutesUntilLeave <= 0
+        ? `Leave now to reach around ${ARRIVAL_BUFFER_MINUTES} minutes before your consultation.`
+        : `Plan to leave by ${leaveByLabel} so you arrive about ${ARRIVAL_BUFFER_MINUTES} minutes early.`;
+  const prepCopy = canCheckIn
+    ? "You can check in now from home or once you reach the clinic. After check-in, we switch to the live checked-in queue for tighter predictions."
+    : queueMode === "live_queue"
+      ? "You are now in the live clinic queue. We will keep adjusting your time using check-ins, completed consultations, and doctor delays."
+      : "Check-in opens on the day of your appointment. Your departure suggestion is already being estimated from the doctor’s live queue trend.";
+  const clinicActiveCount = Math.max(1, peopleAhead + (checkedIn ? 1 : 0));
+  const clinicWaitingCount = Math.max(0, peopleAhead);
+  const consultationAverage = avgConsultationMinutes
+    ? `${Math.round(avgConsultationMinutes)}m`
+    : "Calculating";
 
   return (
     <div className="queue-position-container">
@@ -130,7 +338,7 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
         <div className="queue-card">
           <div className="loading-state">
             <div className="spinner"></div>
-            <p>Loading your queue position...</p>
+            <p>Loading your queue status...</p>
           </div>
         </div>
       ) : error ? (
@@ -154,43 +362,102 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
                     <Ticket size={24} strokeWidth={2.2} />
                   </div>
                   <div>
-                    <h3>TOKEN #{tokenNumber}</h3>
+                    <h3>{checkedIn ? `TOKEN #${tokenNumber}` : "APPOINTMENT PLAN"}</h3>
                     <p>{queueAheadLabel}</p>
                   </div>
                 </div>
                 <div className="queue-wait-block">
-                  <span>Estimated Wait</span>
-                  <strong>~{estimatedWait || 15} minutes</strong>
+                  <span>{checkedIn ? "Estimated Wait" : "Expected Visit"}</span>
+                  <strong>
+                    {checkedIn ? formatWaitTime(estimatedWait) : expectedAppointmentLabel}
+                  </strong>
                 </div>
               </div>
 
-              <div className="queue-progress-block">
-                <div className="queue-progress-labels">
-                  {statusSteps.map((step, index) => (
-                    <span
-                      key={step}
-                      className={index === progressStepIndex ? "active" : ""}
-                    >
-                      {step}
-                    </span>
-                  ))}
-                </div>
-                <div className="queue-progress-track">
-                  <div
-                    className="queue-progress-fill"
-                    style={{
-                      width: `${progressStepIndex === 2 ? 100 : 66}%`,
-                    }}
-                  />
-                  {[0, 1, 2, 3, 4].map((dotIndex) => (
-                    <span
-                      key={dotIndex}
-                      className={`queue-progress-dot ${
-                        dotIndex <= (progressStepIndex === 2 ? 4 : 2) ? "filled" : ""
-                      } ${dotIndex === 2 ? "current" : ""}`}
+              {checkedIn && (
+                <div className="queue-progress-block">
+                  <div className="queue-progress-labels">
+                    <span className="active">Checked in</span>
+                    <span>{queueProgressMessage}</span>
+                    <span>{isInConsultation ? "With doctor" : "Consultation"}</span>
+                  </div>
+                  <div className="queue-progress-track">
+                    <div
+                      className="queue-progress-fill"
+                      style={{
+                        width: `${queueProgressPercent}%`,
+                      }}
                     />
-                  ))}
+                    <span className="queue-progress-dot queue-progress-dot--start filled" />
+                    <span
+                      className={`queue-progress-dot queue-progress-dot--marker ${
+                        isInConsultation ? "current" : ""
+                      }`}
+                      style={{
+                        left: `${queueProgressPercent}%`,
+                      }}
+                    />
+                    <span
+                      className={`queue-progress-dot queue-progress-dot--end ${
+                        isInConsultation ? "filled current" : ""
+                      }`}
+                    />
+                  </div>
+                  <div className="queue-progress-caption">
+                    <strong>{queueProgressMessage}</strong>
+                    <span>
+                      {isInConsultation
+                        ? "Proceed to consultation."
+                        : estimatedWait > 0
+                          ? `About ${formatWaitTime(estimatedWait)} remaining.`
+                          : "We will keep updating this as the queue moves."}
+                    </span>
+                  </div>
                 </div>
+              )}
+
+              <div className="queue-travel-card">
+                <div className="queue-travel-header">
+                  <div>
+                    <span className="queue-side-title">Departure Planner</span>
+                    <h4>{plannerTitle}</h4>
+                  </div>
+                  <div className="queue-travel-pill">{plannerBadge || "Calculating"}</div>
+                </div>
+
+                <div className="queue-travel-metrics">
+                  <div className="queue-travel-metric">
+                    <div className="queue-travel-icon">
+                      <TimerReset size={18} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <span>Expected appointment</span>
+                      <strong>{expectedAppointmentLabel}</strong>
+                    </div>
+                  </div>
+
+                  <div className="queue-travel-metric">
+                    <div className="queue-travel-icon">
+                      <House size={18} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <span>Leave home by</span>
+                      <strong>{leaveByLabel}</strong>
+                    </div>
+                  </div>
+
+                  <div className="queue-travel-metric">
+                    <div className="queue-travel-icon">
+                      <Users size={18} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <span>People ahead</span>
+                      <strong>{peopleAhead}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="queue-travel-note">{leaveAdvice}</p>
               </div>
 
               <div className="queue-status-bottom">
@@ -201,11 +468,15 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
                     className="queue-doctor-avatar"
                   />
                   <div>
-                    <strong>{doctorName || "Doctor assigned"}</strong>
+                    <strong>{doctorName}</strong>
                     <span>
-                      {status === "being-served"
+                      {status === "in_progress"
                         ? "Consultation in progress"
-                        : "Room details unavailable"}
+                        : checkedIn
+                          ? `Position ${queuePosition || "--"} in live queue`
+                          : appointmentIsToday
+                            ? "Prediction will tighten after check-in"
+                            : "Visit planned for your booked slot"}
                     </span>
                   </div>
                 </div>
@@ -231,19 +502,32 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
             <div className="queue-prep-card">
               <div className="queue-prep-copy">
                 <h3>Prepare for your visit</h3>
-                <p>
-                  While you wait, review any pending check-in steps and keep your patient details ready.
-                  Additional clinic instructions will appear here when available.
-                </p>
+                <p>{prepCopy}</p>
                 <div className="queue-prep-actions">
+                  {canCheckIn ? (
+                    <button
+                      type="button"
+                      className="queue-checkin-action"
+                      onClick={handleCheckIn}
+                      disabled={checkingIn}
+                    >
+                      {checkingIn ? "Checking in..." : "Check In Now"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="queue-update-btn"
+                      onClick={() => navigate("/form")}
+                    >
+                      Update Records
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="queue-update-btn"
-                    onClick={() => navigate("/form")}
-                  > Update Records
-                  </button>
-                  <button type="button" className="queue-link-btn">
-                    How it works
+                    className="queue-link-btn"
+                    onClick={() => navigate("/appointments/history")}
+                  >
+                    Appointment Details
                   </button>
                 </div>
               </div>
@@ -285,14 +569,17 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
             </div>
 
             <div className="queue-side-card queue-notice-card">
-              
               <h4>Department Notice</h4>
-              <p>Department updates will appear here when your clinic shares a live notice.</p>
+              <p>
+                {doctorDelayMinutes > 0
+                  ? `Doctor is currently running about ${doctorDelayMinutes} minutes late. Your ETA has been adjusted automatically.`
+                  : "No current delay notice from the clinic. Predictions are tracking the live queue pace."}
+              </p>
               <div className="queue-wifi-card">
-                <Wifi size={18} strokeWidth={2} />
+                <Clock3 size={18} strokeWidth={2} />
                 <div>
-                  <span>On-site Access</span>
-                  <strong>Reception can share local facility details if needed.</strong>
+                  <span>Expected arrival window</span>
+                  <strong>{`Leave by ${leaveByLabel} for an expected visit around ${expectedAppointmentLabel}.`}</strong>
                 </div>
               </div>
             </div>
@@ -301,7 +588,7 @@ export default function PatientQueuePosition({ appointmentId, patientId }) {
               <ShieldCheck size={22} strokeWidth={2} />
               <h4>Safe Care Protocol</h4>
               <p>
-                Safety guidance and pre-visit requirements will appear here when they are available for your appointment.
+                Keep your phone available. We can adjust your prediction in real time if the doctor is delayed, consultations run long, or the queue clears faster.
               </p>
               <button type="button" className="queue-safety-link">
                 Health Safety Hub

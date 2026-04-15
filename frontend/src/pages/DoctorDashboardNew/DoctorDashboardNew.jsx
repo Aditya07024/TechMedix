@@ -18,9 +18,11 @@ import {
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../context/AuthContext";
 import { appointmentAPI, analyticsAPI, queueAPI } from "../../api/techmedixAPI";
+import { initQueueSocket } from "../../api/socketService";
 import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import { doctorApi, paymentApi } from "../../api";
+import { formatTime12Hour } from "../../utils/dateTime";
 import "./DoctorDashboardNew.css";
 
 const NAV_ITEMS = [
@@ -91,6 +93,8 @@ export default function DoctorDashboardNew() {
   const [patientData, setPatientData] = useState(null);
   const [patientPrescriptions, setPatientPrescriptions] = useState([]);
   const [patientRecordings, setPatientRecordings] = useState([]);
+  const [patientReports, setPatientReports] = useState([]);
+  const [patientShareSections, setPatientShareSections] = useState([]);
   const [newMedicineName, setNewMedicineName] = useState("");
   const [newMedicineDosage, setNewMedicineDosage] = useState("");
   const [newMedicineFrequency, setNewMedicineFrequency] = useState("");
@@ -104,6 +108,7 @@ export default function DoctorDashboardNew() {
   const [staffMembers, setStaffMembers] = useState([]);
   const [staffRequests, setStaffRequests] = useState([]);
   const [staffPasswords, setStaffPasswords] = useState({});
+  const [soloMode, setSoloMode] = useState(false);
   const [staffForm, setStaffForm] = useState({
     name: "",
     email: "",
@@ -116,6 +121,17 @@ export default function DoctorDashboardNew() {
 
   const doctorDisplayName = (user?.name || "Doctor").replace(/^dr\.?\s+/i, "").trim();
   const patientProfile = patientData?.patient || patientData || null;
+
+  useEffect(() => {
+    if (!statusMessage && !error) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setStatusMessage("");
+      setError("");
+    }, 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [statusMessage, error]);
 
   const queueStats = useMemo(() => {
     const waiting = queue.filter((item) =>
@@ -153,6 +169,38 @@ export default function DoctorDashboardNew() {
     loadDoctorData(true);
     loadStaffData();
     fetchProfile();
+  }, [user?.id, selectedDate]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    const socket = initQueueSocket();
+    const handleQueueUpdate = (payload) => {
+      if (payload?.doctor_id && String(payload.doctor_id) !== String(user.id)) {
+        return;
+      }
+
+      loadDoctorData();
+    };
+    const handleStaffNotifyDoctor = (payload) => {
+      if (payload?.doctor_id && String(payload.doctor_id) !== String(user.id)) {
+        return;
+      }
+
+      setStatusMessage(
+        payload?.message || `${payload?.staff_name || "Staff"} marked a patient ready.`,
+      );
+      loadDoctorData();
+    };
+
+    socket.emit("join-doctor-room", user.id);
+    socket.on("queue-update", handleQueueUpdate);
+    socket.on("staff-notify-doctor", handleStaffNotifyDoctor);
+
+    return () => {
+      socket.off("queue-update", handleQueueUpdate);
+      socket.off("staff-notify-doctor", handleStaffNotifyDoctor);
+    };
   }, [user?.id, selectedDate]);
 
   useEffect(() => {
@@ -348,6 +396,58 @@ export default function DoctorDashboardNew() {
     }
   }
 
+  async function loadPatientReports(patientId) {
+    try {
+      const [reportsResponse, walletResponse] = await Promise.allSettled([
+        fetch(`/api/staff/patients/${patientId}/reports`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          credentials: "include",
+        }),
+        fetch(`/api/health-wallet/documents`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          credentials: "include",
+        }),
+      ]);
+
+      const reportsPayload =
+        reportsResponse.status === "fulfilled" ? await reportsResponse.value.json() : null;
+      const walletPayload =
+        walletResponse.status === "fulfilled" ? await walletResponse.value.json() : null;
+
+      const reports =
+        reportsResponse.status === "fulfilled" && reportsResponse.value.ok
+          ? (reportsPayload?.data || []).map((report) => ({
+              id: `report-${report.id}`,
+              file_name: report.file_name,
+              file_url: report.secure_url || report.file_path,
+              source: "report",
+              created_at: report.created_at,
+            }))
+          : [];
+
+      const walletDocs =
+        walletResponse.status === "fulfilled" && walletResponse.value.ok
+          ? (walletPayload?.data || [])
+              .filter((doc) => String(doc.patient_id || patientId) === String(patientId))
+              .map((doc) => ({
+                id: `wallet-${doc.id}`,
+                file_name: doc.file_name,
+                file_url: doc.file_url,
+                source: "health_wallet",
+                created_at: doc.created_at,
+              }))
+          : [];
+
+      setPatientReports(
+        [...reports, ...walletDocs].sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at),
+        ),
+      );
+    } catch {
+      setPatientReports([]);
+    }
+  }
+
   async function searchPatient(code = uniqueCode) {
     if (!code) return;
 
@@ -357,9 +457,13 @@ export default function DoctorDashboardNew() {
       const payload = response.data;
       const patient = payload?.patient || payload;
       setPatientData(payload);
+      setPatientShareSections(["ehr", "prescriptions", "recordings", "reports"]);
       setActiveView("patients");
       if (patient?.id) {
-        await loadPatientPrescriptions(patient.id);
+        await Promise.all([
+          loadPatientPrescriptions(patient.id),
+          loadPatientReports(patient.id),
+        ]);
       }
     } catch (searchError) {
       setError(readErrorMessage(searchError, "Patient not found"));
@@ -376,6 +480,26 @@ export default function DoctorDashboardNew() {
     } finally {
       setBusyMap((current) => ({ ...current, [key]: false }));
     }
+  }
+
+  async function openQueuedPatient(appointmentId) {
+    await withBusy(`open-patient-${appointmentId}`, async () => {
+      const response = await doctorApi.getSharedAppointmentContext(appointmentId);
+      const payload = response.data || {};
+      setPatientData({
+        patient: payload.patient,
+        ehrHistory: payload.ehrHistory || [],
+        appointment: payload.appointment || null,
+      });
+      setPatientShareSections(payload.allowed_sections || []);
+      setPatientPrescriptions(payload.prescriptions || []);
+      setPatientRecordings(payload.recordings || []);
+      setPatientReports(payload.reports || []);
+      setActiveView("patients");
+      if (!payload.appointment?.share_history) {
+        setStatusMessage("This patient did not share health history for this appointment.");
+      }
+    });
   }
 
   async function handleSaveConsultationFee() {
@@ -416,6 +540,12 @@ export default function DoctorDashboardNew() {
       setStatusMessage("Cash payment marked received.");
       await loadDoctorData();
     });
+  }
+
+  async function handleSoloOpenPatient(appointment) {
+    if (appointment?.id) {
+      await openQueuedPatient(appointment.id);
+    }
   }
 
   async function handleCreateStaff(event) {
@@ -711,7 +841,17 @@ export default function DoctorDashboardNew() {
 
         {(statusMessage || error) && (
           <div className={`doctor-banner ${error ? "is-error" : "is-success"}`}>
-            {error || statusMessage}
+            <span>{error || statusMessage}</span>
+            <button
+              type="button"
+              className="doctor-banner-close"
+              onClick={() => {
+                setStatusMessage("");
+                setError("");
+              }}
+            >
+              Close
+            </button>
           </div>
         )}
 
@@ -909,7 +1049,14 @@ export default function DoctorDashboardNew() {
                             #{entry.token_number || entry.position_in_queue || "-"}
                           </div>
                           <div className="doctor-queue-copy">
-                            <strong>{entry.patient_name}</strong>
+                            <button
+                              type="button"
+                              className="doctor-link-button"
+                              onClick={() => openQueuedPatient(entry.appointment_id)}
+                              disabled={busyMap[`open-patient-${entry.appointment_id}`]}
+                            >
+                              {entry.patient_name}
+                            </button>
                             <p>
                               Position {entry.position_in_queue || "-"} •{" "}
                               {String(entry.status || "booked").replace("_", " ")}
@@ -962,7 +1109,7 @@ export default function DoctorDashboardNew() {
                         <div key={appointment.id} className="doctor-appointment-card">
                           <div className="doctor-appointment-meta">
                             <strong>{appointment.patient_name}</strong>
-                            <span>{appointment.slot_time || "Time pending"}</span>
+                            <span>{formatTime12Hour(appointment.slot_time, "Time pending")}</span>
                           </div>
                           <p>
                             Status:{" "}
@@ -1219,7 +1366,28 @@ export default function DoctorDashboardNew() {
                           </div>
                         </div>
 
-                        {patientData?.ehrHistory?.length > 0 && (
+                        {patientData?.appointment?.share_history === false ? (
+                          <div className="doctor-history-card">
+                            <strong>Sharing disabled</strong>
+                            <p>The patient did not share health history for this appointment.</p>
+                          </div>
+                        ) : null}
+
+                        {patientShareSections.length > 0 ? (
+                          <div className="doctor-history-list">
+                            <h3>Shared with doctor</h3>
+                            <div className="doctor-chip-row">
+                              {patientShareSections.map((section) => (
+                                <span key={section} className="doctor-chip">
+                                  {section}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {patientShareSections.includes("ehr") &&
+                        patientData?.ehrHistory?.length > 0 && (
                           <div className="doctor-history-list">
                             <h3>Medical record snapshots</h3>
                             {patientData.ehrHistory.slice(0, 4).map((record, index) => (
@@ -1244,6 +1412,13 @@ export default function DoctorDashboardNew() {
                             <h2>Add and adjust treatment</h2>
                           </div>
                         </div>
+
+                        {!patientData?.appointment?.share_history ? (
+                          <EmptyState
+                            title="Patient history not shared"
+                            text="Queue access opened the patient profile only. Historical records stay hidden for this appointment."
+                          />
+                        ) : null}
 
                         <div className="doctor-form-grid">
                           <input
@@ -1326,7 +1501,12 @@ export default function DoctorDashboardNew() {
                           </div>
                         </div>
 
-                        {patientPrescriptions.length === 0 ? (
+                        {!patientShareSections.includes("prescriptions") ? (
+                          <EmptyState
+                            title="Prescriptions not shared"
+                            text="The patient did not share prescription history for this appointment."
+                          />
+                        ) : patientPrescriptions.length === 0 ? (
                           <EmptyState
                             title="No active prescriptions"
                             text="Added medicines and prescription entries will appear here."
@@ -1391,7 +1571,12 @@ export default function DoctorDashboardNew() {
                           </div>
                         </div>
 
-                        {patientRecordings.length === 0 ? (
+                        {!patientShareSections.includes("recordings") ? (
+                          <EmptyState
+                            title="Recordings not shared"
+                            text="The patient did not share recordings for this appointment."
+                          />
+                        ) : patientRecordings.length === 0 ? (
                           <EmptyState
                             title="No recordings yet"
                             text="Uploaded voice notes and prescription recordings will appear here."
@@ -1414,6 +1599,50 @@ export default function DoctorDashboardNew() {
                           </div>
                         )}
                       </article>
+
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
+                          <div>
+                            <span>Reports and Uploads</span>
+                            <h2>Shared files</h2>
+                          </div>
+                        </div>
+
+                        {!patientShareSections.includes("reports") ? (
+                          <EmptyState
+                            title="Reports not shared"
+                            text="The patient did not share reports, scans, or wallet uploads for this appointment."
+                          />
+                        ) : patientReports.length === 0 ? (
+                          <EmptyState
+                            title="No shared files yet"
+                            text="Shared PDFs, scans, and uploads will appear here."
+                          />
+                        ) : (
+                          <div className="doctor-recordings-list">
+                            {patientReports.slice(0, 8).map((report) => (
+                              <div key={report.id} className="doctor-recording-card">
+                                <div className="doctor-recording-meta">
+                                  <strong>{report.file_name}</strong>
+                                  <span>
+                                    {report.source === "health_wallet"
+                                      ? "Health Wallet"
+                                      : "Report"}
+                                  </span>
+                                </div>
+                                <a
+                                  href={report.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="doctor-link-button"
+                                >
+                                  Open file
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
                     </section>
                   </>
                 )}
@@ -1422,6 +1651,117 @@ export default function DoctorDashboardNew() {
 
             {activeView === "staff" && (
               <section className="doctor-layout-grid">
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading">
+                    <div>
+                      <span>Working Mode</span>
+                      <h2>Staff support preference</h2>
+                    </div>
+                  </div>
+
+                  <div className="doctor-inline-actions">
+                    <button
+                      type="button"
+                      className={soloMode ? "doctor-secondary-button" : "doctor-primary-button"}
+                      onClick={() => setSoloMode(false)}
+                    >
+                      I Have Staff
+                    </button>
+                    <button
+                      type="button"
+                      className={soloMode ? "doctor-primary-button" : "doctor-secondary-button"}
+                      onClick={() => setSoloMode(true)}
+                    >
+                      I Manage Alone
+                    </button>
+                  </div>
+
+                  <p className="doctor-helper-text">
+                    {soloMode
+                      ? "Solo mode shows front-desk style controls here so you can manage without staff."
+                      : "Staff mode keeps the focus on creating and managing your support team."}
+                  </p>
+                </article>
+
+                {soloMode ? (
+                  <article className="doctor-panel">
+                    <div className="doctor-panel-heading">
+                      <div>
+                        <span>Solo Desk</span>
+                        <h2>Front-desk controls for today</h2>
+                      </div>
+                    </div>
+
+                    {todaySchedule.length === 0 ? (
+                      <EmptyState
+                        title="No appointments scheduled"
+                        text="Today's appointments will appear here for solo handling."
+                      />
+                    ) : (
+                      <div className="doctor-appointments-list">
+                        {todaySchedule.map((appointment) => (
+                          <div key={appointment.id} className="doctor-appointment-card">
+                            <div className="doctor-appointment-meta">
+                              <strong>{appointment.patient_name}</strong>
+                              <span>{formatTime12Hour(appointment.slot_time, "Time pending")}</span>
+                            </div>
+                            <p>
+                              Status:{" "}
+                              <span className="doctor-inline-pill">{appointment.status}</span>
+                            </p>
+                            <p>
+                              Payment: {appointment.payment_status || "N/A"} /{" "}
+                              {appointment.payment_method || "-"}
+                            </p>
+                            <div className="doctor-inline-actions">
+                              <button
+                                type="button"
+                                className="doctor-link-button"
+                                onClick={() => handleSoloOpenPatient(appointment)}
+                                disabled={busyMap[`open-patient-${appointment.id}`]}
+                              >
+                                Open Patient
+                              </button>
+                              {appointment.payment_method === "cash" &&
+                                appointment.payment_status === "due" &&
+                                appointment.payment_id && (
+                                  <button
+                                    type="button"
+                                    className="doctor-link-button"
+                                    onClick={() => handleMarkCashPaid(appointment.payment_id)}
+                                    disabled={busyMap[`cash-${appointment.payment_id}`]}
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
+                              {["booked", "arrived"].includes(appointment.status) && (
+                                <button
+                                  type="button"
+                                  className="doctor-link-button"
+                                  onClick={() => handleStartConsultation(appointment.id)}
+                                  disabled={busyMap[`start-${appointment.id}`]}
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {["in_progress", "arrived"].includes(appointment.status) && (
+                                <button
+                                  type="button"
+                                  className="doctor-link-button"
+                                  onClick={() => handleCompleteConsultation(appointment.id)}
+                                  disabled={busyMap[`complete-${appointment.id}`]}
+                                >
+                                  Complete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ) : null}
+
                 <article className="doctor-panel">
                   <div className="doctor-panel-heading">
                     <div>

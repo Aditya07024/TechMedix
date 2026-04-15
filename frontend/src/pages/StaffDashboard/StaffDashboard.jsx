@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Activity,
   BellRing,
@@ -10,13 +10,46 @@ import {
   UserRoundPen,
   Users,
 } from "lucide-react";
-import { staffApi } from "../../api";
+import { paymentApi, staffApi } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { subscribeToQueue } from "../../api/socketService";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
+import { formatDateTime12Hour, formatTime12Hour } from "../../utils/dateTime";
 import "./StaffDashboard.css";
 
 const QUEUE_STATUS_OPTIONS = ["waiting", "in-progress", "completed"];
+
+function getPaymentMeta(appointment) {
+  const status = String(appointment?.payment_status || "").toLowerCase();
+  const method = String(appointment?.payment_method || "").toLowerCase();
+
+  if (status === "paid") {
+    if (method === "online") {
+      return { label: "Paid Online", className: "payment-paid-online" };
+    }
+    if (method === "cash") {
+      return { label: "Paid Cash", className: "payment-paid-cash" };
+    }
+    if (method === "wallet") {
+      return { label: "Paid Wallet", className: "payment-paid-wallet" };
+    }
+    return { label: "Paid", className: "payment-paid" };
+  }
+
+  if (status === "due" && method === "cash") {
+    return { label: "Cash Due", className: "payment-due" };
+  }
+
+  if (status === "pending" && method === "online") {
+    return { label: "Online Pending", className: "payment-pending" };
+  }
+
+  if (status === "pending" && method === "wallet") {
+    return { label: "Wallet Pending", className: "payment-pending" };
+  }
+
+  return { label: "Need to Pay", className: "payment-unpaid" };
+}
 
 function StatCard({ icon: Icon, label, value, helper }) {
   return (
@@ -37,7 +70,7 @@ export default function StaffDashboard() {
   const { user, logout } = useAuth();
   const [overview, setOverview] = useState(null);
   const [appointments, setAppointments] = useState([]);
-  const [queue, setQueue] = useState([]);
+  const [queuesByDoctor, setQueuesByDoctor] = useState({});
   const [logs, setLogs] = useState([]);
   const [performance, setPerformance] = useState([]);
   const [assignedDoctors, setAssignedDoctors] = useState([]);
@@ -58,39 +91,59 @@ export default function StaffDashboard() {
   const [statusMessage, setStatusMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyMap, setBusyMap] = useState({});
+  const inFlightActionsRef = useRef(new Set());
 
-  const doctorOptions = useMemo(() => {
-    const map = new Map();
-    appointments.forEach((item) => {
-      if (!map.has(item.doctor_id)) {
-        map.set(item.doctor_id, item.doctor_name);
-      }
-    });
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [appointments]);
+  useEffect(() => {
+    if (!statusMessage) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setStatusMessage("");
+    }, 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [statusMessage]);
+
+  const visibleDoctors = selectedDoctorId
+    ? assignedDoctors.filter((doctor) => doctor.id === selectedDoctorId)
+    : assignedDoctors;
+  const visibleAppointments = selectedDoctorId
+    ? appointments.filter((appointment) => appointment.doctor_id === selectedDoctorId)
+    : appointments;
+
+  async function loadQueues(doctors) {
+    const queueResponses = await Promise.all(
+      doctors.map(async (doctor) => {
+        try {
+          const response = await staffApi.getLiveQueue(doctor.id);
+          return [doctor.id, response.data?.data || []];
+        } catch {
+          return [doctor.id, []];
+        }
+      }),
+    );
+
+    setQueuesByDoctor(Object.fromEntries(queueResponses));
+  }
 
   async function loadDashboard(doctorId = selectedDoctorId) {
     try {
       setLoading(true);
-      const [doctorsRes, overviewRes, appointmentsRes, logsRes, performanceRes] = await Promise.allSettled([
-        staffApi.getDoctors(),
-        staffApi.getOverview(doctorId ? { doctor_id: doctorId } : undefined),
-        staffApi.getTodayAppointments(doctorId ? { doctor_id: doctorId } : {}),
-        staffApi.getActivity(),
-        staffApi.getPerformance(doctorId ? { doctor_id: doctorId } : undefined),
-      ]);
+      const doctorsRes = await staffApi.getDoctors();
+      const doctors = doctorsRes.data?.data || [];
+      const assignedDoctorIds = new Set(doctors.map((entry) => entry.id));
+      const requestedDoctorId = doctorId && assignedDoctorIds.has(doctorId) ? doctorId : "";
+      const resolvedDoctorId = requestedDoctorId || "";
 
-      const doctors = doctorsRes.status === "fulfilled" ? doctorsRes.value.data?.data || [] : [];
+      const [overviewRes, appointmentsRes, logsRes, performanceRes] = await Promise.allSettled([
+        staffApi.getOverview(),
+        staffApi.getTodayAppointments(),
+        staffApi.getActivity(),
+        staffApi.getPerformance(),
+      ]);
       const appointmentRows =
         appointmentsRes.status === "fulfilled"
           ? appointmentsRes.value.data?.data || []
           : [];
-      const resolvedDoctorId =
-        doctorId ||
-        doctors.find((entry) => entry.id === user?.active_doctor_id)?.id ||
-        doctors[0]?.id ||
-        appointmentRows[0]?.doctor_id ||
-        "";
 
       setAssignedDoctors(doctors);
       setOverview(
@@ -104,15 +157,19 @@ export default function StaffDashboard() {
           : [],
       );
       setSelectedDoctorId(resolvedDoctorId);
+      setSelectedPatientId((currentPatientId) => {
+        if (!appointmentRows.length) {
+          return "";
+        }
 
-      if (resolvedDoctorId) {
-        const queueRes = await staffApi.getLiveQueue(resolvedDoctorId);
-        setQueue(queueRes.data?.data || []);
-      } else {
-        setQueue([]);
-      }
+        const stillVisible = appointmentRows.some(
+          (entry) => entry.patient_id === currentPatientId,
+        );
+        return stillVisible ? currentPatientId : appointmentRows[0].patient_id;
+      });
+      await loadQueues(doctors);
 
-      const firstError = [doctorsRes, overviewRes, appointmentsRes, logsRes, performanceRes]
+      const firstError = [overviewRes, appointmentsRes, logsRes, performanceRes]
         .find((result) => result.status === "rejected");
       if (firstError) {
         setStatusMessage(
@@ -129,7 +186,11 @@ export default function StaffDashboard() {
   }
 
   async function loadPatient(patientId) {
-    if (!patientId) return;
+    if (!patientId) {
+      setPatient(null);
+      setPatientReports([]);
+      return;
+    }
 
     try {
       const [patientRes, reportsRes] = await Promise.all([
@@ -158,14 +219,28 @@ export default function StaffDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!selectedDoctorId) return undefined;
-    return subscribeToQueue(selectedDoctorId, async () => {
-      try {
-        const queueRes = await staffApi.getLiveQueue(selectedDoctorId);
-        setQueue(queueRes.data?.data || []);
-      } catch {}
-    });
-  }, [selectedDoctorId]);
+    if (assignedDoctors.length === 0) return undefined;
+
+    const unsubscribers = assignedDoctors.map((doctor) =>
+      subscribeToQueue(doctor.id, async () => {
+        try {
+          const queueRes = await staffApi.getLiveQueue(doctor.id);
+          setQueuesByDoctor((prev) => ({
+            ...prev,
+            [doctor.id]: queueRes.data?.data || [],
+          }));
+        } catch {}
+      }),
+    );
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => {
+        if (typeof unsubscribe === "function") {
+          unsubscribe();
+        }
+      });
+    };
+  }, [assignedDoctors]);
 
   useEffect(() => {
     if (selectedPatientId) {
@@ -174,29 +249,33 @@ export default function StaffDashboard() {
   }, [selectedPatientId]);
 
   const withBusy = async (key, fn) => {
+    if (inFlightActionsRef.current.has(key)) {
+      return;
+    }
+
+    inFlightActionsRef.current.add(key);
     setBusyMap((prev) => ({ ...prev, [key]: true }));
     setStatusMessage("");
     try {
       await fn();
     } catch (err) {
-      setStatusMessage(err.response?.data?.error || err.message || "Action failed");
+      setStatusMessage(
+        err.response?.status === 429
+          ? "Too many requests. Wait a moment before trying again."
+          : err.response?.data?.error || err.message || "Action failed",
+      );
     } finally {
+      inFlightActionsRef.current.delete(key);
       setBusyMap((prev) => ({ ...prev, [key]: false }));
     }
   };
 
-  const handleGenerateToken = (appointmentId, patientId) =>
-    withBusy(`token-${appointmentId}`, async () => {
-      await staffApi.generateToken(appointmentId);
-      setSelectedPatientId(patientId);
-      setStatusMessage("Queue token generated.");
-      await loadDashboard(selectedDoctorId);
-    });
-
-  const handleMarkArrived = (appointmentId) =>
+  const handleMarkArrived = (appointmentId, patientId, doctorId) =>
     withBusy(`arrive-${appointmentId}`, async () => {
       await staffApi.markArrived(appointmentId);
-      setStatusMessage("Appointment marked as arrived.");
+      await staffApi.generateToken(appointmentId, doctorId);
+      setSelectedPatientId(patientId);
+      setStatusMessage("Appointment checked in and added to the live queue.");
       await loadDashboard(selectedDoctorId);
     });
 
@@ -256,13 +335,22 @@ export default function StaffDashboard() {
       setStatusMessage("Doctor notified.");
     });
 
-  const handleSwitchDoctor = (doctorId) =>
-    withBusy(`switch-${doctorId}`, async () => {
-      await staffApi.switchDoctor(doctorId);
-      setSelectedDoctorId(doctorId);
-      setStatusMessage("Active doctor switched.");
-      await loadDashboard(doctorId);
+  const handleMarkCashPaid = (paymentId) =>
+    withBusy(`cash-${paymentId}`, async () => {
+      await paymentApi.markCashPaid({ payment_id: paymentId });
+      setStatusMessage("Cash payment marked received.");
+      await loadDashboard(selectedDoctorId);
     });
+
+  const handleSwitchDoctor = (doctorId) => {
+    const nextDoctorId = selectedDoctorId === doctorId ? "" : doctorId;
+    setSelectedDoctorId(nextDoctorId);
+    setStatusMessage(
+      nextDoctorId
+        ? "Dashboard filtered to one doctor."
+        : "Showing all assigned doctors.",
+    );
+  };
 
   const handleDoctorRequest = () =>
     withBusy("request-doctor", async () => {
@@ -279,7 +367,7 @@ export default function StaffDashboard() {
           <span className="staff-dashboard-kicker">TechMedix Staff Dashboard</span>
           <h1>Front-desk flow with live queue control.</h1>
           <p>
-            Welcome, {user?.name || "Staff"}. Manage arrivals, queue tokens, reports,
+            Welcome, {user?.name || "Staff"}. Manage arrivals, reports,
             and doctor handoff from a single workspace.
           </p>
         </div>
@@ -296,7 +384,14 @@ export default function StaffDashboard() {
         </div>
       </header>
 
-      {statusMessage && <div className="staff-status-banner">{statusMessage}</div>}
+      {statusMessage && (
+        <div className="staff-status-banner">
+          <span>{statusMessage}</span>
+          <button type="button" onClick={() => setStatusMessage("")}>
+            Close
+          </button>
+        </div>
+      )}
 
       <section className="staff-stats-grid">
         <StatCard
@@ -336,7 +431,7 @@ export default function StaffDashboard() {
           <div className="staff-panel-header">
             <div>
               <h2>My Doctors</h2>
-              <p>Switch the active doctor context before handling queue data.</p>
+              <p>One staff member can manage all assigned doctors from one dashboard.</p>
             </div>
           </div>
 
@@ -349,13 +444,25 @@ export default function StaffDashboard() {
                   <span>{doctor.assignment_role || "assistant"}</span>
                 </div>
                 <div className="staff-status-actions">
+                  <span
+                    className={
+                      selectedDoctorId === doctor.id
+                        ? "staff-context-indicator is-active"
+                        : "staff-context-indicator"
+                    }
+                  >
+                    {selectedDoctorId === doctor.id ? "Filtered View" : "Visible in All View"}
+                  </span>
                   <button
                     type="button"
-                    className={selectedDoctorId === doctor.id ? "active" : ""}
+                    className={
+                      selectedDoctorId === doctor.id
+                        ? "staff-context-button is-active"
+                        : "staff-context-button"
+                    }
                     onClick={() => handleSwitchDoctor(doctor.id)}
-                    disabled={busyMap[`switch-${doctor.id}`]}
                   >
-                    {selectedDoctorId === doctor.id ? "Active" : "Switch"}
+                    {selectedDoctorId === doctor.id ? "Show All Doctors" : "Focus This Doctor"}
                   </button>
                 </div>
               </div>
@@ -394,7 +501,7 @@ export default function StaffDashboard() {
           <div className="staff-panel-header">
             <div>
               <h2>Appointments</h2>
-              <p>Check in patients and issue queue tokens.</p>
+              <p>Check in patients and notify the doctor.</p>
             </div>
 
             <select
@@ -406,17 +513,11 @@ export default function StaffDashboard() {
               }}
             >
               <option value="">All doctors</option>
-              {doctorOptions.map((doctor) => (
+              {assignedDoctors.map((doctor) => (
                 <option key={doctor.id} value={doctor.id}>
                   {doctor.name}
                 </option>
               ))}
-              {doctorOptions.length === 0 &&
-                assignedDoctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.name}
-                  </option>
-                ))}
             </select>
           </div>
 
@@ -431,11 +532,12 @@ export default function StaffDashboard() {
                     <th>Doctor</th>
                     <th>Slot</th>
                     <th>Status</th>
+                    <th>Payment</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {appointments.map((appointment) => (
+                  {visibleAppointments.map((appointment) => (
                     <tr key={appointment.id}>
                       <td>
                         <button
@@ -447,28 +549,53 @@ export default function StaffDashboard() {
                         </button>
                       </td>
                       <td>{appointment.doctor_name}</td>
-                      <td>{appointment.slot_time || "-"}</td>
+                      <td>{formatTime12Hour(appointment.slot_time)}</td>
                       <td>
                         <span className={`staff-pill status-${appointment.status}`}>
                           {appointment.status}
                         </span>
                       </td>
+                      <td>
+                        {(() => {
+                          const paymentMeta = getPaymentMeta(appointment);
+                          return (
+                            <div className="staff-payment-cell">
+                              <span className={`staff-pill ${paymentMeta.className}`}>
+                                {paymentMeta.label}
+                              </span>
+                              {appointment.payment_amount ? (
+                                <span className="staff-muted">
+                                  Rs. {Number(appointment.payment_amount).toLocaleString("en-IN")}
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="staff-row-actions">
-                        <button
-                          type="button"
-                          onClick={() => handleMarkArrived(appointment.id)}
-                          disabled={busyMap[`arrive-${appointment.id}`]}
-                        >
-                          Check In
-                        </button>
+                        {appointment.payment_method === "cash" &&
+                        appointment.payment_status === "due" &&
+                        appointment.payment_id ? (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkCashPaid(appointment.payment_id)}
+                            disabled={busyMap[`cash-${appointment.payment_id}`]}
+                          >
+                            Mark Paid
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() =>
-                            handleGenerateToken(appointment.id, appointment.patient_id)
+                            handleMarkArrived(
+                              appointment.id,
+                              appointment.patient_id,
+                              appointment.doctor_id,
+                            )
                           }
-                          disabled={busyMap[`token-${appointment.id}`]}
+                          disabled={busyMap[`arrive-${appointment.id}`]}
                         >
-                          Token
+                          Check In
                         </button>
                         <button
                           type="button"
@@ -490,37 +617,61 @@ export default function StaffDashboard() {
           <div className="staff-panel-header">
             <div>
               <h2>Live Queue</h2>
-              <p>Real-time queue state for the selected doctor.</p>
+              <p>Real-time queue state across assigned doctors.</p>
             </div>
           </div>
 
-          {queue.length === 0 ? (
-            <div className="staff-empty-state">No queue entries for this doctor.</div>
+          {visibleDoctors.length === 0 ? (
+            <div className="staff-empty-state">No doctor assignments yet.</div>
           ) : (
-            <div className="staff-queue-list">
-              {queue.map((entry) => (
-                <div key={entry.id} className="staff-queue-card">
-                  <div>
-                    <strong>Token {entry.token_no}</strong>
-                    <p>{entry.patient_name}</p>
-                    <span>{entry.status}</span>
-                  </div>
+            <div className="staff-live-queue-grid">
+              {visibleDoctors.map((doctor) => {
+                const doctorQueue = queuesByDoctor[doctor.id] || [];
 
-                  <div className="staff-status-actions">
-                    {QUEUE_STATUS_OPTIONS.map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        className={status === entry.status ? "active" : ""}
-                        onClick={() => handleQueueStatusUpdate(entry.id, status)}
-                        disabled={busyMap[`queue-${entry.id}-${status}`]}
-                      >
-                        {status}
-                      </button>
-                    ))}
+                return (
+                  <div key={doctor.id} className="staff-panel staff-live-queue-panel">
+                    <div className="staff-panel-header">
+                      <div>
+                        <h3>{doctor.name}</h3>
+                        <p>{doctor.specialty || "General Practice"}</p>
+                      </div>
+                      <span className="staff-context-indicator">
+                        {doctorQueue.length} in queue
+                      </span>
+                    </div>
+
+                    {doctorQueue.length === 0 ? (
+                      <div className="staff-empty-state">No queue entries for this doctor.</div>
+                    ) : (
+                      <div className="staff-queue-list">
+                        {doctorQueue.map((entry) => (
+                          <div key={entry.id} className="staff-queue-card">
+                            <div>
+                              <strong>Token {entry.token_no}</strong>
+                              <p>{entry.patient_name}</p>
+                              <span>{entry.status}</span>
+                            </div>
+
+                            <div className="staff-status-actions">
+                              {QUEUE_STATUS_OPTIONS.map((status) => (
+                                <button
+                                  key={status}
+                                  type="button"
+                                  className={status === entry.status ? "active" : ""}
+                                  onClick={() => handleQueueStatusUpdate(entry.id, status)}
+                                  disabled={busyMap[`queue-${entry.id}-${status}`]}
+                                >
+                                  {status}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </article>
@@ -667,7 +818,7 @@ export default function StaffDashboard() {
                     <ClipboardPlus size={16} />
                     <div>
                       <strong>{entry.action}</strong>
-                      <span>{new Date(entry.created_at).toLocaleString()}</span>
+                      <span>{formatDateTime12Hour(entry.created_at)}</span>
                     </div>
                   </div>
                 ))}

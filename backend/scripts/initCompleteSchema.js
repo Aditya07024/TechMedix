@@ -181,7 +181,8 @@ export async function initializeCompletSchema() {
       ADD COLUMN IF NOT EXISTS token_number INTEGER,
       ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP,
       ADD COLUMN IF NOT EXISTS handled_by_staff_id UUID REFERENCES staff(id) ON DELETE SET NULL,
-      ADD COLUMN IF NOT EXISTS visit_notes TEXT;
+      ADD COLUMN IF NOT EXISTS visit_notes TEXT,
+      ADD COLUMN IF NOT EXISTS share_history_scope JSONB DEFAULT '[]'::jsonb;
     `;
 
     // 4b QUEUE TABLE

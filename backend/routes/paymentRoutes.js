@@ -122,7 +122,7 @@ router.post(
 router.post(
   "/mark-cash-paid",
   authenticate,
-  authorizeRoles("doctor"),
+  authorizeRoles("doctor", "staff"),
   async (req, res) => {
     try {
       const { payment_id } = req.body;

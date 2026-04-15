@@ -152,8 +152,10 @@ export const queueAPI = {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
-  getPosition: (appointmentId) =>
+  getPosition: (appointmentId, config = {}) =>
     apiClient.get(`${API_BASE}/queue/position/${appointmentId}`, {
+      timeout: 15000,
+      ...config,
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 

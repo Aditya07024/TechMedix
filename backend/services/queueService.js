@@ -1,6 +1,15 @@
 import sql from "../config/database.js";
 
+const LIVE_QUEUE_STATUSES = new Set(["arrived", "in_progress"]);
+const ACTIVE_APPOINTMENT_STATUSES = new Set(["booked", "arrived", "in_progress"]);
+const COMPLETED_APPOINTMENT_STATUSES = new Set(["visited", "completed"]);
+const NO_SHOW_GRACE_MINUTES = 15;
+const SNAPSHOT_CACHE_TTL_MS = 5000;
+
 let doctorScheduleDurationColumnPromise;
+let doctorDelaysTablePromise;
+let doctorAnalyticsTablePromise;
+const predictionSnapshotCache = new Map();
 
 async function getDoctorScheduleDurationColumn() {
   if (!doctorScheduleDurationColumnPromise) {
@@ -27,8 +36,96 @@ async function getDoctorScheduleDurationColumn() {
   return doctorScheduleDurationColumnPromise;
 }
 
+async function tableExists(tableName) {
+  const rows = await sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = ${tableName}
+    ) AS exists
+  `;
+
+  return Boolean(rows[0]?.exists);
+}
+
+async function hasDoctorDelaysTable() {
+  if (!doctorDelaysTablePromise) {
+    doctorDelaysTablePromise = tableExists("doctor_delays").catch(() => false);
+  }
+
+  return doctorDelaysTablePromise;
+}
+
+async function hasDoctorAnalyticsTable() {
+  if (!doctorAnalyticsTablePromise) {
+    doctorAnalyticsTablePromise = tableExists("doctor_analytics").catch(() => false);
+  }
+
+  return doctorAnalyticsTablePromise;
+}
+
 function getIsoDate(value = new Date()) {
   return new Date(value).toISOString().split("T")[0];
+}
+
+function isSameDay(value, isoDate) {
+  return getIsoDate(value) === isoDate;
+}
+
+function parseSlotDateTime(appointmentDate, slotTime) {
+  if (!appointmentDate) return null;
+
+  const normalizedTime = String(slotTime || "00:00").slice(0, 5);
+  const parsed = new Date(`${appointmentDate}T${normalizedTime}:00`);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addMinutes(value, minutes) {
+  return new Date(value.getTime() + minutes * 60 * 1000);
+}
+
+function diffMinutes(later, earlier) {
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / (60 * 1000)));
+}
+
+function safeNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function toIsoStringOrNull(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime())
+    ? value.toISOString()
+    : null;
+}
+
+function normalizeAppointmentStatus(row) {
+  if (row.queue_status === "in-progress") return "in_progress";
+  if (row.queue_status === "waiting") return "arrived";
+  if (row.status === "completed") return "visited";
+  return row.status;
+}
+
+function isLikelyNoShow(row, now) {
+  if (normalizeAppointmentStatus(row) !== "booked") return false;
+
+  const scheduledAt = parseSlotDateTime(row.appointment_date, row.slot_time);
+  if (!scheduledAt) return false;
+
+  return now.getTime() > addMinutes(scheduledAt, NO_SHOW_GRACE_MINUTES).getTime();
+}
+
+function weightedAverage(weightedValues, fallback) {
+  const valid = weightedValues.filter((entry) => entry.value > 0 && entry.weight > 0);
+
+  if (!valid.length) return fallback;
+
+  const totalWeight = valid.reduce((sum, entry) => sum + entry.weight, 0);
+  const total = valid.reduce((sum, entry) => sum + entry.value * entry.weight, 0);
+
+  return Math.max(5, Math.round((total / totalWeight) * 10) / 10);
 }
 
 async function getConsultationDurationMinutes(doctorId, queueDate) {
@@ -57,104 +154,352 @@ async function getConsultationDurationMinutes(doctorId, queueDate) {
   return Number(rows[0]?.[durationColumn]) || 30;
 }
 
-async function getQueueSnapshot(doctorId, queueDate) {
-  return sql`
+async function getObservedConsultationAverageMinutes(doctorId, queueDate) {
+  const rows = await sql`
+    SELECT AVG(EXTRACT(EPOCH FROM (q.completed_at - q.started_at)) / 60.0) AS avg_duration
+    FROM queue q
+    WHERE q.doctor_id = ${doctorId}
+      AND q.queue_date = ${queueDate}
+      AND q.started_at IS NOT NULL
+      AND q.completed_at IS NOT NULL
+  `;
+
+  return safeNumber(rows[0]?.avg_duration);
+}
+
+async function getDoctorAnalyticsAverageMinutes(doctorId) {
+  if (!(await hasDoctorAnalyticsTable())) {
+    return 0;
+  }
+
+  const rows = await sql`
+    SELECT AVG(avg_consultation_duration_minutes) AS avg_duration
+    FROM doctor_analytics
+    WHERE doctor_id = ${doctorId}
+  `;
+
+  return safeNumber(rows[0]?.avg_duration);
+}
+
+async function getDoctorDelayMinutes(doctorId) {
+  if (!(await hasDoctorDelaysTable())) {
+    return 0;
+  }
+
+  try {
+    const rows = await sql`
+      SELECT delay_minutes
+      FROM doctor_delays
+      WHERE doctor_id = ${doctorId}
+        AND active = true
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    return safeNumber(rows[0]?.delay_minutes);
+  } catch {
+    return 0;
+  }
+}
+
+async function getPredictionInputs(doctorId, queueDate) {
+  const [scheduleMinutes, observedMinutes, analyticsMinutes, doctorDelayMinutes] =
+    await Promise.all([
+      getConsultationDurationMinutes(doctorId, queueDate),
+      getObservedConsultationAverageMinutes(doctorId, queueDate),
+      getDoctorAnalyticsAverageMinutes(doctorId),
+      getDoctorDelayMinutes(doctorId),
+    ]);
+
+  const avgConsultationMinutes = weightedAverage(
+    [
+      { value: scheduleMinutes, weight: 0.5 },
+      { value: observedMinutes, weight: 0.3 },
+      { value: analyticsMinutes, weight: 0.2 },
+    ],
+    scheduleMinutes || 30,
+  );
+
+  return {
+    scheduleMinutes,
+    observedMinutes,
+    analyticsMinutes,
+    doctorDelayMinutes,
+    avgConsultationMinutes,
+  };
+}
+
+async function getDoctorAppointmentsSnapshot(doctorId, queueDate) {
+  const rows = await sql`
     SELECT
-      q.id,
-      q.appointment_id,
+      a.id AS appointment_id,
+      a.patient_id,
+      a.doctor_id,
+      a.appointment_date,
+      a.slot_time,
+      a.status,
+      a.token_number,
+      a.checked_in_at,
+      a.created_at,
+      a.updated_at,
+      p.name AS patient_name,
+      p.phone AS patient_phone,
+      d.name AS doctor_name,
+      q.id AS queue_id,
       q.token_no,
-      q.status,
+      q.status AS queue_status,
       q.queue_date,
       q.queued_at,
       q.started_at,
-      q.completed_at,
-      a.patient_id,
-      a.doctor_id,
-      a.slot_time,
-      a.status AS appointment_status,
-      p.name AS patient_name,
-      p.phone AS patient_phone,
-      d.name AS doctor_name
-    FROM queue q
-    JOIN appointments a ON a.id = q.appointment_id
-    JOIN patients p ON p.id = a.patient_id
+      q.completed_at
+    FROM appointments a
     JOIN doctors d ON d.id = a.doctor_id
-    WHERE q.doctor_id = ${doctorId}
-      AND q.queue_date = ${queueDate}
+    LEFT JOIN patients p ON p.id = a.patient_id
+    LEFT JOIN queue q ON q.appointment_id = a.id
+    WHERE a.doctor_id = ${doctorId}
+      AND a.appointment_date = ${queueDate}
       AND COALESCE(a.is_deleted, false) = false
-    ORDER BY q.token_no ASC
+      AND a.status <> 'cancelled'
+    ORDER BY a.slot_time ASC NULLS LAST, a.created_at ASC
   `;
+
+  return rows.map((row, index) => ({
+    ...row,
+    normalized_status: normalizeAppointmentStatus(row),
+    virtual_token_number: index + 1,
+  }));
 }
 
-function mapQueueRow(row, index, consultationMinutes) {
-  const isCompleted = row.status === "completed";
-  const position = isCompleted ? null : index + 1;
-  const estimatedWaitMinutes = isCompleted
-    ? 0
-    : Math.max(0, index) * consultationMinutes;
+function buildPredictionRows(rows, inputs, queueDate) {
+  const now = new Date();
+  const activeRows = rows.filter((row) =>
+    ACTIVE_APPOINTMENT_STATUSES.has(row.normalized_status),
+  );
+  const completedRows = rows.filter((row) =>
+    COMPLETED_APPOINTMENT_STATUSES.has(row.normalized_status) || row.queue_status === "completed",
+  );
+  const currentInProgress = activeRows.find((row) => row.normalized_status === "in_progress");
+  const latestCompletedAt = completedRows
+    .map((row) => (row.completed_at ? new Date(row.completed_at) : null))
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+
+  const earliestScheduledAt = activeRows
+    .map((row) => parseSlotDateTime(row.appointment_date, row.slot_time))
+    .filter(Boolean)
+    .sort((a, b) => a.getTime() - b.getTime())[0] || addMinutes(now, inputs.doctorDelayMinutes);
+
+  let cursor;
+  if (currentInProgress) {
+    cursor = new Date(now);
+  } else if (latestCompletedAt) {
+    cursor = new Date(Math.max(now.getTime(), latestCompletedAt.getTime()));
+  } else if (isSameDay(now, queueDate)) {
+    cursor = new Date(Math.max(now.getTime(), earliestScheduledAt.getTime()));
+    cursor = addMinutes(cursor, inputs.doctorDelayMinutes);
+  } else {
+    cursor = addMinutes(earliestScheduledAt, inputs.doctorDelayMinutes);
+  }
+
+  const predictedMap = new Map();
+
+  for (const row of activeRows) {
+    const scheduledAt = parseSlotDateTime(row.appointment_date, row.slot_time) || new Date(cursor);
+    const durationMinutes = inputs.avgConsultationMinutes;
+    let predictedStart;
+    let predictedEnd;
+
+    if (row.normalized_status === "in_progress") {
+      const startedAt = row.started_at ? new Date(row.started_at) : new Date(now);
+      const elapsedMinutes = diffMinutes(now, startedAt);
+      const remainingMinutes = Math.max(2, Math.ceil(durationMinutes - elapsedMinutes));
+      predictedStart = startedAt;
+      predictedEnd = addMinutes(now, remainingMinutes);
+      cursor = new Date(predictedEnd);
+    } else {
+      predictedStart = new Date(Math.max(cursor.getTime(), scheduledAt.getTime()));
+      predictedEnd = addMinutes(predictedStart, durationMinutes);
+      cursor = new Date(predictedEnd);
+    }
+
+    predictedMap.set(String(row.appointment_id), {
+      predicted_start_at: predictedStart,
+      predicted_end_at: predictedEnd,
+      duration_minutes: durationMinutes,
+    });
+  }
 
   return {
-    id: row.id,
-    queue_id: row.id,
+    now,
+    activeRows,
+    predictedMap,
+  };
+}
+
+function buildQueueStatus(row, predictedMap, activeRows, inputs, now) {
+  const normalizedStatus = row.normalized_status;
+  const prediction = predictedMap.get(String(row.appointment_id));
+  const scheduledAt = parseSlotDateTime(row.appointment_date, row.slot_time);
+  const checkedIn = LIVE_QUEUE_STATUSES.has(normalizedStatus);
+  const queueMode = checkedIn ? "live_queue" : "pre_checkin";
+
+  const targetIndex = activeRows.findIndex(
+    (entry) => String(entry.appointment_id) === String(row.appointment_id),
+  );
+
+  const peopleAhead = activeRows.reduce((count, candidate, index) => {
+    if (index >= targetIndex) return count;
+    if (checkedIn) {
+      return count + (LIVE_QUEUE_STATUSES.has(candidate.normalized_status) ? 1 : 0);
+    }
+
+    return count + (isLikelyNoShow(candidate, now) ? 0 : 1);
+  }, 0);
+
+  const tokenNumber = safeNumber(row.token_no) || safeNumber(row.token_number) || row.virtual_token_number;
+  const expectedConsultationTime = prediction?.predicted_start_at || scheduledAt;
+  const estimatedWaitMinutes = expectedConsultationTime
+    ? diffMinutes(expectedConsultationTime, now)
+    : 0;
+  const leaveForClinicAt = expectedConsultationTime
+    ? addMinutes(expectedConsultationTime, -15)
+    : null;
+
+  return {
+    queue_id: row.queue_id || null,
     appointment_id: row.appointment_id,
     patient_id: row.patient_id,
     doctor_id: row.doctor_id,
     doctor_name: row.doctor_name,
     patient_name: row.patient_name,
     patient_phone: row.patient_phone,
-    slot_time: row.slot_time,
-    token_number: row.token_no,
-    token_no: row.token_no,
-    status:
-      row.status === "in-progress"
-        ? "in_progress"
-        : row.status === "waiting"
-          ? "arrived"
-          : row.status,
-    raw_status: row.status,
-    position_in_queue: position,
-    position,
+    queue_date: row.queue_date || row.appointment_date,
+    scheduled_time: row.slot_time,
+    scheduled_at: toIsoStringOrNull(scheduledAt),
+    token_number: tokenNumber,
+    position: checkedIn ? peopleAhead + 1 : null,
+    position_in_queue: checkedIn ? peopleAhead + 1 : null,
+    people_ahead: peopleAhead,
     estimated_wait_minutes: estimatedWaitMinutes,
-    appointment_status: row.appointment_status,
-    queue_date: row.queue_date,
+    expected_consultation_time: toIsoStringOrNull(expectedConsultationTime),
+    expected_completion_time: toIsoStringOrNull(prediction?.predicted_end_at || null),
+    leave_for_clinic_at: toIsoStringOrNull(leaveForClinicAt),
+    avg_consultation_minutes: inputs.avgConsultationMinutes,
+    observed_consultation_minutes: inputs.observedMinutes,
+    doctor_delay_minutes: inputs.doctorDelayMinutes,
+    checked_in: checkedIn,
+    queue_mode: queueMode,
+    status: normalizedStatus,
+    raw_status: row.queue_status || row.status,
     queued_at: row.queued_at,
     started_at: row.started_at,
     completed_at: row.completed_at,
   };
 }
 
+async function getDoctorPredictionSnapshot(doctorId, queueDate = getIsoDate()) {
+  const [rows, inputs] = await Promise.all([
+    getDoctorAppointmentsSnapshot(doctorId, queueDate),
+    getPredictionInputs(doctorId, queueDate),
+  ]);
+
+  const simulation = buildPredictionRows(rows, inputs, queueDate);
+  const statusRows = rows.map((row) =>
+    buildQueueStatus(row, simulation.predictedMap, simulation.activeRows, inputs, simulation.now),
+  );
+
+  return {
+    queueDate,
+    inputs,
+    rows,
+    statusRows,
+    activeStatusRows: statusRows.filter((row) =>
+      ACTIVE_APPOINTMENT_STATUSES.has(row.status),
+    ),
+  };
+}
+
+function getSnapshotCacheKey(doctorId, queueDate) {
+  return `${doctorId}:${queueDate}`;
+}
+
+function setCachedDoctorPredictionSnapshot(doctorId, queueDate, snapshot) {
+  predictionSnapshotCache.set(getSnapshotCacheKey(doctorId, queueDate), {
+    snapshot,
+    expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
+  });
+}
+
+function getCachedDoctorPredictionSnapshotEntry(doctorId, queueDate) {
+  const cacheKey = getSnapshotCacheKey(doctorId, queueDate);
+  const entry = predictionSnapshotCache.get(cacheKey);
+
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    predictionSnapshotCache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.snapshot;
+}
+
+async function getDoctorPredictionSnapshotCached(
+  doctorId,
+  queueDate = getIsoDate(),
+  { forceRefresh = false } = {},
+) {
+  if (!forceRefresh) {
+    const cached = getCachedDoctorPredictionSnapshotEntry(doctorId, queueDate);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const snapshot = await getDoctorPredictionSnapshot(doctorId, queueDate);
+  setCachedDoctorPredictionSnapshot(doctorId, queueDate, snapshot);
+  return snapshot;
+}
+
 async function emitQueueState(io, doctorId, queueDate, changedAppointmentId = null) {
   if (!io || !doctorId || !queueDate) return;
 
-  const consultationMinutes = await getConsultationDurationMinutes(
-    doctorId,
-    queueDate,
-  );
-  const rows = await getQueueSnapshot(doctorId, queueDate);
-  const queue = rows.map((row, index) =>
-    mapQueueRow(row, index, consultationMinutes),
-  );
+  const snapshot = await getDoctorPredictionSnapshotCached(doctorId, queueDate, {
+    forceRefresh: true,
+  });
+  const liveQueue = snapshot.statusRows.filter((entry) => entry.queue_id);
 
   io.to(`doctor-${doctorId}`).emit("queue-update", {
     doctor_id: doctorId,
     queue_date: queueDate,
-    queue_size: queue.filter((entry) => entry.raw_status !== "completed").length,
-    queue,
+    queue_size: liveQueue.filter((entry) => entry.status !== "visited").length,
+    queue: liveQueue,
     changed_appointment_id: changedAppointmentId,
+    avg_consultation_minutes: snapshot.inputs.avgConsultationMinutes,
+    doctor_delay_minutes: snapshot.inputs.doctorDelayMinutes,
   });
 
-  queue.forEach((entry) => {
+  snapshot.activeStatusRows.forEach((entry) => {
     io.to(`patient-${entry.patient_id}`).emit("queue-position-updated", {
       appointment_id: entry.appointment_id,
       token_number: entry.token_number,
       new_position: entry.position,
+      people_ahead: entry.people_ahead,
       estimated_wait_minutes: entry.estimated_wait_minutes,
+      expected_consultation_time: entry.expected_consultation_time,
+      leave_for_clinic_at: entry.leave_for_clinic_at,
+      doctor_delay_minutes: entry.doctor_delay_minutes,
+      avg_consultation_minutes: entry.avg_consultation_minutes,
+      queue_mode: entry.queue_mode,
+      checked_in: entry.checked_in,
       status: entry.status,
       doctor_id: entry.doctor_id,
       doctor_name: entry.doctor_name,
     });
 
-    if (entry.raw_status === "in-progress") {
+    if (entry.status === "in_progress") {
       io.to(`patient-${entry.patient_id}`).emit("your-turn", {
         appointment_id: entry.appointment_id,
         status: "in_progress",
@@ -201,16 +546,46 @@ async function ensureQueueEntryForAppointment(appointmentId) {
       return { appointment, queue: existing[0] };
     }
 
-    await tx`SELECT pg_advisory_xact_lock(hashtext(${`queue:${appointment.doctor_id}:${queueDate}`}))`;
-
-    const nextTokenRows = await tx`
-      SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
-      FROM queue
-      WHERE doctor_id = ${appointment.doctor_id}
-        AND queue_date = ${queueDate}
+    const slotOrder = await tx`
+      SELECT COUNT(*)::int AS next_token
+      FROM appointments a
+      WHERE a.doctor_id = ${appointment.doctor_id}
+        AND a.appointment_date = ${queueDate}
+        AND COALESCE(a.is_deleted, false) = false
+        AND a.status <> 'cancelled'
+        AND (
+          a.slot_time < (
+            SELECT slot_time
+            FROM appointments
+            WHERE id = ${appointmentId}
+          )
+          OR (
+            a.slot_time = (
+              SELECT slot_time
+              FROM appointments
+              WHERE id = ${appointmentId}
+            )
+            AND (
+              a.created_at < (
+                SELECT created_at
+                FROM appointments
+                WHERE id = ${appointmentId}
+              )
+              OR (
+                a.created_at = (
+                  SELECT created_at
+                  FROM appointments
+                  WHERE id = ${appointmentId}
+                )
+                AND a.id <= ${appointmentId}
+              )
+            )
+          )
+        )
     `;
 
-    const tokenNo = Number(nextTokenRows[0]?.next_token || 1);
+    const preferredToken = safeNumber(slotOrder[0]?.next_token) || 1;
+    const tokenNo = preferredToken;
 
     const inserted = await tx`
       INSERT INTO queue (
@@ -246,46 +621,37 @@ async function ensureQueueEntryForAppointment(appointmentId) {
 }
 
 export async function getQueueForDoctor(doctorId, date = getIsoDate()) {
-  const queueDate = date || getIsoDate();
-  const consultationMinutes = await getConsultationDurationMinutes(
-    doctorId,
-    queueDate,
-  );
-  const rows = await getQueueSnapshot(doctorId, queueDate);
-
-  return rows.map((row, index) => mapQueueRow(row, index, consultationMinutes));
+  const snapshot = await getDoctorPredictionSnapshotCached(doctorId, date || getIsoDate());
+  return snapshot.statusRows.filter((entry) => entry.queue_id);
 }
 
 export async function getQueuePosition(appointmentId, patientId = null) {
   const rows = await sql`
     SELECT
-      q.id,
-      q.appointment_id,
-      q.token_no,
-      q.status,
-      q.queue_date,
+      a.id AS appointment_id,
       a.patient_id,
       a.doctor_id,
-      d.name AS doctor_name
-    FROM queue q
-    JOIN appointments a ON a.id = q.appointment_id
-    JOIN doctors d ON d.id = a.doctor_id
-    WHERE q.appointment_id = ${appointmentId}
+      a.appointment_date
+    FROM appointments a
+    WHERE a.id = ${appointmentId}
       AND COALESCE(a.is_deleted, false) = false
     LIMIT 1
   `;
 
   const row = rows[0];
   if (!row) {
-    throw new Error("Queue entry not found");
+    throw new Error("Appointment not found");
   }
 
   if (patientId && String(row.patient_id) !== String(patientId)) {
     throw new Error("Unauthorized");
   }
 
-  const queue = await getQueueForDoctor(row.doctor_id, row.queue_date);
-  const current = queue.find(
+  const snapshot = await getDoctorPredictionSnapshotCached(
+    row.doctor_id,
+    row.appointment_date || getIsoDate(),
+  );
+  const current = snapshot.statusRows.find(
     (entry) => String(entry.appointment_id) === String(appointmentId),
   );
 
@@ -293,17 +659,7 @@ export async function getQueuePosition(appointmentId, patientId = null) {
     throw new Error("Queue entry not found");
   }
 
-  return {
-    appointment_id: current.appointment_id,
-    queue_id: current.queue_id,
-    token_number: current.token_number,
-    position: current.position,
-    estimated_wait_minutes: current.estimated_wait_minutes,
-    doctor_id: current.doctor_id,
-    doctor_name: current.doctor_name,
-    patient_id: current.patient_id,
-    status: current.status,
-  };
+  return current;
 }
 
 export async function markArrived(appointmentId, io) {
@@ -316,7 +672,7 @@ export async function markArrived(appointmentId, io) {
     queue_id: queue.id,
     token_number: queue.token_no,
     status: "arrived",
-    message: "Patient marked as arrived",
+    message: "Patient checked in successfully",
   };
 }
 
@@ -401,6 +757,7 @@ export async function skipPatient(appointmentId, io, doctorId = null) {
   const rows = await sql`
     UPDATE queue
     SET status = 'waiting',
+        started_at = NULL,
         updated_at = CURRENT_TIMESTAMP
     WHERE appointment_id = ${appointmentId}
       AND status IN ('waiting', 'in-progress')

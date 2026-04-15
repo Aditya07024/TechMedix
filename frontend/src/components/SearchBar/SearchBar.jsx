@@ -3,6 +3,7 @@ import "./SearchBar.css";
 import { useNavigate } from "react-router-dom";
 import Button from '@mui/material/Button';
 import Aipop from "../AiPop/Aipop";
+import next from "../../assets/next.png";
 
 const SearchBar = () => {
   const [medicine, setMedicine] = useState("");
@@ -22,8 +23,9 @@ const SearchBar = () => {
     <div className="main">
       
       <div className="box" id="search-for-medicine">
-        <h3>Search your medicine</h3>
+        
         <form className="search-box" onSubmit={handleSubmit}>
+          <h3>Search and Select your medicine to Search</h3>
           <div className="search-inputs">
             <div className="search-by-medicine">
               <input
@@ -33,20 +35,21 @@ const SearchBar = () => {
                 onChange={(e) => setMedicine(e.target.value)}
               />
             </div>
-            {/* <p>or</p> */}
-            {/* <div className="search-by-salt">
-              <input
-                type="text"
-                placeholder="Name of Solution"
-                value={solution}
-                onChange={(e) => setSolution(e.target.value)}
-              />
-            </div> */}
+            
           </div>
+
           <button type="submit" className="search-btn">
             Search &gt;
           </button>
         </form>
+        <div className="right-div">
+              <img
+                src={next}
+                alt="medicine icon"
+                className="medicine-icon"
+              />
+              
+            </div>
       </div>
       
     </div>

@@ -1,3 +1,4 @@
+import sql from "../config/database.js";
 import {
   markArrived,
   markInProgress,
@@ -9,10 +10,52 @@ import {
 } from "../services/queueService.js";
 import { logAudit } from "../services/auditService.js";
 
+async function getAppointmentAccessRow(appointmentId) {
+  const rows = await sql`
+    SELECT id, patient_id, doctor_id
+    FROM appointments
+    WHERE id = ${appointmentId}
+      AND COALESCE(is_deleted, false) = false
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
+async function ensureAppointmentAccess(req, appointmentId, allowedRoles = []) {
+  const appointment = await getAppointmentAccessRow(appointmentId);
+  if (!appointment) {
+    throw new Error("Appointment not found");
+  }
+
+  if (req.user?.role === "admin") {
+    return appointment;
+  }
+
+  if (
+    allowedRoles.includes("patient") &&
+    req.user?.role === "patient" &&
+    String(req.user.id) === String(appointment.patient_id)
+  ) {
+    return appointment;
+  }
+
+  if (
+    allowedRoles.includes("doctor") &&
+    req.user?.role === "doctor" &&
+    String(req.user.id) === String(appointment.doctor_id)
+  ) {
+    return appointment;
+  }
+
+  throw new Error("Unauthorized");
+}
+
 export async function markPatientArrived(req, res) {
   try {
     const { appointment_id } = req.params;
     const io = req.app.get("io");
+    await ensureAppointmentAccess(req, appointment_id, ["patient", "doctor"]);
 
     const result = await markArrived(appointment_id, io);
 
@@ -33,6 +76,7 @@ export async function markPatientInProgress(req, res) {
   try {
     const { appointment_id } = req.params;
     const io = req.app.get("io");
+    await ensureAppointmentAccess(req, appointment_id, ["doctor"]);
 
     const result = await markInProgress(appointment_id, io, req.user?.id);
 
@@ -53,6 +97,7 @@ export async function markPatientCompleted(req, res) {
   try {
     const { appointment_id } = req.params;
     const io = req.app.get("io");
+    await ensureAppointmentAccess(req, appointment_id, ["doctor"]);
 
     const result = await markCompleted(appointment_id, io, req.user?.id);
 
@@ -111,6 +156,7 @@ export async function skipPatientInQueue(req, res) {
   try {
     const { appointment_id } = req.params;
     const io = req.app.get("io");
+    await ensureAppointmentAccess(req, appointment_id, ["doctor"]);
 
     const result = await skipPatient(appointment_id, io, req.user?.id);
 

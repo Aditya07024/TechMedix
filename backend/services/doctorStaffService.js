@@ -183,25 +183,77 @@ export async function staffHasDoctorAccess(staffId, doctorId) {
     LIMIT 1
   `;
 
-  return rows.length > 0;
+  if (rows.length > 0) {
+    return true;
+  }
+
+  const legacyRows = await sql`
+    SELECT id
+    FROM staff
+    WHERE id = ${staffId}
+      AND (
+        active_doctor_id = ${doctorId}
+        OR created_by_doctor_id = ${doctorId}
+      )
+    LIMIT 1
+  `;
+
+  return legacyRows.length > 0;
 }
 
 export async function getStaffDoctors(staffId) {
   return sql`
-    SELECT
-      d.id,
-      d.name,
-      d.specialty,
-      d.branch_id,
-      dsm.role AS assignment_role,
-      dsm.status,
-      s.active_doctor_id
-    FROM doctor_staff_map dsm
-    JOIN doctors d ON d.id = dsm.doctor_id
-    JOIN staff s ON s.id = dsm.staff_id
-    WHERE dsm.staff_id = ${staffId}
-      AND dsm.status = 'active'
-    ORDER BY d.name ASC
+    WITH mapped_doctors AS (
+      SELECT
+        d.id,
+        d.name,
+        d.specialty,
+        d.branch_id,
+        dsm.role AS assignment_role,
+        dsm.status,
+        s.active_doctor_id
+      FROM doctor_staff_map dsm
+      JOIN doctors d ON d.id = dsm.doctor_id
+      JOIN staff s ON s.id = dsm.staff_id
+      WHERE dsm.staff_id = ${staffId}
+        AND dsm.status = 'active'
+    ),
+    legacy_doctors AS (
+      SELECT
+        d.id,
+        d.name,
+        d.specialty,
+        d.branch_id,
+        'assistant'::text AS assignment_role,
+        'active'::text AS status,
+        s.active_doctor_id
+      FROM staff s
+      JOIN doctors d
+        ON d.id = s.active_doctor_id
+        OR d.id = s.created_by_doctor_id
+      WHERE s.id = ${staffId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM doctor_staff_map dsm
+          WHERE dsm.staff_id = s.id
+            AND dsm.doctor_id = d.id
+            AND dsm.status = 'active'
+        )
+    )
+    SELECT DISTINCT ON (combined.id)
+      combined.id,
+      combined.name,
+      combined.specialty,
+      combined.branch_id,
+      combined.assignment_role,
+      combined.status,
+      combined.active_doctor_id
+    FROM (
+      SELECT * FROM mapped_doctors
+      UNION ALL
+      SELECT * FROM legacy_doctors
+    ) AS combined
+    ORDER BY combined.id, combined.name ASC
   `;
 }
 

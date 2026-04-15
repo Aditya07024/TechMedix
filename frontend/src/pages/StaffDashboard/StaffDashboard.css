@@ -66,13 +66,31 @@
 }
 
 .staff-status-banner {
-  max-width: 1280px;
-  margin: 0 auto 20px;
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(420px, calc(100vw - 32px));
   padding: 14px 16px;
   border-radius: 16px;
   background: #ecfccb;
   color: #365314;
   border: 1px solid #bef264;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
+}
+
+.staff-status-banner button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .staff-stats-grid,
@@ -132,6 +150,20 @@
   display: grid;
   grid-template-columns: 1.25fr 1fr;
   gap: 18px;
+}
+
+.staff-live-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.staff-live-queue-panel {
+  padding: 18px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
 }
 
 .staff-panel {
@@ -208,6 +240,33 @@
   color: #fff;
 }
 
+.staff-context-button {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.staff-context-button.is-active {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.staff-context-indicator {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.staff-context-indicator.is-active {
+  background: #14532d;
+  color: #fff;
+}
+
 .staff-pill {
   display: inline-block;
   border-radius: 999px;
@@ -234,6 +293,30 @@
 .status-completed {
   background: #dcfce7;
   color: #166534;
+}
+
+.staff-payment-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.payment-paid-online,
+.payment-paid-wallet,
+.payment-paid-cash,
+.payment-paid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.payment-pending {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.payment-due,
+.payment-unpaid {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .staff-queue-list,

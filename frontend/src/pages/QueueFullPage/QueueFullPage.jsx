@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, Clock3, Ticket, UserRound } from "lucide-react";
 import { API_BASE_URL } from "../../utils/apiBase";
+import { subscribeToQueue } from "../../api/socketService";
 import "./QueueFullPage.css";
 
 export default function QueueFullPage() {
@@ -14,28 +15,25 @@ export default function QueueFullPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let intervalId = null;
+  const appointmentId = location.state?.appointmentId;
 
-    const loadQueue = async (showLoader = false) => {
+  const loadQueue = useCallback(
+    async (showLoader = false) => {
       try {
         if (showLoader) {
           setLoading(true);
         }
         setError("");
 
-        const displayPromise = axios.get(
-          `${API_BASE_URL}/api/v2/queue/doctor/${doctorId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-            params: {
-              date: new Date().toISOString().split("T")[0],
-            },
+        const displayPromise = axios.get(`${API_BASE_URL}/api/v2/queue/doctor/${doctorId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
-        );
-        const positionPromise = location.state?.appointmentId
+          params: {
+            date: new Date().toISOString().split("T")[0],
+          },
+        });
+        const positionPromise = appointmentId
           ? axios.get(`${API_BASE_URL}/api/v2/queue/position/${location.state.appointmentId}`, {
               headers: {
                 Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -55,19 +53,40 @@ export default function QueueFullPage() {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [appointmentId, doctorId, location.state?.appointmentId],
+  );
+
+  useEffect(() => {
+    let intervalId = null;
+    let unsubscribeQueue;
 
     if (doctorId) {
       loadQueue(true);
-      intervalId = setInterval(() => loadQueue(false), 5000);
+      unsubscribeQueue = subscribeToQueue(doctorId, (payload) => {
+        if (payload?.doctor_id && String(payload.doctor_id) !== String(doctorId)) {
+          return;
+        }
+
+        if (Array.isArray(payload?.queue)) {
+          setQueueData(payload);
+        }
+
+        loadQueue(false);
+      });
+
+      intervalId = setInterval(() => loadQueue(false), 30000);
     }
 
     return () => {
+      if (unsubscribeQueue) {
+        unsubscribeQueue();
+      }
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [doctorId, location.state?.appointmentId]);
+  }, [doctorId, loadQueue]);
 
   return (
     <div className="queue-full-page">

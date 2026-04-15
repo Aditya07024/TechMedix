@@ -24,6 +24,13 @@ export function validateAppointmentBooking(data) {
     errors.push("share_history must be boolean");
   }
 
+  if (
+    data.share_history_scope != null &&
+    !Array.isArray(data.share_history_scope)
+  ) {
+    errors.push("share_history_scope must be an array");
+  }
+
   return {
     isValid: errors.length === 0,
     errors,

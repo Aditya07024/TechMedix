@@ -129,6 +129,8 @@ export const doctorApi = {
   // 👇 Patient data access
   getPatientData: (uniqueCode) =>
     api.get(`/api/doctor/patient-data/${uniqueCode}`),
+  getSharedAppointmentContext: (appointmentId) =>
+    api.get(`/api/doctor/appointments/${appointmentId}/shared-context`),
   createStaff: (data) => api.post("/api/doctor/staff/create", data),
   getMyStaff: () => api.get("/api/doctor/staff"),
   getStaffRequests: () => api.get("/api/doctor/staff/requests"),
@@ -145,8 +147,8 @@ export const staffApi = {
     api.get("/api/staff/appointments/today", { params }),
   markArrived: (appointmentId) =>
     api.post(`/api/staff/appointments/${appointmentId}/arrive`),
-  generateToken: (appointmentId) =>
-    api.post("/api/staff/queue/token", { appointment_id: appointmentId }),
+  generateToken: (appointmentId, doctor_id = null) =>
+    api.post("/api/staff/queue/token", { appointment_id: appointmentId, doctor_id }),
   getLiveQueue: (doctorId, date) =>
     api.get("/api/staff/queue/live", {
       params: { doctor_id: doctorId, date },

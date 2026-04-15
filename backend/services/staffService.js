@@ -409,10 +409,22 @@ export async function getTodayAppointments({ hospitalId = null, doctorId = null,
       p.gender,
       p.age,
       d.name AS doctor_name,
-      d.specialty
+      d.specialty,
+      pay.id AS payment_id,
+      pay.status AS payment_status,
+      pay.payment_method,
+      pay.amount AS payment_amount
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
     JOIN doctors d ON d.id = a.doctor_id
+    LEFT JOIN LATERAL (
+      SELECT id, status, payment_method, amount
+      FROM payments
+      WHERE appointment_id = a.id
+        AND COALESCE(is_deleted, false) = false
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    ) pay ON true
     WHERE a.appointment_date = ${today}
       AND COALESCE(a.is_deleted, false) = false
       AND (${doctorId}::uuid IS NULL OR a.doctor_id = ${doctorId})

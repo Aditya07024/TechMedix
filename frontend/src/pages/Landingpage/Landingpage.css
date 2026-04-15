@@ -263,15 +263,31 @@
 .landing-preview-card__screens div,
 .landing-qr-placeholder {
   min-height: 158px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #f2f7f7 0%, #edf3f2 100%);
+  
+  
 }
 
 .landing-preview-card__screens div {
   display: grid;
   place-items: center;
-  color: var(--landing-muted);
   font-size: 1.1rem;
+  img{
+    width: 80%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+    border-radius: 22px;
+    padding-top: 5px;
+  }
+  .avt{
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+    border: 1.5px solid rgba(0, 0, 0, 0.273);
+    border-radius: 22px;
+    padding-top: 5px;
+  }
 }
 
 .landing-preview-card__controls {
@@ -388,7 +404,7 @@
 }
 
 .landing-card--ai {
-  min-height: 334px;
+  min-height: 160px;
 }
 
 .landing-card__icon {
@@ -831,6 +847,10 @@
   }
 
   .landing-download__preview {
+    display: none;
+  }
+
+  .landing-preview-card {
     display: none;
   }
 

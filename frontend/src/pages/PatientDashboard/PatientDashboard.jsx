@@ -22,6 +22,7 @@ import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect
 import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
 import { assets } from "../../assets/assets";
 import { toBackendUrl } from "../../utils/apiBase";
+import { formatTime12Hour } from "../../utils/dateTime";
 import {
   Activity,
   AlertTriangle,
@@ -1107,6 +1108,16 @@ export default function PatientDashboard() {
     })),
   ];
   const bookedAppointments = appointments.filter((a) => a.status === "booked");
+  const activeQueueAppointment = appointments
+    .filter((appointment) =>
+      ["arrived", "in_progress", "in-progress"].includes(appointment.status),
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(`${a.appointment_date} ${a.slot_time || "00:00"}`) -
+        new Date(`${b.appointment_date} ${b.slot_time || "00:00"}`),
+    )[0] || null;
   const nextAppointment =
     bookedAppointments.length > 0
       ? bookedAppointments
@@ -1891,7 +1902,7 @@ export default function PatientDashboard() {
                           </div>
                           <div>
                             <span>Time</span>
-                            <strong>{nextAppointment.slot_time || "--"}</strong>
+                            <strong>{formatTime12Hour(nextAppointment.slot_time, "--")}</strong>
                           </div>
                         </div>
                       </>
@@ -2562,17 +2573,20 @@ export default function PatientDashboard() {
                 <p>Track your live position, estimated wait, and visit readiness in one place.</p>
               </div>
             </div>
-            {appointments.some((a) => a.status === "booked") ? (
+            {activeQueueAppointment || nextAppointment ? (
               <PatientQueuePosition
-                appointmentId={
-                  appointments.find((a) => a.status === "booked")?.id
-                }
+                appointmentId={(activeQueueAppointment || nextAppointment).id}
                 patientId={user?.id}
+                appointmentDate={(activeQueueAppointment || nextAppointment).appointment_date}
+                slotTime={(activeQueueAppointment || nextAppointment).slot_time}
+                appointmentStatus={(activeQueueAppointment || nextAppointment).status}
+                doctorName={(activeQueueAppointment || nextAppointment).doctor_name}
+                doctorId={(activeQueueAppointment || nextAppointment).doctor_id}
               />
             ) : (
               <div className="empty-panel">
-                <h4>No active appointments in queue</h4>
-                <p>Your queue details appear here once a booked visit is active.</p>
+                <h4>No active queue right now</h4>
+                <p>Your queue details appear here after clinic check-in marks the appointment as arrived.</p>
               </div>
             )}
           </div>

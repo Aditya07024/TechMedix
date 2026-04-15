@@ -128,6 +128,9 @@ import medicineRoutes from "./routes/medicine.routes.js";
 import staffRoutes from "./routes/staffRoutes.js";
 import doctorStaffRoutes from "./routes/doctorStaffRoutes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
+import { getHealthWalletDocumentsByPatientId } from "./models-pg/healthWalletDocument.js";
+import { getPatientReports } from "./services/staffService.js";
+import { getPatientRecordings } from "./services/recordingService.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
@@ -192,6 +195,12 @@ function mapPatientRowToFrontend(row) {
     uniqueCode: row.unique_code,
     createdAt: row.created_at,
   };
+}
+
+function normalizeShareScope(scope = []) {
+  const allowed = new Set(["ehr", "prescriptions", "recordings", "reports"]);
+  if (!Array.isArray(scope)) return [];
+  return scope.filter((item) => allowed.has(item));
 }
 
 // Coerce form values to number or null for DB integer/numeric columns (Postgres rejects "")
@@ -492,6 +501,41 @@ async function generateMedicalInsightsLocal(payload) {
 const apiKey = process.env.API_KEY;
 const baseUrl = process.env.BASE_URL;
 
+const LOCAL_DEV_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+]);
+
+function getAllowedOrigins() {
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.CORS_ORIGIN,
+    process.env.ALLOWED_ORIGINS,
+  ]
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return new Set([...LOCAL_DEV_ORIGINS, ...configuredOrigins]);
+}
+
+const allowedOrigins = getAllowedOrigins();
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+  optionsSuccessStatus: 204,
+};
+
 // Security middleware
 app.use(
   helmet({
@@ -500,21 +544,13 @@ app.use(
 );
 
 app.use(
+  cors(corsOptions),
+);
+app.options("/{*splat}", cors(corsOptions));
+app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
-  }),
-);
-
-// CORS configuration - allow all origins in development for mobile app compatibility
-// In production, restrict to specific origins
-app.use(
-  cors({
-    origin:
-      process.env.NODE_ENV === "production" ? process.env.FRONTEND_URL : true, // Allow all origins in development (needed for mobile apps)
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   }),
 );
 app.use(express.json()); // for parsing application/json
@@ -908,6 +944,160 @@ app.get(
     } catch (error) {
       console.error("Error fetching patient data for doctor:", error);
       res.status(500).json({ error: "Failed to retrieve patient data." });
+    }
+  },
+);
+
+app.get(
+  "/api/doctor/appointments/:appointmentId/shared-context",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const doctorAuthId = req.user?.doctor_id || req.user?.id;
+      const { appointmentId } = req.params;
+      const rows = await sql`
+        SELECT
+          a.id AS appointment_id,
+          a.patient_id AS appointment_patient_id,
+          a.doctor_id,
+          a.appointment_date,
+          a.slot_time,
+          a.share_history,
+          a.share_history_scope,
+          p.id AS patient_row_id,
+          p.name,
+          p.email,
+          p.age,
+          p.gender,
+          p.phone,
+          p.address,
+          p.blood_group,
+          p.medical_history,
+          p.unique_code,
+          p.created_at
+        FROM appointments a
+        JOIN patients p ON p.id = a.patient_id
+        WHERE a.id = ${appointmentId}
+          AND COALESCE(a.is_deleted, FALSE) = FALSE
+        LIMIT 1
+      `;
+
+      const appointment = rows[0];
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      if (String(appointment.doctor_id) !== String(doctorAuthId)) {
+        return res.status(403).json({ error: "Unauthorized for this appointment" });
+      }
+
+      const shareHistory = Boolean(appointment.share_history);
+      const shareScope = normalizeShareScope(appointment.share_history_scope);
+      const effectiveScope =
+        shareHistory && shareScope.length > 0
+          ? shareScope
+          : shareHistory
+            ? ["ehr", "prescriptions", "recordings", "reports"]
+            : [];
+
+      const patient = mapPatientRowToFrontend({
+        id: appointment.patient_row_id,
+        name: appointment.name,
+        email: appointment.email,
+        age: appointment.age,
+        gender: appointment.gender,
+        phone: appointment.phone,
+        address: appointment.address,
+        blood_group: appointment.blood_group,
+        medical_history: appointment.medical_history,
+        unique_code: appointment.unique_code,
+        created_at: appointment.created_at,
+      });
+      const responsePayload = {
+        appointment: {
+          id: appointment.appointment_id,
+          doctor_id: appointment.doctor_id,
+          patient_id: appointment.appointment_patient_id,
+          appointment_date: appointment.appointment_date,
+          slot_time: appointment.slot_time,
+          share_history: shareHistory,
+          share_history_scope: effectiveScope,
+        },
+        patient,
+        allowed_sections: effectiveScope,
+        ehrHistory: [],
+        prescriptions: [],
+        recordings: [],
+        reports: [],
+      };
+
+      if (!shareHistory) {
+        return res.status(200).json(responsePayload);
+      }
+
+      const patientId = appointment.appointment_patient_id;
+      const [ehrRows, prescriptionRows, recordingRows, reportRows, walletRows] =
+        await Promise.allSettled([
+          effectiveScope.includes("ehr")
+            ? getPatientDataByPatientId(patientId)
+            : Promise.resolve([]),
+          effectiveScope.includes("prescriptions")
+            ? sql`
+                SELECT
+                  pm.id,
+                  pm.medicine_name,
+                  pm.dosage,
+                  pm.frequency,
+                  pm.duration
+                FROM prescription_medicines pm
+                JOIN prescriptions p ON pm.prescription_id = p.id
+                WHERE p.user_id = ${patientId}
+                ORDER BY p.created_at DESC
+              `
+            : Promise.resolve([]),
+          effectiveScope.includes("recordings")
+            ? getPatientRecordings(patientId)
+            : Promise.resolve([]),
+          effectiveScope.includes("reports")
+            ? getPatientReports(patientId)
+            : Promise.resolve([]),
+          effectiveScope.includes("reports")
+            ? getHealthWalletDocumentsByPatientId(patientId)
+            : Promise.resolve([]),
+        ]);
+
+      responsePayload.ehrHistory =
+        ehrRows.status === "fulfilled"
+          ? ehrRows.value.map(mapPatientDataRowToFrontend)
+          : [];
+      responsePayload.prescriptions =
+        prescriptionRows.status === "fulfilled" ? prescriptionRows.value : [];
+      responsePayload.recordings =
+        recordingRows.status === "fulfilled" ? recordingRows.value : [];
+      responsePayload.reports = [
+        ...((reportRows.status === "fulfilled" ? reportRows.value : []).map((report) => ({
+          id: `report-${report.id}`,
+          file_name: report.file_name,
+          file_type: report.file_type,
+          file_url: report.secure_url || report.file_path,
+          source: "report",
+          created_at: report.created_at,
+        }))),
+        ...((walletRows.status === "fulfilled" ? walletRows.value : []).map((doc) => ({
+          id: `wallet-${doc.id}`,
+          file_name: doc.file_name,
+          file_type: doc.mime_type,
+          file_url: doc.file_url,
+          source: "health_wallet",
+          created_at: doc.created_at,
+        }))),
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      return res.status(200).json(responsePayload);
+    } catch (error) {
+      console.error("Error fetching doctor shared patient context:", error);
+      return res.status(500).json({ error: "Failed to retrieve shared patient context." });
     }
   },
 );

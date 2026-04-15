@@ -32,6 +32,9 @@ export async function createPayment({
           appointment_date: bookingDetails.appointment_date,
           slot_time: bookingDetails.slot_time,
           share_history: Boolean(bookingDetails.share_history),
+          share_history_scope: Array.isArray(bookingDetails.share_history_scope)
+            ? bookingDetails.share_history_scope
+            : [],
           recording_consent_patient: Boolean(
             bookingDetails.recording_consent_patient,
           ),

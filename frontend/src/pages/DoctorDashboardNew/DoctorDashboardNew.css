@@ -111,6 +111,12 @@
   line-height: 1.7;
 }
 
+.doctor-helper-text {
+  margin: 14px 0 0;
+  color: var(--doctor-muted);
+  line-height: 1.6;
+}
+
 .doctor-command-actions {
   display: grid;
   gap: 16px;
@@ -250,19 +256,38 @@
 }
 
 .doctor-banner {
-  margin-bottom: 18px;
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(420px, calc(100vw - 32px));
   padding: 14px 18px;
   border-radius: 16px;
   background: #dcf3eb;
   border: 1px solid rgba(11, 97, 82, 0.14);
   color: #0b6152;
   font-weight: 600;
+  box-shadow: var(--doctor-shadow);
 }
 
 .doctor-banner.is-error {
   background: #ffe9e2;
   color: #9f4337;
   border-color: rgba(159, 67, 55, 0.16);
+}
+
+.doctor-banner-close {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .doctor-workspace {

@@ -15,6 +15,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const clearLocalAuth = useCallback(() => {
+    setIsAuthenticated(false);
+    setUser(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    delete axios.defaults.headers.common.Authorization;
+  }, []);
+
   const login = (userData, token = null) => {
     setIsAuthenticated(true);
     setUser(userData);
@@ -29,38 +37,54 @@ export const AuthProvider = ({ children }) => {
     try {
       await authApi.logout();
     } catch (_) {}
-    setIsAuthenticated(false);
-    setUser(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    delete axios.defaults.headers.common.Authorization;
+    clearLocalAuth();
   };
 
   const refreshAuthStatus = useCallback(async () => {
+    const storedUser = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
+
+    if (storedUser && token) {
+      try {
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+        axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+      } catch {
+        clearLocalAuth();
+      }
+    }
+
     try {
       const res = await authApi.status();
       const loggedIn = Boolean(res?.data?.ifLogin);
-      setIsAuthenticated(loggedIn);
+
+      if (!loggedIn) {
+        clearLocalAuth();
+        return;
+      }
+
+      setIsAuthenticated(true);
       if (loggedIn) {
-        const stored = localStorage.getItem("user");
-        if (stored) setUser(JSON.parse(stored));
-        const token = localStorage.getItem("token");
+        const statusUser = res?.data?.user || null;
+        const currentStored = localStorage.getItem("user");
+        if (statusUser && !currentStored) {
+          setUser(statusUser);
+          localStorage.setItem("user", JSON.stringify(statusUser));
+        } else if (currentStored) {
+          setUser(JSON.parse(currentStored));
+        }
         if (token) {
           axios.defaults.headers.common.Authorization = `Bearer ${token}`;
         }
-      } else {
-        setUser(null);
-        localStorage.removeItem("token");
-        delete axios.defaults.headers.common.Authorization;
       }
     } catch (_) {
-      setIsAuthenticated(false);
-      setUser(null);
-      delete axios.defaults.headers.common.Authorization;
+      if (!storedUser || !token) {
+        clearLocalAuth();
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearLocalAuth]);
 
   useEffect(() => {
     refreshAuthStatus();

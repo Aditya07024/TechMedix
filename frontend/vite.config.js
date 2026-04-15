@@ -7,6 +7,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "", "");
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
+  const backendTarget = env.VITE_API_URL || "http://localhost:8080";
+
+  const backendProxy = {
+    target: backendTarget,
+    changeOrigin: true,
+  };
 
   return {
     plugins: [react()],
@@ -20,10 +26,15 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        "/api": {
-          target: env.VITE_API_URL || "http://localhost:8080",
-          changeOrigin: true,
-        },
+        "/api": backendProxy,
+        "/auth": backendProxy,
+        "/uploads": backendProxy,
+        "/queue": backendProxy,
+        "/aipop": backendProxy,
+        "/new": backendProxy,
+        "/allmedicines": backendProxy,
+        "/medicines": backendProxy,
+        "/prescription": backendProxy,
       },
     },
   };

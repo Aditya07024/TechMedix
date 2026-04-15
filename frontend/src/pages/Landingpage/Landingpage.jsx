@@ -21,6 +21,10 @@ import {
 } from "lucide-react";
 import techMedixApkImage from "../../assets/TechMedix APK.png";
 import dowappImage from "../../assets/dowapp.png";
+import doc from "../../assets/doc.png";
+import pat from "../../assets/pat.png";
+import mid from "../../assets/mid.png";
+
 import "./Landingpage.css";
 
 const featureCards = [
@@ -159,7 +163,6 @@ const aiCards = [
     title: "Report generation",
     description:
       "Generate readable summaries that support follow-ups and continuity.",
-    cta: "Open report generator",
     to: "/home",
     icon: FileText,
   },
@@ -167,7 +170,6 @@ const aiCards = [
     title: "X-ray analysis",
     description:
       "Dedicated analysis flows with history views for patients who need it.",
-    cta: "Open X-ray analyzer",
     to: "/home",
     icon: ScanSearch,
   },
@@ -311,18 +313,22 @@ const Landingpage = ({ setShowLogin }) => {
 
           <div className="landing-preview-card">
             <div className="landing-preview-card__top">
-              <h3>Live consultation preview</h3>
               <div className="landing-chip-group">
-                <span>Video</span>
                 <span>Doctor queue</span>
                 <span>Prescription notes</span>
               </div>
             </div>
 
             <div className="landing-preview-card__screens">
-              <div>Doctor</div>
-              <div>Patient</div>
-              <div>Vitals</div>
+              <div>
+                <img src={doc} alt="Doctor avatar" className="avt"/>
+              </div>
+              <div>
+                <img src={mid} alt="Mid avatar" />
+              </div>
+              <div>
+                <img src={pat} alt="Patient avatar" className="avt"/>
+              </div>
             </div>
 
             <div className="landing-preview-card__controls">

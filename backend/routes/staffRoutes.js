@@ -4,6 +4,7 @@ import path from "path";
 import multer from "multer";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import cloudinary from "../config/cloudinary.js";
+import { createHealthWalletDocument } from "../models-pg/healthWalletDocument.js";
 import {
   generateQueueToken,
   getLimitedPatientProfile,
@@ -55,20 +56,37 @@ async function resolveStaffContext(req) {
 
   const staffProfile = await getStaffProfile(req.user.id);
   const requestedDoctorId = req.query.doctor_id || req.body?.doctor_id || null;
-  const doctorId = requestedDoctorId || staffProfile?.active_doctor_id || null;
 
   if (!staffProfile) {
     throw new Error("Staff profile not found");
   }
 
-  if (doctorId) {
-    const hasAccess = await staffHasDoctorAccess(staffProfile.id, doctorId);
+  if (requestedDoctorId) {
+    const hasAccess = await staffHasDoctorAccess(staffProfile.id, requestedDoctorId);
     if (!hasAccess) {
       throw new Error("Doctor context is not assigned to this staff member");
     }
+    return { staffProfile, doctorId: requestedDoctorId };
   }
 
-  return { staffProfile, doctorId };
+  let doctorId = staffProfile?.active_doctor_id || null;
+
+  if (doctorId) {
+    const hasAccess = await staffHasDoctorAccess(staffProfile.id, doctorId);
+    if (hasAccess) {
+      return { staffProfile, doctorId };
+    }
+  }
+
+  const assignedDoctors = await getStaffDoctors(staffProfile.id);
+  const fallbackDoctorId = assignedDoctors[0]?.id || null;
+
+  if (fallbackDoctorId && fallbackDoctorId !== staffProfile?.active_doctor_id) {
+    await switchStaffDoctor(staffProfile.id, fallbackDoctorId);
+    staffProfile.active_doctor_id = fallbackDoctorId;
+  }
+
+  return { staffProfile, doctorId: fallbackDoctorId };
 }
 
 router.get("/overview", async (req, res) => {
@@ -332,6 +350,20 @@ router.post("/reports", upload.single("report"), async (req, res) => {
       secureUrl,
       publicId,
       storageProvider,
+    });
+
+    await createHealthWalletDocument({
+      patient_id,
+      public_id: publicId || `staff-report-${report.id}`,
+      file_url: secureUrl,
+      file_name: req.file.originalname,
+      resource_type: req.file.mimetype?.startsWith("image/") ? "image" : "raw",
+      format:
+        path.extname(req.file.originalname).slice(1) ||
+        req.file.mimetype?.split("/")[1] ||
+        null,
+      bytes: req.file.size,
+      mime_type: req.file.mimetype,
     });
 
     await logStaffAction(

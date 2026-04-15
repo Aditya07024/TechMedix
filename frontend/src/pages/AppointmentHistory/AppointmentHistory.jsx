@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays, Clock3, ChevronLeft, Stethoscope } from "lucide-react";
 import { appointmentAPI } from "../../api/techmedixAPI";
 import { useAuth } from "../../context/AuthContext";
+import { formatTime12Hour } from "../../utils/dateTime";
 import "./AppointmentHistory.css";
 
 export default function AppointmentHistory() {
@@ -96,7 +97,7 @@ export default function AppointmentHistory() {
                   </div>
                   <div>
                     <Clock3 size={16} strokeWidth={2} />
-                    <span>{appointment.slot_time || "Time unavailable"}</span>
+                    <span>{formatTime12Hour(appointment.slot_time, "Time unavailable")}</span>
                   </div>
                   <div>
                     <Stethoscope size={16} strokeWidth={2} />

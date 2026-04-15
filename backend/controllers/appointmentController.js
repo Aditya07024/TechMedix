@@ -17,6 +17,7 @@ export async function createAppointment(req, res) {
       appointment_date,
       slot_time,
       share_history,
+      share_history_scope,
       recording_consent_patient,
     } = req.body;
 
@@ -26,6 +27,7 @@ export async function createAppointment(req, res) {
       appointment_date,
       slot_time,
       share_history,
+      share_history_scope,
       recording_consent_patient,
     });
 

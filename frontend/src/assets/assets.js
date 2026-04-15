@@ -1,7 +1,7 @@
 // Icon imports
 import wishlist from "./wishlist.png";
 import account_icon from "./account_icon.png";
-import logo from "./logo.png";
+import logo from "./logo.jpg";
 import search_icon from "./search_icon.png";
 import add_icon_white from "./add_icon_white.png";
 import add_icon_green from "./add_icon_green.png";
@@ -20,6 +20,8 @@ import female_avatar from "./female_avatar.jpg"
 import male_avatar from "./male_avatar.jpg"
 import landingphoto from "./landingphoto.jpg";
 import techmedix_apk_qr from "./TechMedix APK.png";
+import doc from "./doc.png"
+import next from "./next.png"
 
 // Social media icons
 import linkedin from "./linkedin.png";
@@ -48,6 +50,8 @@ import musashi_100_whey_vanilla from "./musashi_100_whey_vanilla.png";
 import wish from "./wish.png";
 
 export const assets = {
+  next,
+  doc,
   landingphoto,
   male_avatar,
   female_avatar,

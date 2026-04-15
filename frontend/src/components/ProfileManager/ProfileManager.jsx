@@ -241,6 +241,10 @@ export default function ProfileManager({
         {isDoctor ? (
           <>
             <label>
+              <span>Doctor UUID</span>
+              <input value={profile?.id || user?.id || ""} readOnly />
+            </label>
+            <label>
               <span>Specialty</span>
               <input
                 value={form.specialty}

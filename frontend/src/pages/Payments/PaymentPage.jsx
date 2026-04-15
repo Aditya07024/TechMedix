@@ -137,6 +137,9 @@ export default function PaymentPage() {
           appointment_date: bookingIntent.appointment_date,
           slot_time: bookingIntent.slot_time,
           share_history: Boolean(bookingIntent.share_history),
+          share_history_scope: Array.isArray(bookingIntent.share_history_scope)
+            ? bookingIntent.share_history_scope
+            : [],
         },
       }
     : {
