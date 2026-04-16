@@ -513,6 +513,7 @@ export default function DoctorDashboardNew() {
 
   async function handleStartConsultation(appointmentId) {
     await withBusy(`start-${appointmentId}`, async () => {
+      await queueAPI.markArrived(appointmentId);
       await queueAPI.startConsultation(appointmentId);
       setStatusMessage("Consultation started.");
       await loadDoctorData();
