@@ -508,17 +508,37 @@ const LOCAL_DEV_ORIGINS = new Set([
   "http://127.0.0.1:4173",
 ]);
 
+const DEFAULT_PRODUCTION_ORIGINS = new Set([
+  "https://techmedix.onrender.com",
+]);
+
+function normalizeOrigin(value) {
+  const trimmedValue = String(value || "").trim();
+  if (!trimmedValue) return "";
+
+  try {
+    return new URL(trimmedValue).origin;
+  } catch {
+    return trimmedValue.replace(/\/+$/, "");
+  }
+}
+
 function getAllowedOrigins() {
   const configuredOrigins = [
     process.env.FRONTEND_URL,
     process.env.CORS_ORIGIN,
     process.env.ALLOWED_ORIGINS,
+    process.env.RENDER_EXTERNAL_URL,
   ]
     .flatMap((value) => String(value || "").split(","))
-    .map((value) => value.trim())
+    .map(normalizeOrigin)
     .filter(Boolean);
 
-  return new Set([...LOCAL_DEV_ORIGINS, ...configuredOrigins]);
+  return new Set([
+    ...LOCAL_DEV_ORIGINS,
+    ...DEFAULT_PRODUCTION_ORIGINS,
+    ...configuredOrigins,
+  ]);
 }
 
 const allowedOrigins = getAllowedOrigins();
