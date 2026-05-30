@@ -46,7 +46,10 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const res = await authApi.login({ email: demoEmail, password: demoPassword });
+      const res = await authApi.login({
+        email: demoEmail,
+        password: demoPassword,
+      });
       if (!res?.data?.user || res.data.user.role !== "admin") {
         throw new Error("Invalid admin credentials");
       }
@@ -77,7 +80,11 @@ const AdminLogin = () => {
 
           <div className="admin-auth-hero-card">
             <div className="admin-auth-hero-card-top">
-              <img src={assets.logo} alt="TechMedix" className="admin-auth-logo" />
+              <img
+                src={assets.logo}
+                alt="TechMedix"
+                className="admin-auth-logo"
+              />
               <span>TechMedix</span>
             </div>
             <div className="admin-auth-stat-grid">
@@ -141,7 +148,11 @@ const AdminLogin = () => {
               </div>
             </div>
 
-            <button type="submit" className="admin-login-button" disabled={loading}>
+            <button
+              type="submit"
+              className="admin-login-button"
+              disabled={loading}
+            >
               {loading ? "Signing in..." : "Sign In"}
             </button>
             <button
@@ -156,7 +167,8 @@ const AdminLogin = () => {
 
           <div className="admin-auth-meta">
             <p className="admin-login-note">
-              If you do not have admin credentials, ask your system administrator.
+              If you do not have admin credentials, ask your system
+              administrator.
             </p>
             <Link to="/" className="admin-auth-home-link">
               Return to home

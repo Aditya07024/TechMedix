@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { doctorPosterApi } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Upload, HelpCircle, CheckCircle, Clock, AlertTriangle, CreditCard } from "lucide-react";
+import { Upload, HelpCircle, CheckCircle, Clock, AlertTriangle, CreditCard, Sparkles } from "lucide-react";
 import "./DoctorPromotions.css";
 
 const TARGET_RATIO = 1300 / 265; // ~4.90566
@@ -24,6 +24,22 @@ export default function DoctorPromotions({ doctorId }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const imageRef = useRef(null);
+
+  const [copied, setCopied] = useState(false);
+
+  const docName = user?.name ? `Dr. ${user.name.replace(/^dr\.?\s+/i, "")}` : "Dr. [Name]";
+  const docSpecialty = user?.specialty || "[Specialty]";
+
+  const aiPrompt = `Create a professional, modern healthcare promotion banner for a doctor. The banner MUST be in a very wide landscape layout (aspect ratio approximately 5:1, matching 1300x265 pixels). The design should have a clean, premium clinical theme with soothing colors (teal, light blue, and white). On the side, include high-quality medical illustration or clinic theme. Leave clean space for promotional text. Integrate the following details: 
+Doctor: ${docName}
+Specialty: ${docSpecialty}
+Ensure there is NO generic or garbled placeholder text, keep it visually clean so I can crop it to a 1300x265 banner.`;
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(aiPrompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     fetchPosters();
@@ -332,20 +348,63 @@ export default function DoctorPromotions({ doctorId }) {
 
       {/* UPLOAD TRIGGER */}
       {!imageSrc && (
-        <div className="upload-dropzone">
-          <label htmlFor="promotion-file-upload" className="dropzone-label">
-            <Upload size={36} className="upload-icon" />
-            <strong>Upload New Banner</strong>
-            <span>Recommended high quality landscape graphic. Crop will keep 4.9:1 ratio.</span>
-          </label>
-          <input
-            id="promotion-file-upload"
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
-        </div>
+        <>
+          <div className="upload-dropzone">
+            <label htmlFor="promotion-file-upload" className="dropzone-label">
+              <Upload size={36} className="upload-icon" />
+              <strong>Upload New Banner</strong>
+              <span>Recommended high quality landscape graphic. Crop will keep 4.9:1 ratio.</span>
+            </label>
+            <input
+              id="promotion-file-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+          </div>
+
+          <div className="ai-poster-assistant-card">
+            <div className="ai-assistant-header">
+              <div className="ai-icon-badge">
+                <Sparkles size={20} className="ai-icon" />
+              </div>
+              <div className="ai-header-text">
+                <h3>Need a Banner? Make one with AI</h3>
+                <p>Generate a professional landscape poster using ChatGPT / DALL-E, then download and upload it here.</p>
+              </div>
+            </div>
+            
+            <div className="ai-prompt-container">
+              <div className="prompt-meta">
+                <span>Custom AI Prompt for ChatGPT:</span>
+                <button 
+                  onClick={handleCopyPrompt} 
+                  className={`copy-prompt-btn ${copied ? "copied" : ""}`}
+                  type="button"
+                >
+                  {copied ? "✓ Copied!" : "Copy Prompt"}
+                </button>
+              </div>
+              <textarea
+                className="prompt-textarea"
+                readOnly
+                value={aiPrompt}
+              />
+            </div>
+            
+            <div className="ai-action-footer">
+              <a 
+                href="https://chatgpt.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="chatgpt-redirect-btn"
+              >
+                Open ChatGPT Website ↗
+              </a>
+            </div>
+          </div>
+        </>
       )}
 
       {/* CAMPAIGN LIST */}

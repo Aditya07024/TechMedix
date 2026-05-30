@@ -372,15 +372,6 @@ export default function PaymentPage() {
                 </div>
               </div>
 
-              <div className="payment-contact-card">
-                <span className="summary-kicker">Razorpay Contact</span>
-                <strong>{checkoutIdentity.phone || "Phone number not available"}</strong>
-                <p>
-                  {checkoutIdentity.phone
-                    ? "Your saved phone number will be prefilled automatically in Razorpay checkout."
-                    : "Add a valid 10-digit phone number to your profile to prefill Razorpay checkout."}
-                </p>
-              </div>
             </section>
 
             <section className="payment-methods-card">

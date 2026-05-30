@@ -65,7 +65,10 @@ const App = () => {
         {!isPublicMarketingPage && <Navbar setShowLogin={setShowLogin} />}
 
         <Routes>
-          <Route path="/" element={<Landingpage setShowLogin={setShowLogin} />} />
+          <Route
+            path="/"
+            element={<Landingpage setShowLogin={setShowLogin} />}
+          />
           <Route path="/about-techmedix" element={<AboutTechMedix />} />
           <Route path="/home" element={<Home />} />
           <Route path="/wishlist" element={<WishList />} />

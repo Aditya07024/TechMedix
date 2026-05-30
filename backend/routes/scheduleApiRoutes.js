@@ -95,9 +95,27 @@ router.post("/doctor/:doctorId", authenticate, async (req, res) => {
   try {
     const { doctorId } = req.params;
 
+    console.log(
+      "Schedule update request - Doctor ID:",
+      doctorId,
+      "User ID:",
+      req.user?.id,
+    );
+
     // Verify user is updating their own schedule
     if (String(req.user?.id) !== String(doctorId)) {
-      return res.status(403).json({ success: false, error: "Unauthorized" });
+      console.warn(
+        "Unauthorized attempt: user",
+        req.user?.id,
+        "trying to update doctor",
+        doctorId,
+      );
+      return res
+        .status(403)
+        .json({
+          success: false,
+          error: "Unauthorized: You can only update your own schedule",
+        });
     }
 
     const scheduleData = {
@@ -105,9 +123,23 @@ router.post("/doctor/:doctorId", authenticate, async (req, res) => {
       ...req.body,
     };
 
+    console.log("Setting schedule with data:", scheduleData);
+
     const result = await setDoctorSchedule(scheduleData);
+
+    if (!result || result.length === 0) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Failed to save schedule - no data returned",
+        });
+    }
+
+    console.log("Schedule saved successfully:", result[0]);
     res.status(201).json({ success: true, data: result[0] });
   } catch (error) {
+    console.error("Schedule update error:", error.message);
     res.status(400).json({ success: false, error: error.message });
   }
 });

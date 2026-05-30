@@ -143,7 +143,7 @@ async function getCurrentProfile(user) {
         name: "Administrator",
         email: user.email,
         phone: "",
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
     }
     default:
@@ -152,7 +152,6 @@ async function getCurrentProfile(user) {
 }
 
 // Google OAuth login
-
 
 // Signup
 router.post("/signup", async (req, res) => {
@@ -169,7 +168,9 @@ router.post("/signup", async (req, res) => {
       medicalHistory,
     } = req.body; // Added new fields
     if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email and password are required" });
+      return res
+        .status(400)
+        .json({ error: "Name, email and password are required" });
     }
     let user = await getPatientByEmail(email);
     if (user) {
@@ -235,7 +236,7 @@ router.post("/login", async (req, res) => {
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         process.env.TOKEN_SECRET,
-        { expiresIn: "1d" }
+        { expiresIn: "1d" },
       );
 
       res.cookie("token", token, {
@@ -257,7 +258,9 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const adminEmail = (process.env.ADMIN_EMAIL || "admintech@gmail.com").toLowerCase().trim();
+    const adminEmail = (process.env.ADMIN_EMAIL || "admintech@gmail.com")
+      .toLowerCase()
+      .trim();
     const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
 
     if (
@@ -292,17 +295,15 @@ router.post("/login", async (req, res) => {
 
     // 2️⃣ Otherwise fallback to patient table login
     const patient = await getPatientByEmail(email);
-    if (!patient)
-      return res.status(401).json({ error: "Invalid credentials" });
+    if (!patient) return res.status(401).json({ error: "Invalid credentials" });
 
     const isMatch = await comparePassword(password, patient.password);
-    if (!isMatch)
-      return res.status(401).json({ error: "Invalid credentials" });
+    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
       { id: patient.id, email: patient.email, role: "patient" },
       process.env.TOKEN_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "1d" },
     );
 
     res.cookie("token", token, {
@@ -420,27 +421,34 @@ router.patch("/profile", authenticate, async (req, res) => {
     return res.json({ success: true, data: updated });
   } catch (error) {
     console.error("Profile update failed:", error);
-    return res.status(500).json({ error: error.message || "Failed to update profile" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to update profile" });
   }
 });
 
-router.post("/profile/reset-qr", authenticate, authorizeRoles("patient"), async (req, res) => {
-  try {
-    const updated = await resetPatientUniqueCode(req.user.id);
+router.post(
+  "/profile/reset-qr",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const updated = await resetPatientUniqueCode(req.user.id);
 
-    if (!updated) {
-      return res.status(400).json({ error: "Failed to reset QR code" });
+      if (!updated) {
+        return res.status(400).json({ error: "Failed to reset QR code" });
+      }
+
+      return res.json({
+        success: true,
+        data: mapUserProfileByRole("patient", updated),
+      });
+    } catch (error) {
+      console.error("QR reset failed:", error);
+      return res.status(500).json({ error: "Failed to reset QR code" });
     }
-
-    return res.json({
-      success: true,
-      data: mapUserProfileByRole("patient", updated),
-    });
-  } catch (error) {
-    console.error("QR reset failed:", error);
-    return res.status(500).json({ error: "Failed to reset QR code" });
-  }
-});
+  },
+);
 
 router.delete("/profile", authenticate, async (req, res) => {
   try {
@@ -463,7 +471,9 @@ router.delete("/profile", authenticate, async (req, res) => {
     return res.json({ success: true, message: "Account deleted successfully" });
   } catch (error) {
     console.error("Account delete failed:", error);
-    return res.status(500).json({ error: error.message || "Failed to delete account" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to delete account" });
   }
 });
 

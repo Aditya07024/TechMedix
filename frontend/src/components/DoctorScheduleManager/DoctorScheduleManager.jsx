@@ -37,6 +37,8 @@ export default function DoctorScheduleManager({ doctorId }) {
         end_time: "17:00",
         consultation_duration: 30,
         is_active: day.id >= 1 && day.id <= 5,
+        booking_mode: "slot",
+        max_bookings_per_slot: 1,
       };
     });
 
@@ -68,7 +70,11 @@ export default function DoctorScheduleManager({ doctorId }) {
               item.consultation_duration ||
               30,
           ),
-          is_active: true,
+          is_active: item.is_active !== false,
+          booking_mode: item.booking_mode || item.mode || "slot",
+          max_bookings_per_slot: Number(
+            item.max_bookings_per_slot || item.max_bookings || 1,
+          ),
         };
       });
 
@@ -140,36 +146,61 @@ export default function DoctorScheduleManager({ doctorId }) {
 
       if (!validateSchedule()) return;
 
-      setSaving(true);
-
-      const activeDays = Object.values(schedule).filter((day) => day.is_active);
-
-      for (const day of activeDays) {
-        console.log("Sending to backend:", {
-          doctor_id: doctorUUID,
-          day_of_week: day.day_of_week,
-          start_time: day.start_time,
-          end_time: day.end_time,
-          consultation_duration: Number(day.consultation_duration),
-        });
-
-        await scheduleAPI.setSchedule(doctorUUID, {
-          doctor_id: doctorUUID, // IMPORTANT FIX
-          day_of_week: day.day_of_week,
-          start_time: day.start_time,
-          end_time: day.end_time,
-          consultation_duration: Number(day.consultation_duration),
-        });
+      if (!doctorUUID) {
+        setError("❌ Doctor ID not found. Please log in again.");
+        return;
       }
 
-      setSuccess(" Schedule saved successfully!");
+      setSaving(true);
+
+      const allDays = Object.values(schedule);
+
+      await Promise.all(
+        allDays.map(async (day) => {
+          console.log("Sending to backend for day:", day.day_of_week, {
+            doctor_id: doctorUUID,
+            day_of_week: day.day_of_week,
+            start_time: day.start_time || "09:00",
+            end_time: day.end_time || "17:00",
+            consultation_duration: Number(day.consultation_duration || 30),
+            booking_mode: day.booking_mode || "slot",
+            max_bookings_per_slot: Number(day.max_bookings_per_slot || 1),
+            is_active: !!day.is_active,
+          });
+
+          const response = await scheduleAPI.setSchedule(doctorUUID, {
+            day_of_week: day.day_of_week,
+            start_time: day.start_time || "09:00",
+            end_time: day.end_time || "17:00",
+            consultation_duration: Number(day.consultation_duration || 30),
+            booking_mode: day.booking_mode || "slot",
+            max_bookings_per_slot: Number(day.max_bookings_per_slot || 1),
+            is_active: !!day.is_active,
+          });
+
+          if (!response.data?.success) {
+            throw new Error(
+              response.data?.error ||
+                `Failed to save ${DAYS_OF_WEEK[day.day_of_week].name}`,
+            );
+          }
+
+          console.log(
+            `✓ Saved ${DAYS_OF_WEEK[day.day_of_week].name}:`,
+            response.data.data,
+          );
+        })
+      );
+
+      setSuccess("✅ Schedule saved successfully!");
       setTimeout(() => setSuccess(null), 4000);
     } catch (err) {
-      console.error("Full backend error:", err);
+      console.error("Save schedule error:", err);
 
       const backendMessage =
-        err.response?.data?.message ||
         err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
         "Failed to save schedule";
 
       setError(`❌ ${backendMessage}`);
@@ -242,7 +273,11 @@ export default function DoctorScheduleManager({ doctorId }) {
                                 type="time"
                                 value={daySchedule.start_time}
                                 onChange={(e) =>
-                                  handleDayChange(day.id, "start_time", e.target.value)
+                                  handleDayChange(
+                                    day.id,
+                                    "start_time",
+                                    e.target.value,
+                                  )
                                 }
                               />
                             </div>
@@ -253,7 +288,11 @@ export default function DoctorScheduleManager({ doctorId }) {
                                 type="time"
                                 value={daySchedule.end_time}
                                 onChange={(e) =>
-                                  handleDayChange(day.id, "end_time", e.target.value)
+                                  handleDayChange(
+                                    day.id,
+                                    "end_time",
+                                    e.target.value,
+                                  )
                                 }
                               />
                             </div>
@@ -277,18 +316,61 @@ export default function DoctorScheduleManager({ doctorId }) {
                                 <option value="60">60 min</option>
                               </select>
                             </div>
+
+                            <div className="input-group">
+                              <label>Booking Mode</label>
+                              <select
+                                value={daySchedule.booking_mode || "slot"}
+                                onChange={(e) =>
+                                  handleDayChange(
+                                    day.id,
+                                    "booking_mode",
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                <option value="slot">Slot (1 per slot)</option>
+                                <option value="limit">
+                                  Limited (N per slot)
+                                </option>
+                                <option value="unlimited">Unlimited</option>
+                              </select>
+                            </div>
+
+                            {String(daySchedule.booking_mode || "slot") ===
+                              "limit" && (
+                              <div className="input-group">
+                                <label>Max bookings / slot</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={daySchedule.max_bookings_per_slot || 1}
+                                  onChange={(e) =>
+                                    handleDayChange(
+                                      day.id,
+                                      "max_bookings_per_slot",
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
                     ) : (
-                    <div className="day-summary off">Not available</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                      <div className="day-summary off">Not available</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-            <button onClick={handleSaveSchedule} disabled={saving} className="save-button">
+            <button
+              onClick={handleSaveSchedule}
+              disabled={saving}
+              className="save-button"
+            >
               {saving ? "Saving..." : "Save Schedule"}
             </button>
           </>

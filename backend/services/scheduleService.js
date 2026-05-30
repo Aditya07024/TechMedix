@@ -27,6 +27,26 @@ async function getDoctorScheduleDurationColumn() {
   return doctorScheduleDurationColumnPromise;
 }
 
+// Ensure optional schedule columns exist (booking_mode, max_bookings_per_slot)
+let ensureScheduleColumnsPromise;
+async function ensureScheduleColumns() {
+  if (!ensureScheduleColumnsPromise) {
+    ensureScheduleColumnsPromise = sql`
+      ALTER TABLE IF EXISTS doctor_schedule
+      ADD COLUMN IF NOT EXISTS booking_mode VARCHAR(32) DEFAULT 'slot',
+      ADD COLUMN IF NOT EXISTS max_bookings_per_slot INTEGER DEFAULT 1
+    `
+      .then(() => true)
+      .catch((err) => {
+        console.warn("Could not ensure schedule columns:", err.message);
+        ensureScheduleColumnsPromise = null;
+        return false;
+      });
+  }
+
+  return ensureScheduleColumnsPromise;
+}
+
 // -----------------------------
 // Medicine Frequency Helper
 // -----------------------------
@@ -55,6 +75,9 @@ export async function setDoctorSchedule(data) {
     end_time,
     consultation_duration_minutes,
     consultation_duration, // Support both field names
+    booking_mode,
+    max_bookings_per_slot,
+    is_active,
   } = data;
 
   // Input validation
@@ -72,6 +95,10 @@ export async function setDoctorSchedule(data) {
   const duration = consultation_duration_minutes || consultation_duration || 30;
   const safeDuration = Number(duration);
   const durationColumn = await getDoctorScheduleDurationColumn();
+  const safeIsActive = is_active !== undefined ? !!is_active : true;
+
+  // make sure optional booking columns exist
+  await ensureScheduleColumns();
 
   if (!safeDuration || safeDuration <= 0) {
     throw new Error("Invalid consultation duration");
@@ -96,9 +123,12 @@ export async function setDoctorSchedule(data) {
         SET start_time = ${start_time},
             end_time = ${end_time},
             consultation_duration = ${safeDuration},
-            is_active = true,
+            booking_mode = ${booking_mode || "slot"},
+            max_bookings_per_slot = ${Number(max_bookings_per_slot) || 1},
+            is_active = ${safeIsActive},
             updated_at = CURRENT_TIMESTAMP
         WHERE doctor_id = ${doctor_id}
+          AND day_of_week = ${parseInt(day_of_week)}
         RETURNING *
       `;
     }
@@ -108,9 +138,12 @@ export async function setDoctorSchedule(data) {
       SET start_time = ${start_time},
           end_time = ${end_time},
           consultation_duration_minutes = ${safeDuration},
-          is_active = true,
+          booking_mode = ${booking_mode || "slot"},
+          max_bookings_per_slot = ${Number(max_bookings_per_slot) || 1},
+          is_active = ${safeIsActive},
           updated_at = CURRENT_TIMESTAMP
       WHERE doctor_id = ${doctor_id}
+        AND day_of_week = ${parseInt(day_of_week)}
       RETURNING *
     `;
   }
@@ -118,18 +151,18 @@ export async function setDoctorSchedule(data) {
   if (durationColumn === "consultation_duration") {
     return await sql`
       INSERT INTO doctor_schedule
-      (doctor_id, day_of_week, start_time, end_time, consultation_duration, is_active)
+      (doctor_id, day_of_week, start_time, end_time, consultation_duration, booking_mode, max_bookings_per_slot, is_active)
       VALUES
-      (${doctor_id}, ${parseInt(day_of_week)}, ${start_time}, ${end_time}, ${safeDuration}, true)
+      (${doctor_id}, ${parseInt(day_of_week)}, ${start_time}, ${end_time}, ${safeDuration}, ${booking_mode || "slot"}, ${Number(max_bookings_per_slot) || 1}, ${safeIsActive})
       RETURNING *
     `;
   }
 
   return await sql`
     INSERT INTO doctor_schedule
-    (doctor_id, day_of_week, start_time, end_time, consultation_duration_minutes, is_active)
+    (doctor_id, day_of_week, start_time, end_time, consultation_duration_minutes, booking_mode, max_bookings_per_slot, is_active)
     VALUES
-    (${doctor_id}, ${parseInt(day_of_week)}, ${start_time}, ${end_time}, ${safeDuration}, true)
+    (${doctor_id}, ${parseInt(day_of_week)}, ${start_time}, ${end_time}, ${safeDuration}, ${booking_mode || "slot"}, ${Number(max_bookings_per_slot) || 1}, ${safeIsActive})
     RETURNING *
   `;
 }
@@ -167,9 +200,16 @@ export async function getAvailableTimeSlots(
   // Get day of week (0-6)
   const dayOfWeek = new Date(targetDate).getDay();
 
-  console.log("🔍 Getting slots for:", { doctorId: safeDoctorId, targetDate, dayOfWeek });
+  console.log("🔍 Getting slots for:", {
+    doctorId: safeDoctorId,
+    targetDate,
+    dayOfWeek,
+  });
 
   // Get doctor schedule for this day of week
+  // ensure optional columns exist so selecting booking_mode/max_bookings works
+  await ensureScheduleColumns();
+
   const schedule = await sql`
     SELECT * FROM doctor_schedule
     WHERE doctor_id = ${safeDoctorId}
@@ -199,16 +239,29 @@ export async function getAvailableTimeSlots(
 
   console.log("⏰ Time range:", { start_time, end_time, slotDuration });
 
-  // Get booked appointments for this doctor on target date
-  const bookedAppointments = await sql`
-    SELECT slot_time, appointment_date
+  // Booking mode support (optional fields on doctor_schedule):
+  // booking_mode: 'slot' (default - 1 booking per slot), 'limit' (use max_bookings_per_slot), 'unlimited'
+  const bookingMode = schedule[0].booking_mode || schedule[0].mode || "slot";
+  const maxPerSlot = Number(
+    schedule[0].max_bookings_per_slot || schedule[0].max_bookings || 1,
+  );
+
+  // Get booked appointments counts for this doctor on target date grouped by slot_time
+  const bookedCounts = await sql`
+    SELECT slot_time, COUNT(*)::int AS cnt
     FROM appointments
     WHERE doctor_id = ${safeDoctorId}
       AND appointment_date = ${targetDate}
       AND status NOT IN ('cancelled')
+    GROUP BY slot_time
   `;
 
-  // Generate all possible slots
+  const bookedMap = {};
+  for (const row of bookedCounts) {
+    bookedMap[row.slot_time] = Number(row.cnt || 0);
+  }
+
+  // Generate all possible slots within working hours
   const slots = [];
   const [startHour, startMin] = start_time.split(":").map(Number);
   const [endHour, endMin] = end_time.split(":").map(Number);
@@ -225,15 +278,25 @@ export async function getAvailableTimeSlots(
     const slotMin = i % 60;
     const slotStartTime = `${String(slotHour).padStart(2, "0")}:${String(slotMin).padStart(2, "0")}`;
 
-    // Check if slot is booked
-    const isBooked = bookedAppointments.some(
-      (apt) => apt.slot_time === slotStartTime,
-    );
+    const existing = bookedMap[slotStartTime] || 0;
+
+    let isAvailable = true;
+    if (bookingMode === "unlimited") {
+      isAvailable = true;
+    } else if (bookingMode === "limit") {
+      isAvailable = existing < maxPerSlot;
+    } else {
+      // default 'slot' mode - single booking allowed per slot
+      isAvailable = existing < 1;
+    }
 
     slots.push({
       start_time: slotStartTime,
       duration_minutes: slotDuration,
-      is_available: !isBooked,
+      is_available: isAvailable,
+      booked_count: existing,
+      max_bookings_per_slot: bookingMode === "unlimited" ? null : maxPerSlot,
+      booking_mode: bookingMode,
     });
   }
 

@@ -236,6 +236,11 @@ export async function initializeCompletSchema() {
       ALTER COLUMN appointment_id DROP NOT NULL;
     `;
 
+    await sql`
+      ALTER TABLE payments
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `;
+
     // 5b️⃣ WALLETS
     await sql`
       CREATE TABLE IF NOT EXISTS wallets (
