@@ -14,6 +14,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  Megaphone,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../context/AuthContext";
@@ -21,6 +22,7 @@ import { appointmentAPI, analyticsAPI, queueAPI } from "../../api/techmedixAPI";
 import { initQueueSocket } from "../../api/socketService";
 import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
+import DoctorPromotions from "../../components/DoctorPromotions/DoctorPromotions";
 import { doctorApi, paymentApi } from "../../api";
 import { formatTime12Hour } from "../../utils/dateTime";
 import "./DoctorDashboardNew.css";
@@ -32,6 +34,7 @@ const NAV_ITEMS = [
   { id: "patients", label: "Patient Workspace", icon: UserRound },
   { id: "staff", label: "Staff Hub", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
+  { id: "promotions", label: "Promotions", icon: Megaphone },
   { id: "profile", label: "Profile", icon: Wallet },
 ];
 
@@ -1946,6 +1949,12 @@ export default function DoctorDashboardNew() {
                   </div>
                 </div>
                 <DoctorScheduleManager doctorId={user?.id} />
+              </section>
+            )}
+
+            {activeView === "promotions" && (
+              <section className="doctor-panel doctor-panel--promotions">
+                <DoctorPromotions doctorId={user?.id} />
               </section>
             )}
 

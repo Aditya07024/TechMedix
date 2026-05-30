@@ -26,6 +26,7 @@ import DoctorDashboardNew from "./pages/DoctorDashboardNew/DoctorDashboardNew";
 import AdminDashboard from "./pages/AdminDashboard/AdminDashboard";
 import StaffDashboard from "./pages/StaffDashboard/StaffDashboard";
 import StaffLogin from "./pages/StaffLogin/StaffLogin";
+import AdminLogin from "./pages/AdminLogin/AdminLogin";
 
 import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
 import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
@@ -44,7 +45,9 @@ const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const location = useLocation();
   const isPublicMarketingPage =
-    location.pathname === "/" || location.pathname === "/about-techmedix";
+    location.pathname === "/" ||
+    location.pathname === "/about-techmedix" ||
+    location.pathname === "/admin/login";
 
   const GoogleAuthWrapper = () => {
     return (
@@ -136,6 +139,7 @@ const App = () => {
           <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/doctor/signup" element={<DoctorSignup />} />
           <Route path="/staff/login" element={<StaffLogin />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route
             path="/payment"
             element={

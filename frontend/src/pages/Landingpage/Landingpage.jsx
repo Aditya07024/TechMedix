@@ -1,5 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   Activity,
   Bell,
@@ -24,6 +24,7 @@ import dowappImage from "../../assets/dowapp.png";
 import doc from "../../assets/doc.png";
 import pat from "../../assets/pat.png";
 import mid from "../../assets/mid.png";
+import { api } from "../../api";
 
 import "./Landingpage.css";
 
@@ -239,6 +240,35 @@ function SectionHeading({ eyebrow, title, description }) {
 }
 
 const Landingpage = ({ setShowLogin }) => {
+  const location = useLocation();
+
+  useEffect(() => {
+    api.get("/health").catch((error) => {
+      console.error("Landing page health check failed:", error);
+    });
+  }, []);
+
+  useEffect(() => {
+    const requestedPath = location.state?.from?.pathname;
+    const patientProtectedPaths = [
+      "/dashboard",
+      "/health-wallet",
+      "/xray-analyzer",
+      "/xray-history",
+      "/appointments/history",
+    ];
+
+    const shouldOpenLogin =
+      requestedPath &&
+      (patientProtectedPaths.includes(requestedPath) ||
+        requestedPath.startsWith("/payment/") ||
+        requestedPath.startsWith("/queue/"));
+
+    if (shouldOpenLogin) {
+      setShowLogin?.(true);
+    }
+  }, [location, setShowLogin]);
+
   return (
     <div className="landing-page">
       <header className="landing-header">
@@ -263,10 +293,17 @@ const Landingpage = ({ setShowLogin }) => {
             >
               Patient login
             </button>
-            <Link className="landing-button landing-button--primary" to="/doctor/login">
+            
+            <Link
+              className="landing-button landing-button--primary"
+              to="/doctor/login"
+            >
               Doctor login
             </Link>
-            <Link className="landing-button landing-button--primary" to="/staff/login">
+            <Link
+              className="landing-button landing-button--primary"
+              to="/staff/login"
+            >
               Staff login
             </Link>
           </div>
@@ -276,10 +313,10 @@ const Landingpage = ({ setShowLogin }) => {
       <main className="landing-main">
         <section className="landing-hero" id="preview">
           <div className="landing-hero__copy">
-            <span className="landing-badge">Connected care on web + mobile</span>
-            <h1>
-              Care beyond the clinic. Trust beyond the screen
-            </h1>
+            <span className="landing-badge">
+              Connected care on web + mobile
+            </span>
+            <h1>Care beyond the clinic. Trust beyond the screen</h1>
             <p>
               Book appointments, follow real-time queues, upload prescriptions,
               track health metrics, and access AI-assisted insights built for
@@ -287,13 +324,22 @@ const Landingpage = ({ setShowLogin }) => {
             </p>
 
             <div className="landing-hero__actions">
-              <Link className="landing-button landing-button--primary" to="/home">
+              <Link
+                className="landing-button landing-button--primary"
+                to="/home"
+              >
                 Open patient dashboard
               </Link>
-              <Link className="landing-button landing-button--medicine" to="/search">
+              <Link
+                className="landing-button landing-button--medicine"
+                to="/search"
+              >
                 Search Medicines
               </Link>
-              <a className="landing-button landing-button--ghost" href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ">
+              <a
+                className="landing-button landing-button--ghost"
+                href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ"
+              >
                 Download the app
               </a>
             </div>
@@ -321,13 +367,13 @@ const Landingpage = ({ setShowLogin }) => {
 
             <div className="landing-preview-card__screens">
               <div>
-                <img src={doc} alt="Doctor avatar" className="avt"/>
+                <img src={doc} alt="Doctor avatar" className="avt" />
               </div>
               <div>
                 <img src={mid} alt="Mid avatar" />
               </div>
               <div>
-                <img src={pat} alt="Patient avatar" className="avt"/>
+                <img src={pat} alt="Patient avatar" className="avt" />
               </div>
             </div>
 
@@ -382,8 +428,6 @@ const Landingpage = ({ setShowLogin }) => {
             })}
           </div>
         </section>
-
-
 
         <section className="landing-section" id="preview-care">
           <SectionHeading
@@ -456,7 +500,10 @@ const Landingpage = ({ setShowLogin }) => {
             {trackingCards.map((card) => {
               const Icon = card.icon;
               return (
-                <article key={card.title} className="landing-card landing-card--large">
+                <article
+                  key={card.title}
+                  className="landing-card landing-card--large"
+                >
                   <div className="landing-card__icon">
                     <Icon size={24} />
                   </div>
@@ -493,7 +540,10 @@ const Landingpage = ({ setShowLogin }) => {
             {aiCards.map((card) => {
               const Icon = card.icon;
               return (
-                <article key={card.title} className="landing-card landing-card--ai">
+                <article
+                  key={card.title}
+                  className="landing-card landing-card--ai"
+                >
                   <div className="landing-card__icon">
                     <Icon size={24} />
                   </div>
@@ -513,7 +563,7 @@ const Landingpage = ({ setShowLogin }) => {
             })}
           </div>
         </section>
-                <section className="landing-section" id="download">
+        <section className="landing-section" id="download">
           <SectionHeading
             title="Download the TechMedix mobile app"
             description="Use the Mobile App to keep care close: appointments, reminders, health metrics, and connected updates."
@@ -529,11 +579,17 @@ const Landingpage = ({ setShowLogin }) => {
             <div className="landing-qr-card">
               <h3>Scan to download</h3>
               <div className="landing-qr-placeholder" aria-hidden="true">
-                <img src={techMedixApkImage} alt="TechMedix APP
-                oad" />
+                <img
+                  src={techMedixApkImage}
+                  alt="TechMedix APP
+                oad"
+                />
               </div>
               <div className="landing-download__buttons">
-                <a className="landing-button landing-button--primary" href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ">
+                <a
+                  className="landing-button landing-button--primary"
+                  href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ"
+                >
                   <Download size={18} />
                   Download APP
                 </a>
@@ -545,8 +601,6 @@ const Landingpage = ({ setShowLogin }) => {
 
       <footer className="landing-footer">
         <div className="landing-footer__shell">
-          
-
           <div className="landing-footer__grid">
             <div className="landing-footer__column">
               <h3>Quick links</h3>
@@ -560,10 +614,11 @@ const Landingpage = ({ setShowLogin }) => {
                     <a key={link.label} href={link.href}>
                       {link.label}
                     </a>
-                  )
+                  ),
                 )}
               </nav>
             </div>
+            
 
             <div className="landing-footer__column">
               <h3>Why it works</h3>
@@ -572,7 +627,10 @@ const Landingpage = ({ setShowLogin }) => {
                   const Icon = item.icon;
 
                   return (
-                    <article key={item.label} className="landing-footer__highlight">
+                    <article
+                      key={item.label}
+                      className="landing-footer__highlight"
+                    >
                       <div className="landing-footer__highlight-icon">
                         <Icon size={18} />
                       </div>
@@ -596,6 +654,12 @@ const Landingpage = ({ setShowLogin }) => {
                   <span>Want to know more about the website</span>
                 </div>
               </Link>
+              <Link
+              className="landing-button landing-button--ghost"
+              to="/admin/login"
+            >
+              Admin portal
+            </Link>
               <p className="landing-footer__caption">
                 Built for queue visibility, secure sessions, reminders, and
                 continuous patient context.

@@ -176,4 +176,32 @@ export const staffApi = {
   switchDoctor: (doctor_id) =>
     api.post("/api/staff/switch-doctor", { doctor_id }),
 };
+
+export const doctorPosterApi = {
+  uploadPoster: (formData) =>
+    api.post("/api/doctor-posters/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    }),
+  createPaySession: (data) =>
+    api.post("/api/doctor-posters/pay", data, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+  verifyPaySignature: (data) =>
+    api.post("/api/doctor-posters/verify", data, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+  getActivePosters: () => api.get("/api/doctor-posters/active"),
+  getMyPosters: () =>
+    api.get("/api/doctor-posters/my-posters", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+  deletePoster: (id) =>
+    api.delete(`/api/doctor-posters/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+};
+
 export default api;

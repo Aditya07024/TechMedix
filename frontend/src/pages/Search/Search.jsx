@@ -93,6 +93,7 @@ const Search = () => {
   const [selectedMedicineId, setSelectedMedicineId] = useState(null);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
   const detailCacheRef = useRef(new Map());
+  const detailsRef = useRef(null);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -721,6 +722,9 @@ const Search = () => {
                     if (item.salt) {
                       setSaltSearchTerm(item.salt);
                     }
+                    if (window.innerWidth <= 1100) {
+                      detailsRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+                    }
                   }}
                 >
                   <div className="medicine-content">
@@ -812,7 +816,7 @@ const Search = () => {
             </div>
           </div>
 
-          <div className="grid-right">
+          <div className="grid-right" ref={detailsRef}>
             {detailsLoading ? (
               <div className="no-product-selected">
                 <p>Loading medicine details...</p>

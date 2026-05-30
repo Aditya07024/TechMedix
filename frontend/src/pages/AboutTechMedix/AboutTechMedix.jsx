@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -194,6 +194,10 @@ const trustNotes = [
 ];
 
 const AboutTechMedix = () => {
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   return (
     <div className="about-techmedix">
       <header className="about-techmedix__hero">
@@ -290,8 +294,13 @@ const AboutTechMedix = () => {
             {flowSteps.map((step, index) => {
               const Icon = step.icon;
               return (
-                <article key={step.title} className="about-techmedix__timeline-item">
-                  <div className="about-techmedix__timeline-index">{index + 1}</div>
+                <article
+                  key={step.title}
+                  className="about-techmedix__timeline-item"
+                >
+                  <div className="about-techmedix__timeline-index">
+                    {index + 1}
+                  </div>
                   <div className="about-techmedix__timeline-body">
                     <div className="about-techmedix__icon">
                       <Icon size={20} />
@@ -360,7 +369,10 @@ const AboutTechMedix = () => {
                 {trustNotes.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <article key={item.title} className="about-techmedix__mini-card">
+                    <article
+                      key={item.title}
+                      className="about-techmedix__mini-card"
+                    >
                       <div className="about-techmedix__icon">
                         <Icon size={20} />
                       </div>

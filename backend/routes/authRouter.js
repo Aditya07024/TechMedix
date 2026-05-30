@@ -102,6 +102,18 @@ function mapUserProfileByRole(role, record) {
     };
   }
 
+  if (role === "admin" || record.role === "admin") {
+    const adminEmail = process.env.ADMIN_EMAIL || "admintech@gmail.com";
+    return {
+      id: record.id,
+      role: "admin",
+      name: record.full_name || record.name || "Administrator",
+      email: adminEmail,
+      phone: record.phone ?? "",
+      createdAt: record.created_at ?? record.createdAt ?? null,
+    };
+  }
+
   return {
     id: record.id,
     role: role || record.role || "admin",
@@ -120,8 +132,20 @@ async function getCurrentProfile(user) {
       return mapUserProfileByRole("doctor", await getDoctorById(user.id));
     case "staff":
       return mapUserProfileByRole("staff", await getStaffProfile(user.id));
-    case "admin":
-      return mapUserProfileByRole("admin", await getUserById(user.id));
+    case "admin": {
+      const dbProfile = await getUserById(user.id);
+      if (dbProfile) {
+        return mapUserProfileByRole("admin", dbProfile);
+      }
+      return {
+        id: user.id,
+        role: "admin",
+        name: "Administrator",
+        email: user.email,
+        phone: "",
+        createdAt: new Date().toISOString()
+      };
+    }
     default:
       return null;
   }
@@ -202,36 +226,69 @@ router.post("/login", async (req, res) => {
     }
 
     if (users.length) {
-  const user = users[0];
+      const user = users[0];
 
-  const isMatch = await bcrypt.compare(password, user.password_hash);
-  if (!isMatch)
-    return res.status(401).json({ error: "Invalid credentials" });
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch)
+        return res.status(401).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.TOKEN_SECRET,
-    { expiresIn: "1d" }
-  );
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.TOKEN_SECRET,
+        { expiresIn: "1d" }
+      );
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 24 * 60 * 60 * 1000,
-  });
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+      });
 
-  return res.json({
-    ifLogin: true,
-    role: user.role,
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role
+      return res.json({
+        ifLogin: true,
+        role: user.role,
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+      });
     }
-  });
-}
+
+    const adminEmail = (process.env.ADMIN_EMAIL || "admintech@gmail.com").toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD || "1234567890";
+
+    if (
+      email.toLowerCase().trim() === adminEmail &&
+      password === adminPassword
+    ) {
+      const token = jwt.sign(
+        { id: "admin", email: adminEmail, role: "admin" },
+        process.env.TOKEN_SECRET,
+        { expiresIn: "1d" },
+      );
+
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+
+      return res.json({
+        ifLogin: true,
+        role: "admin",
+        token,
+        user: {
+          id: "admin",
+          role: "admin",
+          name: "Administrator",
+          email: adminEmail,
+        },
+      });
+    }
 
     // 2️⃣ Otherwise fallback to patient table login
     const patient = await getPatientByEmail(email);

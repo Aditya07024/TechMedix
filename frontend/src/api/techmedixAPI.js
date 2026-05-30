@@ -335,4 +335,19 @@ export const adminAPI = {
       params: { role, limit, offset },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
+
+  getPayoutSummary: () =>
+    axios.get(`${API_BASE}/admin/payouts/summary`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  createPayout: (data) =>
+    axios.post(`${API_BASE}/admin/payouts`, data, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  getPayoutHistory: () =>
+    axios.get(`${API_BASE}/admin/payouts/history`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
 };

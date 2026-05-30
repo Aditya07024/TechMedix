@@ -519,6 +519,53 @@ export async function initializeCompletSchema() {
       );
     `;
 
+    // 1️⃣7️⃣ BRANCHES TABLE
+    await sql`
+      CREATE TABLE IF NOT EXISTS branches (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        address VARCHAR(512),
+        city VARCHAR(100) NOT NULL,
+        state VARCHAR(100) NOT NULL,
+        phone VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // 1️⃣8️⃣ DOCTOR PROMOTION POSTERS TABLE
+    await sql`
+      CREATE TABLE IF NOT EXISTS doctor_posters (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
+        image_url VARCHAR(512) NOT NULL,
+        cloudinary_public_id VARCHAR(255),
+        amount NUMERIC(10,2) DEFAULT 30.00,
+        duration_days INT DEFAULT 30,
+        status VARCHAR(50) DEFAULT 'pending',
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        razorpay_order_id VARCHAR(255),
+        razorpay_payment_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // 1️⃣9️⃣ DOCTOR PAYOUTS TABLE
+    await sql`
+      CREATE TABLE IF NOT EXISTS doctor_payouts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
+        amount NUMERIC NOT NULL CHECK (amount > 0),
+        payout_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'completed',
+        reference_notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+
     // Create Indexes
     try {
       await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
@@ -557,6 +604,9 @@ export async function initializeCompletSchema() {
       await sql`CREATE INDEX IF NOT EXISTS idx_health_metrics_patient_type_date ON health_metrics(patient_id, metric_type, recorded_at)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_staff_logs_staff_created_at ON staff_logs(staff_id, created_at DESC)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_doctor_posters_doctor ON doctor_posters(doctor_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_doctor_posters_status ON doctor_posters(status)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_doctor_payouts_doctor ON doctor_payouts(doctor_id)`;
     } catch (err) {
       console.warn("⚠️ Some indexes may already exist:", err.message);
     }

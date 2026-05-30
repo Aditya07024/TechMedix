@@ -1,0 +1,239 @@
+.admin-login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.admin-auth-shell {
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 2rem;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.admin-auth-hero {
+  padding: 3rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.75rem;
+  background: linear-gradient(180deg, #0f172a 0%, #334155 100%);
+  color: #f8fafc;
+}
+
+.admin-auth-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.admin-auth-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 2.5vw, 3rem);
+  line-height: 1.05;
+}
+
+.admin-auth-hero p {
+  margin: 0;
+  max-width: 36rem;
+  opacity: 0.9;
+  line-height: 1.75;
+}
+
+.admin-auth-hero-card {
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 1.75rem;
+}
+
+.admin-auth-hero-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-auth-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.admin-auth-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-auth-stat-grid div {
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.admin-auth-stat-grid strong {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.admin-auth-hero-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  width: fit-content;
+}
+
+.admin-auth-panel {
+  padding: 3rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.admin-auth-panel-head {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-auth-kicker {
+  display: inline-block;
+  color: #0f172a;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.8rem;
+}
+
+.admin-auth-panel-head h2 {
+  margin: 0;
+  font-size: 2.1rem;
+}
+
+.admin-auth-panel-head p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.75;
+}
+
+.admin-auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-auth-input {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.admin-auth-input input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 1rem;
+}
+
+.admin-login-button,
+.admin-demo-login-button {
+  width: 100%;
+  padding: 1rem 1.1rem;
+  border: none;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-login-button {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.admin-demo-login-button {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.admin-login-button:disabled,
+.admin-demo-login-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.admin-auth-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-login-note {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.admin-auth-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.error-message {
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+}
+
+@media (max-width: 940px) {
+  .admin-auth-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-login-container {
+    padding: 2rem 1rem;
+  }
+
+  .admin-auth-hero,
+  .admin-auth-panel {
+    padding: 2rem 1.5rem;
+  }
+
+  .admin-auth-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

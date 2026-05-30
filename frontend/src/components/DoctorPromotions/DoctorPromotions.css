@@ -1,0 +1,346 @@
+.promotions-dashboard {
+  padding: 1.5rem;
+  background: linear-gradient(145deg, var(--card-bg), var(--background-color));
+  border-radius: 24px;
+  box-shadow: 0 14px 36px var(--card-shadow);
+  color: var(--text-color);
+}
+
+.promotions-card-header {
+  margin-bottom: 2rem;
+}
+
+.promotions-card-header h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.8rem;
+  color: var(--text-color);
+}
+
+.promotions-card-header p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.promotions-alert {
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.promotions-alert.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.promotions-alert.success {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+/* Upload Dropzone */
+.upload-dropzone {
+  border: 2px dashed var(--card-shadow);
+  border-radius: 16px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background: rgba(0, 222, 148, 0.03);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  margin-bottom: 2.5rem;
+}
+
+.upload-dropzone:hover {
+  border-color: #00de94;
+  background: rgba(0, 222, 148, 0.07);
+}
+
+.dropzone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  gap: 0.75rem;
+}
+
+.upload-icon {
+  color: #00de94;
+  margin-bottom: 0.5rem;
+}
+
+.dropzone-label strong {
+  font-size: 1.2rem;
+}
+
+.dropzone-label span {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  max-width: 400px;
+}
+
+/* Cropper Section */
+.cropper-section {
+  background: var(--background-color);
+  padding: 1.5rem;
+  border-radius: 16px;
+  border: 1px solid var(--card-shadow);
+  margin-bottom: 2.5rem;
+}
+
+.cropper-section h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.3rem;
+}
+
+.cropper-section p {
+  margin: 0 0 1.5rem;
+  font-size: 0.95rem;
+  opacity: 0.75;
+}
+
+.crop-preview-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.crop-ratio-wrapper {
+  width: 100%;
+  max-width: 800px;
+}
+
+/* Position Slider */
+.slider-control-group {
+  max-width: 600px;
+  margin: 1.5rem auto;
+}
+
+.position-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--card-shadow);
+  outline: none;
+  cursor: pointer;
+}
+
+.position-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #00de94;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transition: transform 0.1s ease;
+}
+
+.position-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+.crop-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.crop-btn {
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.crop-btn.confirm {
+  background: #00de94;
+  color: #111;
+}
+
+.crop-btn.confirm:hover {
+  background: #00be7e;
+}
+
+.crop-btn.cancel {
+  background: var(--navbar-bg);
+  color: var(--text-color);
+  border: 1px solid var(--card-shadow);
+}
+
+.crop-btn.cancel:hover {
+  background: var(--card-shadow);
+}
+
+.crop-btn:active {
+  transform: translateY(1px);
+}
+
+/* Campaign Grid List */
+.campaigns-list-section h3 {
+  font-size: 1.4rem;
+  margin: 0 0 1.25rem;
+}
+
+.empty-promotions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 1rem;
+  opacity: 0.6;
+  gap: 0.75rem;
+}
+
+.posters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.poster-card {
+  background: var(--background-color);
+  border: 1px solid var(--card-shadow);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.poster-preview {
+  width: 100%;
+  aspect-ratio: 4.9;
+  background: #111;
+  overflow: hidden;
+}
+
+.poster-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poster-details {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.status-badge-container {
+  display: flex;
+  margin-bottom: 0.25rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge.active {
+  background: rgba(4, 120, 87, 0.12);
+  color: #047857;
+}
+
+.badge.pending {
+  background: rgba(217, 119, 6, 0.12);
+  color: #d97706;
+}
+
+.badge.expired {
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+}
+
+.p-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding-bottom: 0.35rem;
+}
+
+.p-row span {
+  opacity: 0.65;
+}
+
+.p-row small {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.pay-now-btn {
+  width: 100%;
+  margin-top: auto;
+  padding: 0.75rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.pay-now-btn:hover {
+  background: #1d4ed8;
+}
+
+.delete-poster-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.16);
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.delete-poster-btn:hover {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+@media (max-width: 576px) {
+  .promotions-dashboard {
+    padding: 1rem;
+  }
+  .upload-dropzone {
+    padding: 2rem 1rem;
+  }
+}

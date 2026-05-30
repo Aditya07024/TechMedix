@@ -15,17 +15,26 @@
     sans-serif;
   color: var(--landing-text);
   background:
-    radial-gradient(circle at top center, rgba(172, 210, 230, 0.36), transparent 28%),
+    radial-gradient(
+      circle at top center,
+      rgba(172, 210, 230, 0.36),
+      transparent 28%
+    ),
     linear-gradient(180deg, #fbfdfd 0%, #f4f9f9 54%, #f9fcfc 100%);
 }
 
 .landing-header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 1000;
   backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(26, 78, 82, 0.08);
   background: rgb(251, 253, 253);
+}
+
+.landing-header__inner {
+  position: relative;
+  z-index: 1001;
 }
 
 .landing-header__inner,
@@ -100,6 +109,9 @@
     box-shadow 0.2s ease,
     border-color 0.2s ease,
     background-color 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  z-index: 1001;
 }
 
 .landing-button:hover {
@@ -263,15 +275,13 @@
 .landing-preview-card__screens div,
 .landing-qr-placeholder {
   min-height: 158px;
-  
-  
 }
 
 .landing-preview-card__screens div {
   display: grid;
   place-items: center;
   font-size: 1.1rem;
-  img{
+  img {
     width: 80%;
     height: auto;
     display: block;
@@ -279,7 +289,7 @@
     border-radius: 22px;
     padding-top: 5px;
   }
-  .avt{
+  .avt {
     width: 100%;
     height: auto;
     display: block;
@@ -468,7 +478,7 @@
   margin-left: 5%;
   margin-right: 5%;
 }
-.landing-button--medicine{
+.landing-button--medicine {
   background-color: #e179127c;
 }
 
@@ -485,7 +495,11 @@
   border: 1px solid var(--landing-border);
   border-radius: 20px;
   background:
-    radial-gradient(circle at top left, rgba(44, 165, 157, 0.12), transparent 30%),
+    radial-gradient(
+      circle at top left,
+      rgba(44, 165, 157, 0.12),
+      transparent 30%
+    ),
     rgba(255, 255, 255, 0.76);
   box-shadow:
     0 24px 54px rgba(26, 78, 82, 0.06),
@@ -620,8 +634,16 @@
   border: 1px solid var(--landing-border);
   border-radius: 36px;
   background:
-    radial-gradient(circle at top right, rgba(44, 165, 157, 0.18), transparent 28%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(234, 244, 243, 0.92));
+    radial-gradient(
+      circle at top right,
+      rgba(44, 165, 157, 0.18),
+      transparent 28%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.95),
+      rgba(234, 244, 243, 0.92)
+    );
   box-shadow:
     0 28px 56px rgba(26, 78, 82, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
@@ -684,7 +706,10 @@
 
 .landing-footer__grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.7fr) minmax(300px, 1fr) minmax(240px, 0.72fr);
+  grid-template-columns: minmax(220px, 0.7fr) minmax(300px, 1fr) minmax(
+      240px,
+      0.72fr
+    );
   gap: 26px;
   margin-top: 36px;
   padding-top: 28px;
@@ -908,7 +933,11 @@
 @media (max-width: 640px) {
   .landing-page {
     background:
-      radial-gradient(circle at top center, rgba(172, 230, 224, 0.26), transparent 24%),
+      radial-gradient(
+        circle at top center,
+        rgba(172, 230, 224, 0.26),
+        transparent 24%
+      ),
       linear-gradient(180deg, #fbfdfd 0%, #f5f9f9 48%, #f9fcfc 100%);
   }
 

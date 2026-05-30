@@ -5,7 +5,7 @@ import "./AdminDashboard.css";
 
 /**
  * ADMIN DASHBOARD
- * System analytics, user management, payments, branch control
+ * System analytics, user management, payments, doctor payouts, branch control
  */
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -16,9 +16,27 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // User filtering state
+  const [selectedRole, setSelectedRole] = useState("");
+
+  // Payout tracking state
+  const [payoutSummary, setPayoutSummary] = useState([]);
+  const [payoutHistory, setPayoutHistory] = useState([]);
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutNotes, setPayoutNotes] = useState("");
+
   useEffect(() => {
     loadAdminData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "payouts") {
+      loadPayoutData();
+    }
+  }, [activeTab]);
 
   const loadAdminData = async () => {
     try {
@@ -32,16 +50,16 @@ export default function AdminDashboard() {
         ]);
 
       if (statsRes.status === "fulfilled") {
-        setSystemStats(statsRes.value.data.data || {});
+        setSystemStats(statsRes.value.data?.data || {});
       }
       if (paymentsRes.status === "fulfilled") {
-        setPayments(paymentsRes.value.data.data || []);
+        setPayments(paymentsRes.value.data?.data || []);
       }
       if (usersRes.status === "fulfilled") {
-        setUsers(usersRes.value.data.data || []);
+        setUsers(usersRes.value.data?.data || []);
       }
       if (branchesRes.status === "fulfilled") {
-        setBranches(branchesRes.value.data.data || []);
+        setBranches(branchesRes.value.data?.data || []);
       }
     } catch (err) {
       setError("Failed to load admin data: " + err.message);
@@ -50,18 +68,99 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading)
+  const loadPayoutData = async () => {
+    try {
+      setPayoutLoading(true);
+      setError(null);
+      const [summaryRes, historyRes] = await Promise.allSettled([
+        adminAPI.getPayoutSummary(),
+        adminAPI.getPayoutHistory(),
+      ]);
+
+      if (summaryRes.status === "fulfilled" && summaryRes.value.data?.success) {
+        setPayoutSummary(summaryRes.value.data.data || []);
+      }
+      if (historyRes.status === "fulfilled" && historyRes.value.data?.success) {
+        setPayoutHistory(historyRes.value.data.data || []);
+      }
+    } catch (err) {
+      console.error("Payout load error:", err);
+      setError("Failed to load payout data.");
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (role) => {
+    setSelectedRole(role);
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await adminAPI.getUsers(role || null, 100, 0);
+      if (res.data?.success || Array.isArray(res.data?.data)) {
+        setUsers(res.data.data || []);
+      }
+    } catch (err) {
+      setError("Failed to load users: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPayoutModal = (doctor) => {
+    setSelectedDoctor(doctor);
+    setPayoutAmount(String(doctor.pending_payout));
+    setPayoutNotes("");
+    setShowPayoutModal(true);
+  };
+
+  const handleRecordPayout = async (e) => {
+    e.preventDefault();
+    if (!selectedDoctor || !payoutAmount) return;
+
+    try {
+      setError(null);
+      const res = await adminAPI.createPayout({
+        doctor_id: selectedDoctor.doctor_id,
+        amount: parseFloat(payoutAmount),
+        reference_notes: payoutNotes,
+      });
+
+      if (res.data?.success) {
+        alert("Payout recorded successfully!");
+        setShowPayoutModal(false);
+        setSelectedDoctor(null);
+        setPayoutAmount("");
+        setPayoutNotes("");
+        await loadPayoutData();
+      } else {
+        setError(res.data?.error || "Failed to create payout.");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || "Failed to record payout.");
+    }
+  };
+
+  if (loading && activeTab !== "payouts" && activeTab !== "users")
     return (
       <div className="admin-dashboard">
-        <p>Loading...</p>
+        <p>Loading TechMedix clinical control panel...</p>
       </div>
     );
+
+  const filterRoles = [
+    { id: "", label: "All Users" },
+    { id: "patient", label: "Patients" },
+    { id: "doctor", label: "Doctors" },
+    { id: "staff", label: "Staff" },
+    { id: "admin", label: "Admins" },
+  ];
 
   return (
     <div className="admin-dashboard">
       <header className="admin-header">
         <h1>🏥 TechMedix Admin Panel</h1>
-        <p>System Management & Analytics</p>
+        <p>System Management, Financial Payouts & Branch Control</p>
       </header>
 
       <div className="admin-tabs">
@@ -76,6 +175,12 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("payments")}
         >
           💳 Payments
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "payouts" ? "active" : ""}`}
+          onClick={() => setActiveTab("payouts")}
+        >
+          💸 Doctor Payouts
         </button>
         <button
           className={`tab-btn ${activeTab === "users" ? "active" : ""}`}
@@ -128,7 +233,7 @@ export default function AdminDashboard() {
                 <div className="stat-card">
                   <h4>💰 Total Revenue</h4>
                   <p className="big-number">
-                    ₹{systemStats.total_revenue || 0}
+                    ₹{Number(systemStats.total_revenue || 0).toLocaleString("en-IN")}
                   </p>
                   <small>Platform revenue</small>
                 </div>
@@ -174,7 +279,7 @@ export default function AdminDashboard() {
                     payments.map((payment) => (
                       <tr key={payment.id}>
                         <td>{payment.id.substring(0, 8)}...</td>
-                        <td>{payment.patient_name}</td>
+                        <td>{payment.patient_name || "Anonymous"}</td>
                         <td>₹{payment.amount}</td>
                         <td>
                           <span className={`status ${payment.status}`}>
@@ -194,15 +299,108 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* DOCTOR PAYOUTS TAB */}
+        {activeTab === "payouts" && (
+          <div className="tab-content payouts-tab">
+            <h2>Doctor Earnings & Payouts</h2>
+            <p>Distribute consultaion fees received online (Razorpay) back to the practitioners.</p>
+            
+            {payoutLoading ? (
+              <p>Loading payouts metrics...</p>
+            ) : (
+              <div className="payouts-view">
+                <h3>Practitioner Balances</h3>
+                <div className="transactions-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Doctor Name</th>
+                        <th>Specialty</th>
+                        <th>Collected Online</th>
+                        <th>Total Paid Out</th>
+                        <th>Pending Payout</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payoutSummary.length === 0 ? (
+                        <tr>
+                          <td colSpan="6">No doctor records found</td>
+                        </tr>
+                      ) : (
+                        payoutSummary.map((doc) => (
+                          <tr key={doc.doctor_id}>
+                            <td><strong>Dr. {doc.doctor_name}</strong></td>
+                            <td>{doc.specialty}</td>
+                            <td>₹{doc.total_collected.toFixed(2)}</td>
+                            <td>₹{doc.total_paid_out.toFixed(2)}</td>
+                            <td className={doc.pending_payout > 0 ? "highlight-payout" : ""}>
+                              <strong>₹{doc.pending_payout.toFixed(2)}</strong>
+                            </td>
+                            <td>
+                              <button
+                                className="record-payout-btn"
+                                onClick={() => openPayoutModal(doc)}
+                                disabled={doc.pending_payout <= 0}
+                              >
+                                Distribute
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <h3 className="history-heading">Distribution History</h3>
+                <div className="transactions-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Doctor</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Notes / References</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payoutHistory.length === 0 ? (
+                        <tr>
+                          <td colSpan="4">No payout distributions recorded yet</td>
+                        </tr>
+                      ) : (
+                        payoutHistory.map((payout) => (
+                          <tr key={payout.id}>
+                            <td>Dr. {payout.doctor_name}</td>
+                            <td><strong>₹{Number(payout.amount).toFixed(2)}</strong></td>
+                            <td>{new Date(payout.payout_date).toLocaleDateString()}</td>
+                            <td>{payout.reference_notes || "—"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* USERS TAB */}
         {activeTab === "users" && (
           <div className="tab-content users-tab">
             <h2>Users</h2>
             <div className="users-filters">
-              <button className="filter-btn active">All Users</button>
-              <button className="filter-btn">Patients</button>
-              <button className="filter-btn">Doctors</button>
-              <button className="filter-btn">Admins</button>
+              {filterRoles.map((role) => (
+                <button
+                  key={role.id}
+                  className={`filter-btn ${selectedRole === role.id ? "active" : ""}`}
+                  onClick={() => handleRoleChange(role.id)}
+                >
+                  {role.label}
+                </button>
+              ))}
             </div>
             <div className="users-grid">
               {users.length === 0 ? (
@@ -235,12 +433,11 @@ export default function AdminDashboard() {
                 branches.map((branch) => (
                   <div key={branch.id} className="branch-card">
                     <h4>🏢 {branch.name}</h4>
-                    <p className="location">📍 {branch.location}</p>
+                    <p className="location">📍 {branch.address || "N/A"}</p>
                     <p className="city">
                       {branch.city}, {branch.state}
                     </p>
-                    <p className="phone">☎️ {branch.phone}</p>
-                    <p className="email">✉️ {branch.email}</p>
+                    <p className="phone">☎️ {branch.phone || "N/A"}</p>
                     <div className="branch-stats">
                       <span>
                         Doctors: <strong>{branch.doctor_count || 0}</strong>
@@ -263,6 +460,52 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* RECORD PAYOUT MODAL */}
+      {showPayoutModal && selectedDoctor && (
+        <div className="modal-overlay">
+          <div className="payout-modal-content">
+            <h3>Record Doctor Payout</h3>
+            <p>Confirm the distribution of collected consultation fees to <strong>Dr. {selectedDoctor.doctor_name}</strong>.</p>
+            <form onSubmit={handleRecordPayout}>
+              <div className="form-group">
+                <label>Amount (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={selectedDoctor.pending_payout}
+                  value={payoutAmount}
+                  onChange={(e) => setPayoutAmount(e.target.value)}
+                  required
+                />
+                <small className="help-text">Max allowed: ₹{selectedDoctor.pending_payout.toFixed(2)}</small>
+              </div>
+              <div className="form-group">
+                <label>Notes / Transaction Reference</label>
+                <textarea
+                  value={payoutNotes}
+                  onChange={(e) => setPayoutNotes(e.target.value)}
+                  placeholder="e.g. Bank IMPS Ref ID or cheque number"
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="modal-btn submit">Record Payout</button>
+                <button
+                  type="button"
+                  className="modal-btn cancel"
+                  onClick={() => {
+                    setShowPayoutModal(false);
+                    setSelectedDoctor(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

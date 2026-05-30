@@ -123,6 +123,7 @@ import scheduleApiRoutes from "./routes/scheduleApiRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import healthWalletRoutes from "./routes/healthWalletRoutes.js";
 import googleFitRoutes from "./routes/googleFitRoutes.js";
+import doctorPosterRoutes from "./routes/doctorPosterRoutes.js";
 import xrayRoutes from "./routes/xrayRoutes.js";
 import medicineRoutes from "./routes/medicine.routes.js";
 import staffRoutes from "./routes/staffRoutes.js";
@@ -1380,13 +1381,18 @@ app.use("/api/doctor", doctorDelayRoutes);
 app.use("/api/queue-v2", queueManagementRoutes);
 app.use("/api/safety", safetyManagementRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/v2/analytics", analyticsRoutes);
 app.use("/api/prescription-intelligence", prescriptionIntelligenceRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/v2/admin", adminRoutes);
+app.use("/api/doctor-posters", doctorPosterRoutes);
+app.use("/api/v2/doctor-posters", doctorPosterRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/health-wallet", healthWalletRoutes);
 app.use("/auth/google-fit", googleFitRoutes);
 app.use("/api/google-fit", googleFitRoutes);
 app.use("/api/admin", adminBranchRoutes);
+app.use("/api/v2/admin", adminBranchRoutes);
 app.use("/api/scan/xray", xrayRoutes);
 
 // New API Routes (Clean Architecture)
