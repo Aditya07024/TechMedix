@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   // User filtering state
   const [selectedRole, setSelectedRole] = useState("");
@@ -65,6 +66,20 @@ export default function AdminDashboard() {
       setError("Failed to load admin data: " + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshPayments = async () => {
+    try {
+      setPaymentsLoading(true);
+      setError(null);
+      const res = await adminAPI.getPayments(50, 0);
+      setPayments(res.data?.data || []);
+    } catch (err) {
+      console.error("Payments refresh error:", err);
+      setError("Failed to refresh payments: " + err.message);
+    } finally {
+      setPaymentsLoading(false);
     }
   };
 
@@ -238,6 +253,34 @@ export default function AdminDashboard() {
                   <small>Platform revenue</small>
                 </div>
                 <div className="stat-card">
+                  <h4>💳 Online Revenue</h4>
+                  <p className="big-number">
+                    ₹{Number(systemStats.online_revenue || 0).toLocaleString("en-IN")}
+                  </p>
+                  <small>Razorpay & Wallet</small>
+                </div>
+                <div className="stat-card">
+                  <h4>💵 Offline Revenue</h4>
+                  <p className="big-number">
+                    ₹{Number(systemStats.offline_revenue || 0).toLocaleString("en-IN")}
+                  </p>
+                  <small>Collected in Cash</small>
+                </div>
+                <div className="stat-card">
+                  <h4>📅 Bookings Today</h4>
+                  <p className="big-number">
+                    {systemStats.bookings_today || 0}
+                  </p>
+                  <small>New slots booked</small>
+                </div>
+                <div className="stat-card">
+                  <h4>📈 Bookings This Month</h4>
+                  <p className="big-number">
+                    {systemStats.bookings_this_month || 0}
+                  </p>
+                  <small>Monthly volume</small>
+                </div>
+                <div className="stat-card">
                   <h4>📊 Conversion Rate</h4>
                   <p className="big-number">
                     {systemStats.conversion_rate || 0}%
@@ -257,7 +300,34 @@ export default function AdminDashboard() {
         {/* PAYMENTS TAB */}
         {activeTab === "payments" && (
           <div className="tab-content payments-tab">
-            <h2>Payment Transactions</h2>
+            <div className="tab-header-row">
+              <h2>Payment Transactions</h2>
+              <button
+                onClick={refreshPayments}
+                disabled={paymentsLoading}
+                className={`refresh-btn ${paymentsLoading ? "spinning" : ""}`}
+                title="Refresh payments"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="refresh-icon"
+                >
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
+                </svg>
+                <span>{paymentsLoading ? "Refreshing..." : "Refresh"}</span>
+              </button>
+            </div>
             <div className="transactions-table">
               <table>
                 <thead>
@@ -302,10 +372,37 @@ export default function AdminDashboard() {
         {/* DOCTOR PAYOUTS TAB */}
         {activeTab === "payouts" && (
           <div className="tab-content payouts-tab">
-            <h2>Doctor Earnings & Payouts</h2>
+            <div className="tab-header-row">
+              <h2>Doctor Earnings & Payouts</h2>
+              <button
+                onClick={loadPayoutData}
+                disabled={payoutLoading}
+                className={`refresh-btn ${payoutLoading ? "spinning" : ""}`}
+                title="Refresh payouts"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="refresh-icon"
+                >
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
+                </svg>
+                <span>{payoutLoading ? "Refreshing..." : "Refresh"}</span>
+              </button>
+            </div>
             <p>Distribute consultaion fees received online (Razorpay) back to the practitioners.</p>
             
-            {payoutLoading ? (
+            {payoutLoading && payoutSummary.length === 0 ? (
               <p>Loading payouts metrics...</p>
             ) : (
               <div className="payouts-view">
@@ -317,6 +414,7 @@ export default function AdminDashboard() {
                         <th>Doctor Name</th>
                         <th>Specialty</th>
                         <th>Collected Online</th>
+                        <th>Collected Offline (Cash)</th>
                         <th>Total Paid Out</th>
                         <th>Pending Payout</th>
                         <th>Action</th>
@@ -325,14 +423,15 @@ export default function AdminDashboard() {
                     <tbody>
                       {payoutSummary.length === 0 ? (
                         <tr>
-                          <td colSpan="6">No doctor records found</td>
+                          <td colSpan="7">No doctor records found</td>
                         </tr>
                       ) : (
                         payoutSummary.map((doc) => (
                           <tr key={doc.doctor_id}>
                             <td><strong>Dr. {doc.doctor_name}</strong></td>
                             <td>{doc.specialty}</td>
-                            <td>₹{doc.total_collected.toFixed(2)}</td>
+                            <td>₹{(doc.online_collected || 0).toFixed(2)}</td>
+                            <td>₹{(doc.offline_collected || 0).toFixed(2)}</td>
                             <td>₹{doc.total_paid_out.toFixed(2)}</td>
                             <td className={doc.pending_payout > 0 ? "highlight-payout" : ""}>
                               <strong>₹{doc.pending_payout.toFixed(2)}</strong>

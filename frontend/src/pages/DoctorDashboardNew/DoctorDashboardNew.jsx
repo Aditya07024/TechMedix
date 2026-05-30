@@ -988,7 +988,7 @@ export default function DoctorDashboardNew() {
                     </div>
                   </article>
 
-                  <article className="doctor-panel">
+                  {/* <article className="doctor-panel">
                     <div className="doctor-panel-heading">
                       <div>
                         <span>Quick Focus</span>
@@ -1021,7 +1021,7 @@ export default function DoctorDashboardNew() {
                         <p>Adjust weekly availability and slot duration.</p>
                       </button>
                     </div>
-                  </article>
+                  </article> */}
                 </section>
               </>
             )}

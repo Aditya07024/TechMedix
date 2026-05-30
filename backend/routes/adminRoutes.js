@@ -226,8 +226,17 @@ router.get(
             FROM payments 
             WHERE doctor_id = d.id 
               AND status = 'paid' 
-              AND payment_method = 'online'
-          ), 0)::numeric AS total_collected,
+              AND payment_method IN ('online', 'wallet')
+              AND COALESCE(is_deleted, FALSE) = FALSE
+          ), 0)::numeric AS online_collected,
+          COALESCE((
+            SELECT SUM(amount) 
+            FROM payments 
+            WHERE doctor_id = d.id 
+              AND status = 'paid' 
+              AND payment_method = 'cash'
+              AND COALESCE(is_deleted, FALSE) = FALSE
+          ), 0)::numeric AS offline_collected,
           COALESCE((
             SELECT SUM(amount) 
             FROM doctor_payouts 
@@ -239,15 +248,18 @@ router.get(
       `;
 
       const data = docSummaries.map(row => {
-        const total_collected = Number(row.total_collected);
+        const online_collected = Number(row.online_collected);
+        const offline_collected = Number(row.offline_collected);
         const total_paid_out = Number(row.total_paid_out);
         return {
           doctor_id: row.doctor_id,
           doctor_name: row.doctor_name,
           specialty: row.specialty,
-          total_collected,
+          total_collected: online_collected, // For backwards compatibility
+          online_collected,
+          offline_collected,
           total_paid_out,
-          pending_payout: total_collected - total_paid_out
+          pending_payout: online_collected - total_paid_out
         };
       });
 

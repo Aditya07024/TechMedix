@@ -268,11 +268,19 @@ router.get(
         patients,
         appointments,
         payments,
+        bookingsToday,
+        bookingsThisMonth,
+        onlinePayments,
+        offlinePayments,
       ] = await Promise.all([
         sql`SELECT COUNT(*) AS count FROM doctors WHERE is_deleted = FALSE`,
         sql`SELECT COUNT(*) AS count FROM patients WHERE is_deleted = FALSE`,
         sql`SELECT COUNT(*) AS count FROM appointments WHERE is_deleted = FALSE`,
-        sql`SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid'`,
+        sql`SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid' AND COALESCE(is_deleted, false) = FALSE`,
+        sql`SELECT COUNT(*) AS count FROM appointments WHERE is_deleted = FALSE AND DATE(created_at) = CURRENT_DATE`,
+        sql`SELECT COUNT(*) AS count FROM appointments WHERE is_deleted = FALSE AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)`,
+        sql`SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid' AND payment_method IN ('online', 'wallet') AND COALESCE(is_deleted, false) = FALSE`,
+        sql`SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid' AND payment_method = 'cash' AND COALESCE(is_deleted, false) = FALSE`,
       ]);
 
       const [completedAppts] = await sql`
@@ -281,7 +289,7 @@ router.get(
       `;
 
       const totalAppts = Number(appointments[0].count);
-      const conversionRate = totalAppts > 0 ? Math.round((Number(completedAppts[0].count) / totalAppts) * 100) : 0;
+      const conversionRate = totalAppts > 0 ? Math.round((Number(completedAppts?.count || 0) / totalAppts) * 100) : 0;
 
       res.json({
         success: true,
@@ -291,7 +299,11 @@ router.get(
           total_appointments: totalAppts,
           total_revenue: Number(payments[0].total),
           conversion_rate: conversionRate,
-          avg_rating: 4.8
+          avg_rating: 4.8,
+          bookings_today: Number(bookingsToday[0].count),
+          bookings_this_month: Number(bookingsThisMonth[0].count),
+          online_revenue: Number(onlinePayments[0].total),
+          offline_revenue: Number(offlinePayments[0].total),
         }
       });
     } catch (err) {
