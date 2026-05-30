@@ -8,6 +8,8 @@ import {
   // timelineAPI,
   notificationAPI,
   // queueAPI,
+  supportAPI,
+  reviewAPI,
 } from "../../api/techmedixAPI";
 import { patientDataApi } from "../../api";
 import AppointmentBooking from "../../components/AppointmentBooking/AppointmentBooking";
@@ -276,6 +278,17 @@ export default function PatientDashboard() {
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
   const [healthChatOpen, setHealthChatOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [walletTransactions, setWalletTransactions] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportCategory, setSupportCategory] = useState("wallet");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [submittingTicket, setSubmittingTicket] = useState(false);
+  const [selectedDoctorReviews, setSelectedDoctorReviews] = useState([]);
+  const [selectedDoctorRating, setSelectedDoctorRating] = useState("0.0");
+  const [selectedDoctorReviewCount, setSelectedDoctorReviewCount] = useState(0);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [recordings, setRecordings] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [recordingTranscripts, setRecordingTranscripts] = useState({});
@@ -517,6 +530,8 @@ export default function PatientDashboard() {
       setMedicines(cache.medicines || []);
       setNotifications(cache.notifications || []);
       setWalletBalance(Number(cache.walletBalance || 0));
+      setWalletTransactions(cache.walletTransactions || []);
+      setSupportTickets(cache.supportTickets || []);
       setRecordings(cache.recordings || []);
       setEhrHistory(cache.ehrHistory || []);
       setHealthMetricsHistory(cache.healthMetricsHistory || []);
@@ -541,6 +556,31 @@ export default function PatientDashboard() {
       window.clearTimeout(loaderTimeout);
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!selectedDoctorId) {
+      setSelectedDoctorReviews([]);
+      setSelectedDoctorRating("0.0");
+      setSelectedDoctorReviewCount(0);
+      return;
+    }
+
+    const fetchDocReviews = async () => {
+      try {
+        setReviewsLoading(true);
+        const res = await reviewAPI.getDoctorReviews(selectedDoctorId);
+        setSelectedDoctorReviews(res.data?.reviews || []);
+        setSelectedDoctorRating(res.data?.average || "0.0");
+        setSelectedDoctorReviewCount(res.data?.count || 0);
+      } catch (err) {
+        console.error("Failed to load doctor reviews:", err);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    fetchDocReviews();
+  }, [selectedDoctorId]);
 
   useEffect(() => {
     const requestedTab = location.state?.initialTab;
@@ -667,6 +707,8 @@ export default function PatientDashboard() {
             ? notifRes.value.data.data || []
             : cachedData.notifications || [],
         walletBalance: Number(cachedData.walletBalance || walletBalance || 0),
+        walletTransactions: cachedData.walletTransactions || walletTransactions || [],
+        supportTickets: cachedData.supportTickets || supportTickets || [],
         recordings: cachedData.recordings || recordings,
         ehrHistory: cachedData.ehrHistory || ehrHistory,
         healthMetricsHistory: cachedData.healthMetricsHistory || healthMetricsHistory,
@@ -798,6 +840,44 @@ export default function PatientDashboard() {
         setWalletBalance(nextWalletBalance);
       }
 
+      // Load wallet transactions
+      let nextWalletTransactions = cachedData.walletTransactions || [];
+      try {
+        const { response: wtRes, data: wtData } = await fetchJsonWithTimeout(
+          toBackendUrl(`/api/payments/wallet/transactions`),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+          },
+          8000,
+          "Wallet transactions",
+        );
+        if (wtRes.ok) {
+          nextWalletTransactions = Array.isArray(wtData.data) ? wtData.data : [];
+          setWalletTransactions(nextWalletTransactions);
+        } else {
+          console.warn("Wallet transactions error:", wtData?.error);
+          setWalletTransactions(nextWalletTransactions);
+        }
+      } catch (err) {
+        console.error("Failed to load wallet transactions:", err);
+        setWalletTransactions(nextWalletTransactions);
+      }
+
+      // Load support tickets
+      let nextSupportTickets = cachedData.supportTickets || [];
+      try {
+        const response = await supportAPI.getTickets();
+        nextSupportTickets = response.data?.tickets || response.data?.data || [];
+        setSupportTickets(nextSupportTickets);
+      } catch (err) {
+        console.error("Failed to load support tickets:", err);
+        setSupportTickets(nextSupportTickets);
+      }
+
       let nextDoctors = doctors.length ? doctors : cachedData.doctors || [];
       try {
         setDoctorsLoading(true);
@@ -849,6 +929,8 @@ export default function PatientDashboard() {
         notifications:
           notifRes.status === "fulfilled" ? notifRes.value.data.data || [] : [],
         walletBalance: nextWalletBalance,
+        walletTransactions: nextWalletTransactions,
+        supportTickets: nextSupportTickets,
         recordings: nextRecordings,
         ehrHistory: nextEhrHistory,
         healthMetricsHistory: nextHealthMetricsHistory,
@@ -865,26 +947,18 @@ export default function PatientDashboard() {
   };
 
   const handleCancelAppointment = async (appointmentId) => {
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this appointment? The paid amount will be refunded directly to your health wallet."
+    );
+    if (!confirmCancel) return;
+
     try {
       await appointmentAPI.cancel(
         appointmentId,
         "Patient requested cancellation",
       );
-      const updatedAppointments = appointments.filter((a) => a.id !== appointmentId);
-      setAppointments(updatedAppointments);
-      writeDashboardCache(user?.id, {
-        appointments: updatedAppointments,
-        prescriptions,
-        medicines,
-        notifications,
-        walletBalance,
-        recordings,
-        ehrHistory,
-        healthMetricsHistory,
-        doctors,
-        qrData,
-      });
-      alert("Appointment cancelled successfully");
+      alert("Appointment cancelled successfully. Refreshing dashboard...");
+      window.location.reload();
     } catch (err) {
       alert("Failed to cancel appointment: " + err.message);
     }
@@ -907,6 +981,8 @@ export default function PatientDashboard() {
         medicines: updatedMedicines,
         notifications,
         walletBalance,
+        walletTransactions,
+        supportTickets,
         recordings,
         ehrHistory,
         healthMetricsHistory,
@@ -916,6 +992,31 @@ export default function PatientDashboard() {
     } catch (err) {
       console.error("Failed to delete medicine:", err);
       alert("Failed to delete medicine");
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    if (!supportSubject.trim() || !supportDescription.trim()) return;
+
+    try {
+      setSubmittingTicket(true);
+      await supportAPI.createTicket({
+        subject: supportSubject,
+        category: supportCategory,
+        description: supportDescription,
+      });
+
+      alert("Support ticket submitted successfully!");
+      setShowSupportModal(false);
+      setSupportSubject("");
+      setSupportDescription("");
+
+      loadDashboardData();
+    } catch (err) {
+      alert("Error: " + (err.response?.data?.error || err.message));
+    } finally {
+      setSubmittingTicket(false);
     }
   };
 
@@ -998,6 +1099,8 @@ export default function PatientDashboard() {
         medicines,
         notifications,
         walletBalance,
+        walletTransactions,
+        supportTickets,
         recordings,
         ehrHistory,
         healthMetricsHistory,
@@ -1573,6 +1676,10 @@ export default function PatientDashboard() {
     setShowCustomizeGridModal(false);
   };
 
+  const recentSpending = walletTransactions
+    .filter((tx) => tx.type === "debit")
+    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
   return (
     <div className="patient-dashboard">
       {showCustomizeGridModal && (
@@ -1743,7 +1850,7 @@ export default function PatientDashboard() {
                     <ChevronRight size={14} strokeWidth={2} />
                   </button>
                 </div>
-                <div className="home-card assistant-panel-card">
+                {/* <div className="home-card assistant-panel-card">
                     <div className="assistant-panel-header">
                       <div className="assistant-title">
                         <span className="assistant-status-dot" />
@@ -1762,7 +1869,7 @@ export default function PatientDashboard() {
                       
                     </div>
                     
-                  </div>
+                  </div> */}
 
               </div>
               
@@ -2010,25 +2117,58 @@ export default function PatientDashboard() {
                 </div>
 
                 {selectedDoctorId ? (
-                  <AppointmentBooking
-                    patientId={user?.id}
-                    doctorId={selectedDoctorId}
-                    doctorName={
-                      doctors.find(
-                        (d) => String(d.id) === String(selectedDoctorId),
-                      )?.name
-                    }
-                    doctorSpecialty={
-                      doctors.find(
-                        (d) => String(d.id) === String(selectedDoctorId),
-                      )?.specialty
-                    }
-                    consultationFee={
-                      doctors.find(
-                        (d) => String(d.id) === String(selectedDoctorId),
-                      )?.consultation_fee
-                    }
-                  />
+                  <>
+                    <AppointmentBooking
+                      patientId={user?.id}
+                      doctorId={selectedDoctorId}
+                      doctorName={
+                        doctors.find(
+                          (d) => String(d.id) === String(selectedDoctorId),
+                        )?.name
+                      }
+                      doctorSpecialty={
+                        doctors.find(
+                          (d) => String(d.id) === String(selectedDoctorId),
+                        )?.specialty
+                      }
+                      consultationFee={
+                        doctors.find(
+                          (d) => String(d.id) === String(selectedDoctorId),
+                        )?.consultation_fee
+                      }
+                    />
+
+                    <div className="doctor-reviews-section" style={{ marginTop: '30px', borderTop: '1px solid #edf2f7', paddingTop: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#10203a' }}>Patient Reviews & Ratings</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ffc107' }}>★ {selectedDoctorRating}</span>
+                          <span style={{ fontSize: '0.9rem', color: '#6d7985' }}>({selectedDoctorReviewCount} reviews)</span>
+                        </div>
+                      </div>
+
+                      {reviewsLoading ? (
+                        <div style={{ color: '#6d7985', fontSize: '0.95rem' }}>Loading reviews...</div>
+                      ) : selectedDoctorReviews.length === 0 ? (
+                        <div style={{ color: '#6d7985', fontSize: '0.95rem', fontStyle: 'italic' }}>No reviews yet for this doctor. Be the first to leave a review after your visit!</div>
+                      ) : (
+                        <div className="reviews-scroll-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto', paddingRight: '5px' }}>
+                          {selectedDoctorReviews.map((review) => (
+                            <div key={review.id} style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <strong style={{ color: '#10203a', fontSize: '0.95rem' }}>{review.patient_name || 'Verified Patient'}</strong>
+                                <span style={{ color: '#ffc107', fontWeight: 'bold' }}>
+                                  {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '0.9rem', color: '#4a5568', lineHeight: '1.5' }}>{review.comment || 'No comment provided.'}</p>
+                              <span style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginTop: '8px' }}>{new Date(review.created_at).toLocaleDateString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <div className="selection-placeholder">
                     Please select a doctor above to view available appointment slots.
@@ -2785,14 +2925,7 @@ export default function PatientDashboard() {
                     </span>
                   </div>
                   <p>Use your health wallet balance for appointments and verified care services when available.</p>
-                  <div className="wallet-balance-actions">
-                    <button type="button" className="action-btn" onClick={() => setHealthChatOpen(true)}>
-                      Billing Support
-                    </button>
-                    <button type="button" className="btn-cancel" onClick={() => setActiveTab("home")}>
-                      Back to Dashboard
-                    </button>
-                  </div>
+
                 </div>
 
                 <div className="wallet-summary-grid">
@@ -2803,13 +2936,13 @@ export default function PatientDashboard() {
                   </div>
                   <div className="wallet-summary-card">
                     <span>Recent Spending</span>
-                    <strong>Unavailable</strong>
-                    <small>No transaction feed is linked yet</small>
+                    <strong>₹{recentSpending.toFixed(2)}</strong>
+                    <small>Total amount spent using wallet</small>
                   </div>
                   <div className="wallet-summary-card">
                     <span>Upcoming Hold</span>
-                    <strong>Unavailable</strong>
-                    <small>No reserved payment is currently shown</small>
+                    <strong>₹0.00</strong>
+                    <small>No active holds on your wallet balance</small>
                   </div>
                 </div>
 
@@ -2819,13 +2952,27 @@ export default function PatientDashboard() {
                     <span>Linked activity feed</span>
                   </div>
                   <div className="wallet-transactions-list">
-                    <div className="wallet-transaction-row">
-                      <div>
-                        <strong>No wallet activity available</strong>
-                        <span>Transaction history will appear here once a billing feed is connected.</span>
+                    {walletTransactions.length > 0 ? (
+                      walletTransactions.map((tx) => (
+                        <div className="wallet-transaction-row" key={tx.id}>
+                          <div>
+                            <strong>{tx.note || tx.source || "Wallet Transaction"}</strong>
+                            <span>{new Date(tx.created_at).toLocaleString()}</span>
+                          </div>
+                          <b className={tx.type === "credit" ? "credit" : "debit"}>
+                            {tx.type === "credit" ? "+" : "-"}₹{Number(tx.amount).toFixed(2)}
+                          </b>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="wallet-transaction-row">
+                        <div>
+                          <strong>No wallet activity available</strong>
+                          <span>Your transaction history will appear here once you make wallet transactions.</span>
+                        </div>
+                        <b className="debit">₹0.00</b>
                       </div>
-                      <b className="debit">Unavailable</b>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2844,7 +2991,7 @@ export default function PatientDashboard() {
                     <CalendarDays size={18} strokeWidth={2} />
                     <h3>Upcoming Billing</h3>
                   </div>
-                  <strong>Unavailable</strong>
+                  <strong>None Scheduled</strong>
                   <p>No scheduled charge is currently attached to your wallet.</p>
                 </div>
 
@@ -2854,12 +3001,103 @@ export default function PatientDashboard() {
                     <h3>Need billing help?</h3>
                   </div>
                   <p>Our care support team can help with refunds, invoice clarifications, and wallet issues.</p>
-                  <button type="button" className="wallet-support-btn" onClick={() => setHealthChatOpen(true)}>
+                  <button type="button" className="wallet-support-btn" onClick={() => setShowSupportModal(true)}>
                     Contact Support
                   </button>
                 </div>
+
+                {supportTickets.length > 0 && (
+                  <div className="wallet-side-card wallet-tickets-list-card">
+                    <div className="wallet-side-title">
+                      <ShieldCheck size={18} strokeWidth={2} />
+                      <h3>My Support Tickets</h3>
+                    </div>
+                    <div className="side-tickets-list" style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {supportTickets.map((ticket) => (
+                        <div key={ticket.id} className="side-ticket-item" style={{ background: '#f5f7f9', padding: '10px 12px', borderRadius: '8px', borderLeft: ticket.status === 'open' ? '3px solid #ff9800' : '3px solid #0b7a72' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#10203a' }}>{ticket.category.toUpperCase()}</span>
+                            <span className={`status-badge ${ticket.status}`} style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: ticket.status === 'open' ? '#fff3e0' : '#e0f2f1', color: ticket.status === 'open' ? '#ff9800' : '#0b7a72', fontWeight: 'bold' }}>{ticket.status}</span>
+                          </div>
+                          <strong style={{ display: 'block', fontSize: '0.9rem', color: '#10203a' }}>{ticket.subject}</strong>
+                          <span style={{ display: 'block', fontSize: '0.8rem', color: '#6d7985', marginTop: '4px', whiteSpace: 'pre-wrap' }}>{ticket.description}</span>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: '#6d7985', marginTop: '6px' }}>{new Date(ticket.created_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+
+            {showSupportModal && (
+              <div className="dashboard-modal-backdrop" onClick={() => setShowSupportModal(false)}>
+                <div className="dashboard-modal-card" onClick={(e) => e.stopPropagation()}>
+                  <div className="dashboard-modal-header">
+                    <div>
+                      <span className="section-kicker">Support Ticket</span>
+                      <h3>Submit an Issue Ticket</h3>
+                      <p>Describe your issue and the support team will get back to you shortly.</p>
+                    </div>
+                    <button type="button" className="close-modal-btn" onClick={() => setShowSupportModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                  </div>
+                  <form onSubmit={handleSupportSubmit} className="dashboard-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>Category</label>
+                      <select
+                        value={supportCategory}
+                        onChange={(e) => setSupportCategory(e.target.value)}
+                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        required
+                      >
+                        <option value="wallet">Wallet Balance / Refunds</option>
+                        <option value="billing">Billing & Invoices</option>
+                        <option value="technical">Technical Issue</option>
+                        <option value="general">General Inquiry</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>Subject</label>
+                      <input
+                        type="text"
+                        value={supportSubject}
+                        onChange={(e) => setSupportSubject(e.target.value)}
+                        placeholder="E.g., Refund not received for cancelled slot"
+                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        required
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>Description</label>
+                      <textarea
+                        value={supportDescription}
+                        onChange={(e) => setSupportDescription(e.target.value)}
+                        placeholder="Please provide full details of your issue..."
+                        rows={4}
+                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', resize: 'vertical' }}
+                        required
+                      />
+                    </div>
+                    <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowSupportModal(false)}
+                        style={{ padding: '10px 15px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingTicket}
+                        style={{ padding: '10px 15px', borderRadius: '6px', border: 'none', background: '#0b7a72', color: '#fff', cursor: submittingTicket ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                      >
+                        {submittingTicket ? "Submitting..." : "Submit Ticket"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

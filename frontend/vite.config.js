@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
   const backendProxy = {
     target: backendTarget,
     changeOrigin: true,
+    ws: true,
   };
 
   return {
@@ -35,6 +36,7 @@ export default defineConfig(({ mode }) => {
         "/allmedicines": backendProxy,
         "/medicines": backendProxy,
         "/prescription": backendProxy,
+        "/socket.io": backendProxy,
       },
     },
   };

@@ -37,7 +37,8 @@ function getQueueStatuses() {
 }
 
 async function getScheduleDuration(doctorId, appointmentDate) {
-  const dayOfWeek = new Date(appointmentDate).getDay();
+  const [year, month, dateVal] = String(appointmentDate).split("-").map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
   const durationColumn = await getDoctorScheduleDurationColumn();
 
   const schedule =

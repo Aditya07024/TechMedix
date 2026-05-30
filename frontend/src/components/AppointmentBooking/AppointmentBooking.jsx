@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { assets } from "../../assets/assets";
+import { formatTime12Hour } from "../../utils/dateTime";
 import "./AppointmentBooking.css";
 
 export default function AppointmentBooking({
@@ -88,7 +89,10 @@ export default function AppointmentBooking({
     try {
       setSlotsLoading(true);
 
-      const dateStr = date.toISOString().split("T")[0];
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const dayVal = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${dayVal}`;
 
       const response = await scheduleAPI.getAvailableSlots(
         doctorId,
@@ -121,7 +125,7 @@ export default function AppointmentBooking({
       doctorId_type: typeof doctorId,
       patientId_type: typeof patientId,
       selectedDate,
-      selectedDate_string: selectedDate?.toISOString().split("T")[0],
+      selectedDate_string: selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}` : "",
       selectedSlot,
       slot_time: selectedSlot?.start_time,
       slot_duration: selectedSlot?.duration_minutes,
@@ -131,7 +135,10 @@ export default function AppointmentBooking({
       setLoading(true);
       setError(null);
 
-      const dateStr = selectedDate.toISOString().split("T")[0];
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const dayVal = String(selectedDate.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${dayVal}`;
 
       const bookingIntent = {
         doctor_id: doctorId,
@@ -207,10 +214,22 @@ export default function AppointmentBooking({
         d,
       );
 
-      const dateStr = date.toISOString().split("T")[0];
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const dayVal = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${dayVal}`;
+
       const isAvailable = availableDates.has(dateStr);
-      const isPast = date < new Date();
-      const isSelected = selectedDate?.toISOString().split("T")[0] === dateStr;
+
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      const compareDate = new Date(date);
+      compareDate.setHours(0, 0, 0, 0);
+      const isPast = compareDate < todayDate;
+
+      const isSelected = selectedDate && (
+        `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}` === dateStr
+      );
 
       days.push(
         <button
@@ -346,7 +365,7 @@ export default function AppointmentBooking({
                             }`}
                             onClick={() => setSelectedSlot(slot)}
                           >
-                            {slot.start_time.slice(0, 5)}
+                            {formatTime12Hour(slot.start_time)}
                           </button>
                         ))}
                     </div>

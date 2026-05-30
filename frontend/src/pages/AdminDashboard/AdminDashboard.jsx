@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { adminAPI, analyticsAPI } from "../../api/techmedixAPI";
+import { adminAPI, analyticsAPI, supportAPI } from "../../api/techmedixAPI";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import "./AdminDashboard.css";
 
@@ -16,6 +16,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [updatingTicketId, setUpdatingTicketId] = useState(null);
 
   // User filtering state
   const [selectedRole, setSelectedRole] = useState("");
@@ -36,8 +39,35 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === "payouts") {
       loadPayoutData();
+    } else if (activeTab === "tickets") {
+      loadSupportTickets();
     }
   }, [activeTab]);
+
+  const loadSupportTickets = async () => {
+    try {
+      setTicketsLoading(true);
+      const response = await supportAPI.getTickets();
+      setSupportTickets(response.data?.tickets || response.data?.data || []);
+    } catch (err) {
+      console.error("Failed to load tickets:", err);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticketId, status) => {
+    try {
+      setUpdatingTicketId(ticketId);
+      await supportAPI.updateTicketStatus(ticketId, status);
+      alert(`Ticket marked as ${status}`);
+      loadSupportTickets();
+    } catch (err) {
+      alert("Failed to update status: " + (err.response?.data?.error || err.message));
+    } finally {
+      setUpdatingTicketId(null);
+    }
+  };
 
   const loadAdminData = async () => {
     try {
@@ -208,6 +238,12 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("branches")}
         >
           🏢 Branches
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "tickets" ? "active" : ""}`}
+          onClick={() => setActiveTab("tickets")}
+        >
+          🎫 Support Tickets
         </button>
         <button
           className={`tab-btn ${activeTab === "profile" ? "active" : ""}`}
@@ -549,6 +585,75 @@ export default function AdminDashboard() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === "tickets" && (
+          <div className="tab-content tickets-tab">
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>Support Tickets</h2>
+              <button type="button" onClick={loadSupportTickets} disabled={ticketsLoading} className="refresh-btn">
+                {ticketsLoading ? "Refreshing..." : "🔄 Refresh"}
+              </button>
+            </div>
+            
+            {ticketsLoading && supportTickets.length === 0 ? (
+              <div className="loading-state">Loading support tickets...</div>
+            ) : supportTickets.length === 0 ? (
+              <div className="empty-state">No support tickets have been submitted yet.</div>
+            ) : (
+              <div className="tickets-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {supportTickets.map((ticket) => (
+                  <div key={ticket.id} className="ticket-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', background: '#edf2f7', padding: '4px 8px', borderRadius: '4px', marginRight: '10px', color: '#4a5568' }}>
+                          {ticket.category?.toUpperCase() || 'GENERAL'}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: '#718096' }}>
+                          Ticket ID: {String(ticket.id).slice(0, 8)}...
+                        </span>
+                      </div>
+                      <span className={`status-badge ${ticket.status}`} style={{ fontSize: '0.8rem', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', background: ticket.status === 'open' ? '#feebc8' : '#e6fffa', color: ticket.status === 'open' ? '#c05621' : '#319795' }}>
+                        {ticket.status?.toUpperCase()}
+                      </span>
+                    </div>
+                    
+                    <h3 style={{ margin: '5px 0 10px 0', fontSize: '1.1rem', color: '#2d3748' }}>{ticket.subject}</h3>
+                    <p style={{ fontSize: '0.95rem', color: '#4a5568', margin: '0 0 15px 0', whiteSpace: 'pre-wrap' }}>{ticket.description}</p>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#718096', borderTop: '1px solid #edf2f7', paddingTop: '15px' }}>
+                      <div>
+                        Submitted by: <strong>{ticket.patient_name || 'Patient'}</strong> ({ticket.patient_email || ticket.patient_id})
+                        <br />
+                        Date: {new Date(ticket.created_at).toLocaleString()}
+                      </div>
+                      
+                      {ticket.status === 'open' && (
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
+                            disabled={updatingTicketId === ticket.id}
+                            style={{ padding: '6px 12px', background: '#319795', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Mark as Resolved
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'closed')}
+                            disabled={updatingTicketId === ticket.id}
+                            style={{ padding: '6px 12px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Close Ticket
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -304,6 +304,7 @@
 
 .doctor-sidebar-card,
 .doctor-panel {
+  margin-top: 10px;
   padding: 22px;
   border-radius: var(--doctor-radius-lg);
   background: var(--doctor-paper);

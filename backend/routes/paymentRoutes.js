@@ -291,8 +291,6 @@ router.post(
   }
 );
 
-export default router;
-
 // Wallet: Balance
 router.get(
   "/wallet/balance",
@@ -307,3 +305,25 @@ router.get(
     }
   }
 );
+
+// Wallet: Transactions
+router.get(
+  "/wallet/transactions",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const txs = await sql`
+        SELECT *
+        FROM wallet_transactions
+        WHERE patient_id = ${req.user.id}
+        ORDER BY created_at DESC
+      `;
+      res.json({ success: true, data: txs });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+export default router;

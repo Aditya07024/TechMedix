@@ -93,6 +93,8 @@ import { runSafetyReportMigration } from "./scripts/runSafetyReportMigration.js"
 import { runPriceIntelligenceMigration } from "./scripts/runPriceIntelligenceMigration.js";
 import { initializeCompletSchema } from "./scripts/initCompleteSchema.js";
 import { runAppointmentMigration } from "./scripts/runAppointmentMigration.js";
+import { runSupportTicketsMigration } from "./scripts/runSupportTicketsMigration.js";
+import { runDoctorReviewsMigration } from "./scripts/runDoctorReviewsMigration.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import doctorScheduleRoutes from "./routes/doctorScheduleRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
@@ -128,6 +130,8 @@ import xrayRoutes from "./routes/xrayRoutes.js";
 import medicineRoutes from "./routes/medicine.routes.js";
 import staffRoutes from "./routes/staffRoutes.js";
 import doctorStaffRoutes from "./routes/doctorStaffRoutes.js";
+import supportRoutes from "./routes/supportRoutes.js";
+import reviewRoutes from "./routes/reviewRoutes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 import { getHealthWalletDocumentsByPatientId } from "./models-pg/healthWalletDocument.js";
 import { getPatientReports } from "./services/staffService.js";
@@ -604,6 +608,8 @@ async function runStartupMigrations() {
   await runPriceIntelligenceMigration();
   await runMedicalScansMigration();
   await runAppointmentMigration();
+  await runSupportTicketsMigration();
+  await runDoctorReviewsMigration();
 
   console.log("Startup database migrations finished");
 }
@@ -1394,6 +1400,8 @@ app.use("/api/google-fit", googleFitRoutes);
 app.use("/api/admin", adminBranchRoutes);
 app.use("/api/v2/admin", adminBranchRoutes);
 app.use("/api/scan/xray", xrayRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // New API Routes (Clean Architecture)
 app.use("/api/v2/appointments", appointmentApiRoutes);

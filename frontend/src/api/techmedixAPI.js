@@ -351,3 +351,37 @@ export const adminAPI = {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 };
+
+export const supportAPI = {
+  createTicket: (data) =>
+    apiClient.post(`/api/support/tickets`, data, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  getTickets: () =>
+    apiClient.get(`/api/support/tickets`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  updateTicketStatus: (ticketId, status) =>
+    apiClient.put(`/api/support/tickets/${ticketId}/status`, { status }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+};
+
+export const reviewAPI = {
+  createReview: (data) =>
+    apiClient.post(`/api/reviews`, data, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  getDoctorReviews: (doctorId) =>
+    apiClient.get(`/api/reviews/doctor/${doctorId}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
+  getPatientReviews: () =>
+    apiClient.get(`/api/reviews/patient`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+};

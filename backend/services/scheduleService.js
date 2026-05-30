@@ -197,8 +197,9 @@ export async function getAvailableTimeSlots(
   // Doctor IDs are UUID strings
   const safeDoctorId = doctorId;
 
-  // Get day of week (0-6)
-  const dayOfWeek = new Date(targetDate).getDay();
+  // Get day of week (0-6) in UTC to avoid local timezone shifts
+  const [year, month, dateVal] = String(targetDate).split("-").map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   console.log("🔍 Getting slots for:", {
     doctorId: safeDoctorId,
@@ -338,7 +339,10 @@ export async function getAvailableDateRange(doctorId, days = 30) {
     date.setDate(date.getDate() + i);
 
     if (activeDays.has(date.getDay())) {
-      availableDates.push(date.toISOString().split("T")[0]);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const dayVal = String(date.getDate()).padStart(2, "0");
+      availableDates.push(`${year}-${month}-${dayVal}`);
     }
   }
 

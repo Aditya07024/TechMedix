@@ -232,7 +232,7 @@ router.post("/:appointmentId/cancel", authenticate, async (req, res) => {
         LIMIT 1
       `;
 
-      if (pay.length && pay[0].status === 'paid' && pay[0].payment_method === 'online') {
+      if (pay.length && pay[0].status === 'paid' && ['online', 'wallet'].includes(pay[0].payment_method)) {
         // prevent duplicate credit for same appointment
         const dup = await sql`
           SELECT id FROM wallet_transactions

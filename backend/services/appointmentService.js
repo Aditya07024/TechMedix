@@ -52,7 +52,9 @@ export async function bookAppointment(data) {
 export async function validateAppointmentBookingData(data) {
   const { doctor_id, appointment_date, slot_time } = data;
 
-  const day = new Date(appointment_date).getDay();
+  // Parse date in UTC to avoid local timezone shifts
+  const [year, month, dateVal] = String(appointment_date).split("-").map(Number);
+  const day = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   const schedule = await sql`
     SELECT * FROM doctor_schedule
@@ -66,7 +68,12 @@ export async function validateAppointmentBookingData(data) {
 
   const { start_time, end_time } = schedule[0];
 
-  if (slot_time < start_time || slot_time > end_time) {
+  // Normalize to HH:MM format for safe lexicographical comparison
+  const cleanSlot = String(slot_time).slice(0, 5);
+  const cleanStart = String(start_time).slice(0, 5);
+  const cleanEnd = String(end_time).slice(0, 5);
+
+  if (cleanSlot < cleanStart || cleanSlot > cleanEnd) {
     throw new Error("Slot outside doctor's working hours");
   }
 
@@ -245,7 +252,8 @@ export async function rescheduleAppointment(appointmentId, newDate, newSlot) {
   const doctorId = appointment[0].doctor_id;
 
   // Validate schedule
-  const day = new Date(newDate).getDay();
+  const [year, month, dateVal] = String(newDate).split("-").map(Number);
+  const day = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   const schedule = await sql`
     SELECT * FROM doctor_schedule
