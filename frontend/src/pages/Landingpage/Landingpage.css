@@ -111,7 +111,7 @@
     background-color 0.2s ease;
   cursor: pointer;
   position: relative;
-  z-index: 1001;
+  /* z-index: 1001; */
 }
 
 .landing-button:hover {
