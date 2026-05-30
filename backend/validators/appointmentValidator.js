@@ -31,6 +31,13 @@ export function validateAppointmentBooking(data) {
     errors.push("share_history_scope must be an array");
   }
 
+  if (
+    data.recording_consent_patient != null &&
+    typeof data.recording_consent_patient !== "boolean"
+  ) {
+    errors.push("recording_consent_patient must be boolean");
+  }
+
   return {
     isValid: errors.length === 0,
     errors,

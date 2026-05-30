@@ -12,6 +12,7 @@ import path from "path";
 import cloudinary from "../config/cloudinary.js";
 import axios from "axios";
 import OpenAI from "openai";
+import sql from "../config/database.js";
 
 const router = express.Router();
 const openai = new OpenAI({
@@ -89,6 +90,50 @@ router.post(
         return res.status(400).json({
           success: false,
           error: "patient_id is required",
+        });
+      }
+
+      if (!appointment_id) {
+        return res.status(400).json({
+          success: false,
+          error: "appointment_id is required to upload a consultation voice note",
+        });
+      }
+
+      const appointmentRows = await sql`
+        SELECT id, patient_id, doctor_id, status, recording_consent_patient
+        FROM appointments
+        WHERE id = ${appointment_id}
+          AND COALESCE(is_deleted, FALSE) = FALSE
+        LIMIT 1
+      `;
+
+      const appointment = appointmentRows[0];
+      if (!appointment) {
+        return res.status(404).json({
+          success: false,
+          error: "Appointment not found",
+        });
+      }
+
+      if (String(appointment.doctor_id) !== String(req.user.id)) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only upload recordings for your own appointments",
+        });
+      }
+
+      if (String(appointment.patient_id) !== String(patient_id)) {
+        return res.status(400).json({
+          success: false,
+          error: "patient_id does not match the appointment",
+        });
+      }
+
+      if (!appointment.recording_consent_patient) {
+        return res.status(403).json({
+          success: false,
+          error: "Patient did not consent to voice-note recording for this appointment",
         });
       }
 

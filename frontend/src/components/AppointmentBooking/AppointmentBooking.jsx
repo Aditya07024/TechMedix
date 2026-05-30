@@ -35,6 +35,7 @@ export default function AppointmentBooking({
   const [shareHistoryScope, setShareHistoryScope] = useState(
     SHARE_OPTIONS.map((option) => option.id),
   );
+  const [recordingConsent, setRecordingConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -147,6 +148,7 @@ export default function AppointmentBooking({
         slot_time: selectedSlot.start_time.slice(0, 5),
         share_history: shareHistory,
         share_history_scope: shareHistory ? shareHistoryScope : [],
+        recording_consent_patient: recordingConsent,
         doctorName,
         doctorSpecialty,
         consultationFee: Number(consultationFee || 0),
@@ -413,6 +415,19 @@ export default function AppointmentBooking({
                   ))}
                 </div>
               ) : null}
+
+              <div className="booking-consent-panel">
+                <span className="booking-consent-label">Voice note consent</span>
+               
+                <label className="checkbox-label booking-share-option">
+                  <input
+                    type="checkbox"
+                    checked={recordingConsent}
+                    onChange={(event) => setRecordingConsent(event.target.checked)}
+                  />
+                  <span>I allow doctor voice-note recording for this appointment</span>
+                </label>
+              </div>
             </div>
 
             <div className="booking-footer-actions">

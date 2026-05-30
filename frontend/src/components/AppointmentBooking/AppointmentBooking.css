@@ -282,6 +282,31 @@
   margin-top: 34px;
 }
 
+.booking-consent-panel {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid #d8e4ec;
+  border-radius: 16px;
+  background: #f8fbfd;
+}
+
+.booking-consent-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #0d1933;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.booking-consent-panel p {
+  margin: 0 0 12px;
+  color: #66788b;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
 .booking-footer-actions {
   display: flex;
   align-items: center;

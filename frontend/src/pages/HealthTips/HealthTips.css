@@ -1,53 +1,220 @@
-.health-tips {
+.health-tips-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
+  min-height: 100vh;
 }
 
-.hero {
-  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-  border-radius: 16px;
-  padding: 28px;
-  color: #0f172a;
+/* Tabs Navigation */
+.tabs-nav {
+  display: flex;
+  gap: 12px;
   margin-bottom: 32px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 50px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 80px;
+  z-index: 100;
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 40px;
+  transition: all 0.3s ease;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #2563eb;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.tab-icon {
+  font-size: 1.2rem;
+}
+
+/* Hero Section */
+.health-hero {
+  height: 300px;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.hero-yoga { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); color: #0f172a; }
+
+.hero-overlay {
+  background: rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 100%;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   text-align: center;
+  backdrop-filter: blur(2px);
 }
 
-.hero h1 {
+.hero-yoga .hero-overlay { background: transparent; backdrop-filter: none; }
+
+.health-hero h1 {
+  font-size: 2.5rem;
   margin: 0 0 12px 0;
-  font-size: 2rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.hero p {
+.health-hero p {
+  font-size: 1.2rem;
+  max-width: 600px;
   margin: 0;
-  font-size: 1.1rem;
   opacity: 0.9;
 }
 
-.poses-grid {
+/* Grids */
+.poses-grid, .tips-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
-  margin-bottom: 32px;
+  margin-bottom: 40px;
 }
 
-.pose-card {
+/* Cards */
+.pose-card, .tip-card {
   background: white;
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 2px solid transparent;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.pose-card:hover {
+.pose-card:hover, .tip-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  border-color: #667eea;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
+.tip-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tip-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.tip-content h3 {
+  margin: 0 0 8px 0;
+  color: #1e293b;
+  font-size: 1.4rem;
+}
+
+.tip-content p {
+  color: #64748b;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.tip-category {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.tip-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tip-benefits li {
+  color: #059669;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Vitamin Specific */
+.vitamin-card {
+  border-left: 6px solid #8b5cf6;
+}
+
+.deficiency-warning {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff1f2;
+  color: #e11d48;
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+
+/* General Support */
+.general-card {
+  border-width: 2px;
+}
+
+/* Safety Note */
+.safety-note {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 20px;
+  padding: 24px;
+  margin-top: 40px;
+}
+
+.safety-note h3 {
+  color: #92400e;
+  margin: 0 0 16px 0;
+}
+
+.safety-note ul {
+  padding-left: 20px;
+  color: #b45309;
+}
+
+.safety-note li {
+  margin-bottom: 8px;
+}
+
+/* Pose Card Overrides (keeping bits of old) */
 .pose-image-container {
   position: relative;
   height: 200px;
@@ -58,20 +225,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.5s ease;
 }
 
 .pose-card:hover .pose-image {
-  transform: scale(1.05);
+  transform: scale(1.1);
 }
 
 .pose-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(102, 126, 234, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,117 +243,52 @@
   transition: opacity 0.3s ease;
 }
 
-.pose-card:hover .pose-overlay {
-  opacity: 1;
-}
+.pose-card:hover .pose-overlay { opacity: 1; }
 
 .view-details {
-  color: white;
-  font-weight: 600;
-  font-size: 1.1rem;
-  text-align: center;
-  padding: 12px 20px;
-  background: rgba(102, 126, 234, 0.9);
-  border-radius: 25px;
-  backdrop-filter: blur(10px);
-}
-
-.pose-info {
-  padding: 20px;
-}
-
-.pose-info h3 {
-  margin: 0 0 4px 0;
-  font-size: 1.3rem;
-  color: #1e293b;
+  background: white;
+  color: #4f46e5;
+  padding: 10px 20px;
+  border-radius: 30px;
   font-weight: 700;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.pose-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.focus-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
 }
 
 .english-name {
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   color: #64748b;
   font-style: italic;
   font-size: 1rem;
 }
 
-.pose-badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.level-badge {
-  padding: 6px 12px;
-  background: #eef2ff;
-  color: #3730a3;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.duration-badge {
-  padding: 6px 12px;
-  background: #f0f9ff;
-  color: #0369a1;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.safety-note {
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 12px;
-  padding: 20px;
-  margin-top: 32px;
-}
-
-.safety-note h3 {
-  margin: 0 0 12px 0;
-  color: #92400e;
-  font-size: 1.2rem;
-}
-
-.safety-note ul {
-  margin: 0;
-  padding-left: 20px;
-  color: #92400e;
-}
-
-.safety-note li {
-  margin: 6px 0;
-}
-
-/* Responsive Design */
+/* Responsive */
 @media (max-width: 768px) {
-  .health-tips {
-    padding: 16px;
+  .tabs-nav {
+    overflow-x: auto;
+    border-radius: 0;
+    margin: -16px -16px 24px -16px;
+    padding: 12px;
+    top: 60px;
   }
   
-  .hero {
-    padding: 20px;
-  }
-  
-  .hero h1 {
-    font-size: 1.6rem;
-  }
-  
-  .poses-grid {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-  }
-  
-  .pose-image-container {
-    height: 180px;
-  }
-}
-
-@media (max-width: 480px) {
-  .poses-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .pose-badges {
-    justify-content: center;
-  }
-}
+  .health-hero h1 { font-size: 1.8rem; }
+  .health-hero p { font-size: 1rem; }
+  .health-hero { height: 200px; }
+}

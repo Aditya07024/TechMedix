@@ -11,7 +11,7 @@ import {
   supportAPI,
   reviewAPI,
 } from "../../api/techmedixAPI";
-import { patientDataApi } from "../../api";
+import { healthWalletApi, patientDataApi } from "../../api";
 import AppointmentBooking from "../../components/AppointmentBooking/AppointmentBooking";
 import PatientQueuePosition from "../../components/PatientQueuePosition/PatientQueuePosition";
 import MedicalTimeline from "../../components/MedicalTimeline/MedicalTimeline";
@@ -23,6 +23,7 @@ import HealthChat from "../../components/HealthChat/HealthChat";
 import GoogleFitConnect from "../../components/GoogleFitConnect/GoogleFitConnect";
 import GoogleFitMetrics from "../../components/GoogleFitMetrics/GoogleFitMetrics";
 import { assets } from "../../assets/assets";
+import DigitalPrescription from "../../components/Prescription/DigitalPrescription";
 import { toBackendUrl } from "../../utils/apiBase";
 import { formatTime12Hour } from "../../utils/dateTime";
 import {
@@ -101,6 +102,213 @@ const writeDashboardCache = (patientId, data) => {
   } catch (error) {
     console.error("Failed to write patient dashboard cache:", error);
   }
+};
+
+const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight) => {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (!words.length) return y;
+
+  let line = "";
+  let currentY = y;
+
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line, x, currentY);
+      line = word;
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  });
+
+  if (line) {
+    ctx.fillText(line, x, currentY);
+    currentY += lineHeight;
+  }
+
+  return currentY;
+};
+
+const renderPrescriptionToBlob = async ({
+  doctor,
+  patient,
+  medicines = [],
+  diagnosis = "",
+  notes = "",
+  rxNumber = "",
+}) => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1400;
+  canvas.height = 1900;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Unable to generate prescription preview");
+  }
+
+  ctx.fillStyle = "#f4f8fb";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#d9e2ea";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(50, 50, 1300, 1800, 28);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#295782";
+  ctx.fillRect(90, 110, 90, 90);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 34px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("TM", 135, 165);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#203246";
+  ctx.font = "bold 40px Arial";
+  ctx.fillText("TechMedix Clinical Sanctuary", 215, 150);
+  ctx.font = "24px Arial";
+  ctx.fillStyle = "#66788b";
+  ctx.fillText("124, Healthcare Boulevard, Medical District", 215, 190);
+  ctx.fillText("+91 98765-43210 | support@techmedix.com", 215, 225);
+
+  ctx.strokeStyle = "#d9e2ea";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(90, 270);
+  ctx.lineTo(1310, 270);
+  ctx.stroke();
+
+  ctx.fillStyle = "#203246";
+  ctx.font = "bold 32px Arial";
+  ctx.fillText(
+    doctor?.name?.startsWith("Dr.") ? doctor.name : `Dr. ${doctor?.name || "Medical Professional"}`,
+    90,
+    340,
+  );
+  ctx.font = "24px Arial";
+  ctx.fillStyle = "#66788b";
+  ctx.fillText(doctor?.specialty || "Clinical Specialist", 90, 375);
+
+  const today = new Date().toLocaleDateString();
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#203246";
+  ctx.font = "bold 24px Arial";
+  ctx.fillText(`Date: ${today}`, 1310, 340);
+  ctx.fillText(`Rx No: ${rxNumber || "RX-TEMP"}`, 1310, 375);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#295782";
+  ctx.font = "bold 28px Arial";
+  ctx.fillText("Patient Details", 90, 455);
+
+  ctx.fillStyle = "#203246";
+  ctx.font = "24px Arial";
+  ctx.fillText(`Patient: ${patient?.name || "Walk-in Patient"}`, 90, 500);
+  ctx.fillText(
+    `Patient ID: ${patient?.id ? `#${String(patient.id).slice(0, 8)}` : "N/A"}`,
+    720,
+    500,
+  );
+
+  let currentY = 585;
+  if (diagnosis) {
+    ctx.fillStyle = "#295782";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText("Diagnosis / Clinical Findings", 90, currentY);
+    currentY += 45;
+    ctx.fillStyle = "#203246";
+    ctx.font = "24px Arial";
+    currentY = drawWrappedText(ctx, diagnosis, 90, currentY, 1220, 34) + 20;
+  }
+
+  ctx.fillStyle = "#295782";
+  ctx.font = "bold 28px Arial";
+  ctx.fillText("Prescribed Medications", 90, currentY);
+  currentY += 25;
+
+  ctx.fillStyle = "#eef4f8";
+  ctx.fillRect(90, currentY, 1220, 54);
+  ctx.fillStyle = "#203246";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText("Medicine", 110, currentY + 34);
+  ctx.fillText("Dosage", 650, currentY + 34);
+  ctx.fillText("Frequency", 840, currentY + 34);
+  ctx.fillText("Duration", 1090, currentY + 34);
+  currentY += 84;
+
+  if (medicines.length === 0) {
+    ctx.font = "24px Arial";
+    ctx.fillStyle = "#66788b";
+    ctx.fillText("No medications prescribed yet.", 110, currentY);
+    currentY += 40;
+  } else {
+    medicines.forEach((medicine, index) => {
+      ctx.strokeStyle = "#e7edf2";
+      ctx.beginPath();
+      ctx.moveTo(90, currentY - 22);
+      ctx.lineTo(1310, currentY - 22);
+      ctx.stroke();
+
+      ctx.fillStyle = "#203246";
+      ctx.font = "bold 22px Arial";
+      ctx.fillText(
+        `${index + 1}. ${medicine?.medicine_name || "Unnamed medicine"}`,
+        110,
+        currentY,
+      );
+
+      ctx.font = "20px Arial";
+      ctx.fillStyle = "#66788b";
+      if (medicine?.salt_name) {
+        ctx.fillText(medicine.salt_name, 140, currentY + 28);
+      }
+
+      ctx.fillStyle = "#203246";
+      ctx.fillText(medicine?.dosage || "-", 650, currentY);
+      ctx.fillText(medicine?.frequency || "-", 840, currentY);
+      ctx.fillText(medicine?.duration || "-", 1090, currentY);
+      currentY += medicine?.salt_name ? 72 : 48;
+    });
+  }
+
+  if (notes) {
+    currentY += 25;
+    ctx.fillStyle = "#295782";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText("Additional Instructions / Advice", 90, currentY);
+    currentY += 45;
+    ctx.fillStyle = "#203246";
+    ctx.font = "24px Arial";
+    currentY = drawWrappedText(ctx, notes, 90, currentY, 1220, 34) + 20;
+  }
+
+  ctx.strokeStyle = "#d9e2ea";
+  ctx.beginPath();
+  ctx.moveTo(90, 1660);
+  ctx.lineTo(1310, 1660);
+  ctx.stroke();
+
+  ctx.fillStyle = "#66788b";
+  ctx.font = "22px Arial";
+  ctx.fillText(
+    "This is a digitally generated prescription. It does not require a physical stamp for validation.",
+    90,
+    1715,
+  );
+  ctx.fillText("TechMedix - Precision in Every Care", 90, 1755);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Unable to generate prescription file"));
+        return;
+      }
+      resolve(blob);
+    }, "image/png");
+  });
 };
 
 const readQuickActionPrefs = (patientId) => {
@@ -303,6 +511,8 @@ export default function PatientDashboard() {
   const [showCustomizeGridModal, setShowCustomizeGridModal] = useState(false);
   const [savedQuickActionIds, setSavedQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
   const [draftQuickActionIds, setDraftQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
+  const [viewingDigitalRx, setViewingDigitalRx] = useState(null);
+  const [isWalletSaving, setIsWalletSaving] = useState(false);
 
   const refreshNotifications = async (patientId) => {
     if (!patientId) return [];
@@ -943,6 +1153,82 @@ export default function PatientDashboard() {
       if (showLoader && loading) {
         setLoading(false);
       }
+    }
+  };
+
+  const handleSaveToWallet = async (rxId) => {
+    const activePrescription =
+      viewingDigitalRx && String(viewingDigitalRx.id) === String(rxId)
+        ? viewingDigitalRx
+        : prescriptions.find((item) => String(item.id) === String(rxId));
+
+    if (!activePrescription) {
+      alert("Prescription details are not available right now.");
+      return;
+    }
+
+    const doctorDetails =
+      activePrescription?.doctor_name
+        ? {
+            name: activePrescription.doctor_name,
+            specialty: activePrescription.doctor_specialty || "Consultant",
+          }
+        : medicines.find((item) => item.doctor_name)
+          ? {
+              name: medicines.find((item) => item.doctor_name).doctor_name,
+              specialty:
+                medicines.find((item) => item.doctor_name).doctor_specialty ||
+                "Practitioner",
+            }
+          : appointments.length > 0
+            ? {
+                name: appointments[0].doctor_name,
+                specialty: appointments[0].specialty || "Medical Practitioner",
+              }
+            : {
+                name: "Dr. Medical Professional",
+                specialty: "Clinical Specialist",
+              };
+
+    const prescriptionMedicines = Array.from(
+      new Map(
+        (activePrescription.medicines || medicines).map((item) => [
+          item.medicine_name?.toLowerCase() || `${item.id || Math.random()}`,
+          item,
+        ]),
+      ).values(),
+    );
+
+    try {
+      setIsWalletSaving(true);
+
+      const prescriptionBlob = await renderPrescriptionToBlob({
+        doctor: doctorDetails,
+        patient: user,
+        medicines: prescriptionMedicines,
+        diagnosis: activePrescription.diagnosis,
+        notes: activePrescription.notes || "Please follow-up in 2 weeks.",
+        rxNumber: `RX-${String(activePrescription.id || rxId).padStart(6, "0")}`,
+      });
+
+      const fileName = `prescription-${activePrescription.id || rxId}-${Date.now()}.png`;
+      const formData = new FormData();
+      formData.append(
+        "documents",
+        new File([prescriptionBlob], fileName, { type: "image/png" }),
+      );
+
+      await healthWalletApi.uploadDocuments(formData);
+      alert("Prescription has been added to your Health Wallet and uploaded securely.");
+    } catch (err) {
+      console.error("Failed to save prescription to wallet:", err);
+      alert(
+        err.response?.data?.error ||
+          err.message ||
+          "Failed to save prescription to wallet.",
+      );
+    } finally {
+      setIsWalletSaving(false);
     }
   };
 
@@ -2299,6 +2585,124 @@ export default function PatientDashboard() {
 
             <div className="prescriptions-reference-layout">
               <div className="prescriptions-main-column">
+                
+                {/* NEW: Digital Prescriptions from Doctors */}
+                <div className="prescriptions-block-header">
+                  <div className="prescriptions-block-title">
+                    <span className="prescriptions-accent-line" style={{ background: '#0F6B57' }} />
+                    <h3>Clinical Consultations</h3>
+                  </div>
+                </div>
+
+                <div className="digital-rx-listings" style={{ marginBottom: '30px' }}>
+                  {(() => {
+                    // Pre-process and group prescriptions by doctor to ensure one pad per practitioner
+                    const grouped = (prescriptions.length > 0 ? prescriptions : medicines).reduce((acc, item) => {
+                      const firstMed = item.medicines?.[0] || (item.medicine_name ? item : {});
+                      
+                      // Aggressive ID resolution
+                      const pId = item.doctor_id || firstMed.doctor_id || 
+                                 item.doctorId || firstMed.doctorId || 
+                                 item.pm_id || item.id; // Fallback to item ID if it might be a doctor record
+                      
+                      const docFromAppt = pId ? appointments.find(a => String(a.doctor_id || a.doctor?.id) === String(pId)) : null;
+                      const docFromList = pId ? doctors.find(d => String(d.id || d._id) === String(pId)) : null;
+
+                      let rawName = item.doctor_name || item.doctorName || item.doc_name || 
+                                   item.prescribed_by || firstMed.doctor_name || firstMed.doctorName || 
+                                   firstMed.doc_name || firstMed.prescribed_by ||
+                                   docFromList?.name || docFromList?.full_name ||
+                                   docFromAppt?.doctor_name || docFromAppt?.doctor?.name || "";
+                      
+                      // Sanitize name
+                      if (!rawName || rawName === "null" || rawName === "undefined") rawName = "";
+                      let resolvedName = rawName || "Specialist Consultant";
+                      
+                      // Enforce Dr. naming
+                      if (resolvedName && !resolvedName.toLowerCase().startsWith("dr")) {
+                        resolvedName = `Dr. ${resolvedName}`;
+                      }
+
+                      // Key for grouping: Use ID if possible, otherwise Name
+                      const groupKey = pId ? String(pId) : resolvedName;
+
+                      if (!acc[groupKey]) {
+                        acc[groupKey] = {
+                          id: pId || `group-${resolvedName}`,
+                          doctor_name: resolvedName,
+                          doctor_specialty: item.doctor_specialty || firstMed.doctor_specialty || 
+                                           docFromList?.specialty || docFromList?.category || 
+                                           docFromAppt?.specialty || "Specialist",
+                          medicines: [],
+                          created_at: item.created_at || firstMed.created_at || new Date().toISOString()
+                        };
+                      }
+                      
+                      const medsToAdd = item.medicines || (item.medicine_name ? [item] : []);
+                      acc[groupKey].medicines.push(...medsToAdd);
+                      return acc;
+                    }, {});
+
+                    const displayPads = Object.values(grouped).filter(p => p.medicines.length > 0);
+
+                    if (displayPads.length === 0) {
+                      return (
+                        <div className="empty-panel" style={{ padding: '20px' }}>
+                          <p>No recent digital prescriptions found.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'grid', gap: '20px' }}>
+                        {displayPads.map((pad, idx) => (
+                          <div key={pad.id || idx} className="digital-rx-card active-rx-highlight" style={{ 
+                            background: idx % 2 === 0 ? '#183126' : '#0F6B57', 
+                            padding: '20px', 
+                            borderRadius: '20px', 
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            boxShadow: '0 10px 25px rgba(24, 49, 38, 0.15)',
+                            color: 'white',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setViewingDigitalRx(pad)}
+                          >
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                              <div style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.1)', color: 'white', borderRadius: '12px', display: 'grid', placeItems: 'center' }}>
+                                <ShieldCheck size={24} />
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <strong style={{ fontSize: '1.05rem' }}>{pad.doctor_name}</strong>
+                                  <span style={{ background: '#22c55e', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>Active</span>
+                                </div>
+                                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>
+                                  {pad.medicines.length} medications prescribed • Issued {new Date(pad.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <button 
+                              className="action-btn" 
+                              style={{ 
+                                padding: '10px 20px', 
+                                background: 'white', 
+                                color: idx % 2 === 0 ? '#183126' : '#0F6B57',
+                                fontWeight: 700,
+                                borderRadius: '12px',
+                                border: 'none'
+                              }}
+                            >
+                              Open Pad
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="prescriptions-block-header">
                   <div className="prescriptions-block-title">
                     <span className="prescriptions-accent-line" />
@@ -3196,6 +3600,49 @@ export default function PatientDashboard() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {viewingDigitalRx && (
+        <div className="dashboard-modal-backdrop" onClick={() => setViewingDigitalRx(null)} style={{ zIndex: 9999 }}>
+          <div className="rx-modal-shell" onClick={e => e.stopPropagation()} style={{ 
+            width: 'min(1000px, 95vw)', 
+            maxHeight: '90vh', 
+            overflowY: 'auto',
+            borderRadius: '24px',
+            background: 'white'
+          }}>
+             <DigitalPrescription 
+                doctor={
+                  (viewingDigitalRx?.doctor_name) 
+                    ? { name: viewingDigitalRx.doctor_name, specialty: viewingDigitalRx.doctor_specialty || "Consultant" }
+                    : (medicines.find(m => m.doctor_name))
+                    ? { name: medicines.find(m => m.doctor_name).doctor_name, specialty: medicines.find(m => m.doctor_name).doctor_specialty || "Practitioner" }
+                    : (appointments.length > 0)
+                    ? { 
+                        name: appointments[0].doctor_name,
+                        specialty: appointments[0].specialty || "Medical Practitioner"
+                      }
+                    : { name: "Dr. Medical Professional", specialty: "Clinical Specialist" }
+                }
+                patient={user}
+                medicines={Array.from(new Map((viewingDigitalRx.medicines || medicines).map(m => [m.medicine_name?.toLowerCase(), m])).values())} 
+                diagnosis={viewingDigitalRx.diagnosis}
+                notes={viewingDigitalRx.notes || "Please follow-up in 2 weeks."}
+                rxNumber="RX-2024-9921"
+                isPatientView={true}
+                onSaveToWallet={() => handleSaveToWallet(viewingDigitalRx.id)}
+                isSaving={isWalletSaving}
+             />
+             <div className="modal-footer no-print" style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #eee' }}>
+                <button 
+                  className="ghost-link-btn" 
+                  onClick={() => setViewingDigitalRx(null)}
+                  style={{ color: '#6d7985', fontWeight: 700 }}
+                >
+                  Close Preview
+                </button>
+             </div>
           </div>
         </div>
       )}

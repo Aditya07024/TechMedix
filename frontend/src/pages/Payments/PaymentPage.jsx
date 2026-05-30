@@ -140,6 +140,9 @@ export default function PaymentPage() {
           share_history_scope: Array.isArray(bookingIntent.share_history_scope)
             ? bookingIntent.share_history_scope
             : [],
+          recording_consent_patient: Boolean(
+            bookingIntent.recording_consent_patient,
+          ),
         },
       }
     : {

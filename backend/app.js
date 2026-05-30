@@ -992,6 +992,7 @@ app.get(
           a.slot_time,
           a.share_history,
           a.share_history_scope,
+          a.recording_consent_patient,
           p.id AS patient_row_id,
           p.name,
           p.email,
@@ -1050,6 +1051,9 @@ app.get(
           slot_time: appointment.slot_time,
           share_history: shareHistory,
           share_history_scope: effectiveScope,
+          recording_consent_patient: Boolean(
+            appointment.recording_consent_patient,
+          ),
         },
         patient,
         allowed_sections: effectiveScope,
