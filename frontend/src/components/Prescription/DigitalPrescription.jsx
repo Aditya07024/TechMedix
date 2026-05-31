@@ -50,6 +50,15 @@ const DigitalPrescription = ({
     return acc;
   }, {});
 
+  // Sort medicines in each date group so active ones are on top and deactivated are on bottom
+  Object.keys(groupsByDate).forEach(key => {
+    groupsByDate[key].sort((a, b) => {
+      const aDel = a.is_deleted ? 1 : 0;
+      const bDel = b.is_deleted ? 1 : 0;
+      return aDel - bDel;
+    });
+  });
+
   const sortedDateKeys = Object.keys(groupsByDate).sort((a, b) => b.localeCompare(a));
   let globalIdx = 0;
 

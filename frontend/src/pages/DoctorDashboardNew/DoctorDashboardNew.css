@@ -1097,24 +1097,10 @@
   }
 }
 
-/* Print Styles */
+/* Print Styles - Managed in DigitalPrescription.css */
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .prescription-paper, .prescription-paper * {
-    visibility: visible;
-  }
-  .prescription-paper {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100% !important;
-    height: auto !important;
-    box-shadow: none !important;
+  .doctor-dashboard, .doctor-dashboard-shell {
     padding: 0 !important;
-  }
-  .preview-header, .patient-builder-column, .doctor-sidebar {
-    display: none !important;
+    margin: 0 !important;
   }
 }

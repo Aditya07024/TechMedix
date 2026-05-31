@@ -2010,6 +2010,7 @@ export default function PatientDashboard() {
       let resolvedSpecialty = "";
       let groupKey = "";
       let pId = null;
+      let docFromList = null;
 
       if (!docId) {
         // If there's no doctor ID, it is a user-uploaded prescription!
@@ -2020,7 +2021,7 @@ export default function PatientDashboard() {
       } else {
         pId = docId;
         const docFromAppt = appointments.find(a => String(a.doctor_id || a.doctor?.id) === String(pId));
-        const docFromList = doctors.find(d => String(d.id || d._id) === String(pId));
+        docFromList = doctors.find(d => String(d.id || d._id) === String(pId));
 
         let rawName = item.doctor_name || item.doctorName || item.doc_name || 
                      item.prescribed_by || firstMed.doctor_name || firstMed.doctorName || 

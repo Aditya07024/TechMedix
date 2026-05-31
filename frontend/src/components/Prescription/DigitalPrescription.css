@@ -365,7 +365,7 @@
   html, body, #root, 
   .doctor-dashboard, .doctor-dashboard-shell, .doctor-workspace, .doctor-main, 
   .patient-workspace-container, .patient-preview-column, 
-  .patient-dashboard, .dashboard-modal-backdrop, .dashboard-modal-card {
+  .patient-dashboard, .dashboard-modal-backdrop, .dashboard-modal-card, .rx-modal-shell {
     background: white !important;
     background-color: white !important;
     color: black !important;
@@ -383,7 +383,8 @@
 
   /* Sibling views inside patient dashboard or modal cards should also be hidden */
   .patient-dashboard > *:not(.dashboard-modal-backdrop),
-  .dashboard-modal-backdrop > *:not(.dashboard-modal-card),
+  .dashboard-modal-backdrop > *:not(.rx-modal-shell):not(.dashboard-modal-card),
+  .rx-modal-shell > *:not(.digital-prescription-container),
   .dashboard-modal-card > *:not(.digital-prescription-container) {
     display: none !important;
   }
