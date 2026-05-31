@@ -83,7 +83,7 @@ router.get("/dashboard", authenticate, requireAdmin, async (req, res) => {
 router.get("/doctors", async (req, res) => {
   try {
     const doctors = await sql`
-      SELECT id, name, email, specialty, consultation_fee
+      SELECT id, name, email, specialty, consultation_fee, phone, reg_no
       FROM doctors
       ORDER BY name ASC
     `;
@@ -105,7 +105,7 @@ router.get("/doctors", async (req, res) => {
 router.get("/doctors/:id", async (req, res) => {
   try {
     const [doctor] = await sql`
-      SELECT id, name, email, specialty, consultation_fee
+      SELECT id, name, email, specialty, consultation_fee, phone, reg_no
       FROM doctors
       WHERE id = ${req.params.id}
         AND is_deleted = FALSE

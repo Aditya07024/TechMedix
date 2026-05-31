@@ -15,6 +15,7 @@ const getInitialForm = (role, profile = {}) => ({
   specialty: profile.specialty || "",
   consultation_fee: profile.consultation_fee ?? "",
   department: profile.department || "",
+  reg_no: profile.reg_no || "",
 });
 
 export default function ProfileManager({
@@ -74,6 +75,7 @@ export default function ProfileManager({
       full_name: nextProfile?.name || user?.full_name || user?.name || "",
       phone: nextProfile?.phone ?? user?.phone ?? "",
       email: nextProfile?.email || user?.email || "",
+      reg_no: nextProfile?.reg_no ?? user?.reg_no ?? "",
       uniqueCode: nextProfile?.uniqueCode ?? user?.uniqueCode ?? null,
     };
 
@@ -189,15 +191,13 @@ export default function ProfileManager({
           />
         </label>
 
-        {!isDoctor ? (
-          <label>
-            <span>Phone</span>
-            <input
-              value={form.phone}
-              onChange={(event) => updateField("phone", event.target.value)}
-            />
-          </label>
-        ) : null}
+        <label>
+          <span>Phone</span>
+          <input
+            value={form.phone}
+            onChange={(event) => updateField("phone", event.target.value)}
+          />
+        </label>
 
         {isPatient ? (
           <>
@@ -259,6 +259,13 @@ export default function ProfileManager({
                 onChange={(event) =>
                   updateField("consultation_fee", event.target.value)
                 }
+              />
+            </label>
+            <label>
+              <span>Registration Number</span>
+              <input
+                value={form.reg_no}
+                onChange={(event) => updateField("reg_no", event.target.value)}
               />
             </label>
           </>

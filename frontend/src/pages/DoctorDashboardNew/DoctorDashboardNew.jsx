@@ -19,6 +19,9 @@ import {
   Trash2,
   PlusCircle,
   CheckCircle2,
+  ChevronLeft,
+  Menu,
+  XCircle,
 } from "lucide-react";
 import DigitalPrescription from "../../components/Prescription/DigitalPrescription";
 import { Html5Qrcode } from "html5-qrcode";
@@ -95,8 +98,18 @@ export default function DoctorDashboardNew() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [busyMap, setBusyMap] = useState({});
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showTodayRevenue, setShowTodayRevenue] = useState(false);
 
   const [uniqueCode, setUniqueCode] = useState("");
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentOptions, setConsentOptions] = useState({
+    ehr: true,
+    prescriptions: true,
+    recordings: true,
+    reports: true
+  });
+  const [pendingScanCode, setPendingScanCode] = useState("");
   const [scannerVisible, setScannerVisible] = useState(false);
   const [patientData, setPatientData] = useState(null);
   const [patientPrescriptions, setPatientPrescriptions] = useState([]);
@@ -267,12 +280,19 @@ export default function DoctorDashboardNew() {
           { facingMode: "environment" },
           { fps: 10, qrbox: 240 },
           async (decodedText) => {
+            setPendingScanCode(decodedText);
             setUniqueCode(decodedText);
             setScannerVisible(false);
             try {
               await qrScanner.stop();
             } catch {}
-            await searchPatient(decodedText);
+            setConsentOptions({
+              ehr: true,
+              prescriptions: true,
+              recordings: true,
+              reports: true
+            });
+            setShowConsentModal(true);
           },
         );
       } catch (scannerError) {
@@ -447,13 +467,13 @@ export default function DoctorDashboardNew() {
 
       setPatientHistoryPrescriptions(medicines);
       
-      // Filter for active builder: only show medicines from the current session/doctor
+      // Filter for active builder: only show ACTIVE medicines from the current session/doctor
       const currentDoctorMeds = medicines.filter(m => {
         const isMyId = m.doctor_id && String(m.doctor_id) === String(user?.id);
         const nameMatch = m.doctor_name && String(user?.name) && 
                          String(m.doctor_name).toLowerCase().includes(String(user?.name).toLowerCase());
-        // If it's your ID or your Name, OR it has NO ID (meaning it was likely just added manually in this session)
-        return isMyId || nameMatch || !m.doctor_id;
+        const belongsToMe = isMyId || nameMatch;
+        return belongsToMe && !m.is_deleted;
       });
       setPatientPrescriptions(currentDoctorMeds);
 
@@ -526,7 +546,7 @@ export default function DoctorDashboardNew() {
     }
   }
 
-  async function searchPatient(code = uniqueCode) {
+  async function searchPatient(code = uniqueCode, allowedSections = null) {
     if (!code || busyMap["search-patient"]) return;
 
     await withBusy("search-patient", async () => {
@@ -539,21 +559,44 @@ export default function DoctorDashboardNew() {
         const matchedAppointment = findPatientAppointment(patient?.id);
 
         if (matchedAppointment?.id) {
-          await openQueuedPatient(matchedAppointment.id);
+          await openQueuedPatient(matchedAppointment.id, allowedSections);
           return;
         }
 
+        const finalEhr = (!allowedSections || allowedSections.ehr) ? (payload?.ehrHistory || []) : [];
+        const finalRecordings = (!allowedSections || allowedSections.recordings) ? (payload?.recordings || []) : [];
+
         setPatientData({
           ...payload,
+          ehrHistory: finalEhr,
           appointment: null,
         });
-        setPatientShareSections(["ehr", "prescriptions", "recordings", "reports"]);
+        setPatientRecordings(finalRecordings);
+
+        const allowedList = [];
+        if (!allowedSections || allowedSections.ehr) allowedList.push("ehr");
+        if (!allowedSections || allowedSections.prescriptions) allowedList.push("prescriptions");
+        if (!allowedSections || allowedSections.recordings) allowedList.push("recordings");
+        if (!allowedSections || allowedSections.reports) allowedList.push("reports");
+        setPatientShareSections(allowedList);
+
         setActiveView("patients");
+        setSidebarCollapsed(true);
         if (patient?.id) {
-          await Promise.all([
-            loadPatientPrescriptions(patient.id),
-            loadPatientReports(patient.id),
-          ]);
+          const promises = [];
+          if (!allowedSections || allowedSections.prescriptions) {
+            promises.push(loadPatientPrescriptions(patient.id));
+          } else {
+            setPatientHistoryPrescriptions([]);
+          }
+          if (!allowedSections || allowedSections.reports) {
+            promises.push(loadPatientReports(patient.id));
+          } else {
+            setPatientReports([]);
+          }
+          if (promises.length > 0) {
+            await Promise.all(promises);
+          }
           setStatusMessage(
             "Patient profile loaded. Voice-note recording will appear once a matching appointment is opened.",
           );
@@ -576,22 +619,39 @@ export default function DoctorDashboardNew() {
     }
   }
 
-  async function openQueuedPatient(appointmentId) {
+  async function openQueuedPatient(appointmentId, allowedSections = null) {
     await withBusy(`open-patient-${appointmentId}`, async () => {
       resetVoiceRecordingState();
       const response = await doctorApi.getSharedAppointmentContext(appointmentId);
       const payload = response.data || {};
+      
+      const sections = allowedSections || {
+        ehr: true,
+        prescriptions: true,
+        recordings: true,
+        reports: true
+      };
+
       setPatientData({
         patient: payload.patient,
-        ehrHistory: payload.ehrHistory || [],
+        ehrHistory: sections.ehr ? (payload.ehrHistory || []) : [],
         appointment: payload.appointment || null,
       });
-      setPatientShareSections(payload.allowed_sections || []);
-      setPatientHistoryPrescriptions(payload.prescriptions || []);
+
+      const allowedList = [];
+      if (sections.ehr) allowedList.push("ehr");
+      if (sections.prescriptions) allowedList.push("prescriptions");
+      if (sections.recordings) allowedList.push("recordings");
+      if (sections.reports) allowedList.push("reports");
+      setPatientShareSections(allowedList);
+
+      setPatientHistoryPrescriptions(sections.prescriptions ? (payload.prescriptions || []) : []);
       setPatientPrescriptions([]); // Builder starts fresh for each doctor session
-      setPatientRecordings(payload.recordings || []);
-      setPatientReports(payload.reports || []);
+      setPatientRecordings(sections.recordings ? (payload.recordings || []) : []);
+      setPatientReports(sections.reports ? (payload.reports || []) : []);
+      
       setActiveView("patients");
+      setSidebarCollapsed(true);
       if (!payload.appointment?.share_history) {
         setStatusMessage("This patient did not share health history for this appointment.");
       }
@@ -858,6 +918,59 @@ export default function DoctorDashboardNew() {
     });
   }
 
+  async function handleCopyMedicineToPad(med) {
+    if (!med.medicine_name || !patientProfile?.id) {
+      setError("Select a patient and enter a medicine name");
+      return;
+    }
+
+    const optimisticMed = {
+      id: `temp-${Date.now()}`,
+      medicine_name: med.medicine_name,
+      dosage: med.dosage || "",
+      frequency: med.frequency || "",
+      duration: med.duration || "",
+      doctor_id: user?.id,
+      doctor_name: user?.name,
+      is_optimistic: true
+    };
+    setPatientPrescriptions(prev => [...prev, optimisticMed]);
+
+    await withBusy("add-medicine", async () => {
+      try {
+        const response = await fetch("/api/prescriptions/manual", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            patient_id: patientProfile.id,
+            medicine_name: med.medicine_name,
+            dosage: med.dosage || "",
+            frequency: med.frequency || "",
+            duration: med.duration || "",
+            doctor_id: user?.id,
+            doctor_name: user?.name,
+            doctor_specialty: user?.specialty || user?.category
+          }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.message || "Failed to add medicine to backend");
+        }
+
+        setStatusMessage("Medicine added to your prescription pad.");
+        await loadPatientPrescriptions(patientProfile.id);
+      } catch (err) {
+        setPatientPrescriptions(prev => prev.filter(m => m.id !== optimisticMed.id));
+        setError(err.message);
+        throw err;
+      }
+    });
+  }
+
   async function updatePrescriptionMedicine(medicine) {
     const medicineId =
       medicine.id ||
@@ -954,6 +1067,106 @@ export default function DoctorDashboardNew() {
 
   return (
     <div className="doctor-dashboard">
+      {showConsentModal && (
+        <div className="doctor-consent-modal-backdrop" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div className="doctor-consent-modal-card" style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '24px',
+            width: 'min(480px, 90vw)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(0,0,0,0.08)'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.25rem', color: '#183126' }}>
+              Patient Sharing Consent
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: '#607268', lineHeight: 1.5 }}>
+              A QR code was scanned. Please select what details the patient consents to share with you:
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', cursor: 'pointer', color: '#183126' }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentOptions.ehr}
+                  onChange={(e) => setConsentOptions(prev => ({ ...prev, ehr: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', accentColor: '#0d8d76' }}
+                />
+                EHR / Medical History
+              </label>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', cursor: 'pointer', color: '#183126' }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentOptions.prescriptions}
+                  onChange={(e) => setConsentOptions(prev => ({ ...prev, prescriptions: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', accentColor: '#0d8d76' }}
+                />
+                Past Prescriptions / Medicine History
+              </label>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', cursor: 'pointer', color: '#183126' }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentOptions.recordings}
+                  onChange={(e) => setConsentOptions(prev => ({ ...prev, recordings: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', accentColor: '#0d8d76' }}
+                />
+                Voice Notes & Audio Consults
+              </label>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', cursor: 'pointer', color: '#183126' }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentOptions.reports}
+                  onChange={(e) => setConsentOptions(prev => ({ ...prev, reports: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', accentColor: '#0d8d76' }}
+                />
+                Diagnostic Scans & Medical Reports
+              </label>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowConsentModal(false);
+                  setPendingScanCode("");
+                }}
+                className="doctor-secondary-button"
+                style={{ padding: '10px 16px', fontSize: '0.9rem' }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={async () => {
+                  setShowConsentModal(false);
+                  const codeToSearch = pendingScanCode;
+                  setPendingScanCode("");
+                  await searchPatient(codeToSearch, consentOptions);
+                }}
+                className="doctor-primary-button"
+                style={{ padding: '10px 20px', fontSize: '0.9rem', background: '#0d8d76', border: 'none', color: 'white', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                Confirm Sharing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="doctor-dashboard-shell">
         <header className="doctor-command-bar">
           <div className="doctor-command-copy">
@@ -1026,74 +1239,138 @@ export default function DoctorDashboardNew() {
           </div>
         )}
 
-        <div className="doctor-workspace">
-          <aside className="doctor-sidebar">
-            <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Navigation</span>
-              <div className="doctor-sidebar-nav">
-                {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+        <div className={`doctor-workspace ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+          {!sidebarCollapsed && (
+            <aside className="doctor-sidebar">
+              <div className="doctor-sidebar-card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <span className="doctor-sidebar-label" style={{ margin: 0 }}>Navigation</span>
                   <button
-                    key={id}
                     type="button"
-                    className={activeView === id ? "active" : ""}
-                    onClick={() => setActiveView(id)}
+                    onClick={() => setSidebarCollapsed(true)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--doctor-muted)", display: "flex", alignItems: "center" }}
+                    title="Collapse Sidebar"
                   >
-                    <Icon size={16} />
-                    {label}
+                    <ChevronLeft size={18} />
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Today at a glance</span>
-              <div className="doctor-mini-stats">
-                <div>
-                  <strong>{appointments.length}</strong>
-                  <span>Appointments</span>
                 </div>
-                <div>
-                  <strong>{queueStats.waiting}</strong>
-                  <span>Waiting</span>
-                </div>
-                <div>
-                  <strong>{formatMoney(earnings.today_earnings)}</strong>
-                  <span>Today’s revenue</span>
+                <div className="doctor-sidebar-nav">
+                  {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={activeView === id ? "active" : ""}
+                      onClick={() => {
+                        setActiveView(id);
+                        setSidebarCollapsed(false);
+                      }}
+                    >
+                      <Icon size={16} />
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
 
-            {/* <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Patient Search</span>
-              <form
-                className="doctor-quick-search"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  searchPatient();
-                }}
-              >
-                <input
-                  type="text"
-                  value={uniqueCode}
-                  onChange={(event) => setUniqueCode(event.target.value)}
-                  placeholder="Patient code"
-                />
-                <button type="submit">
-                  <Search size={16} />
+              <div className="doctor-sidebar-card">
+                <span className="doctor-sidebar-label">Today at a glance</span>
+                <div className="doctor-mini-stats">
+                  <div>
+                    <strong>{appointments.length}</strong>
+                    <span>Appointments</span>
+                  </div>
+                  <div>
+                    <strong>{queueStats.waiting}</strong>
+                    <span>Waiting</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span className="doctor-sidebar-label" style={{ fontSize: "0.76rem", margin: 0 }}>Today’s revenue</span>
+                    {!showTodayRevenue ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowTodayRevenue(true)}
+                        className="doctor-secondary-button"
+                        style={{ padding: "6px 12px", fontSize: "0.8rem", width: "fit-content", borderRadius: "8px" }}
+                      >
+                        Show Revenue
+                      </button>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <strong style={{ fontSize: "1.45rem", letterSpacing: "-0.04em", color: "var(--doctor-accent-deep)" }}>
+                          {formatMoney(earnings.today_earnings)}
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => setShowTodayRevenue(false)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#a8443b",
+                            padding: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                          title="Hide Revenue"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* <div className="doctor-sidebar-card">
+                <span className="doctor-sidebar-label">Patient Search</span>
+                <form
+                  className="doctor-quick-search"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    searchPatient();
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={uniqueCode}
+                    onChange={(event) => setUniqueCode(event.target.value)}
+                    placeholder="Patient code"
+                  />
+                  <button type="submit">
+                    <Search size={16} />
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="doctor-secondary-button doctor-secondary-button--full"
+                  onClick={() => setScannerVisible((current) => !current)}
+                >
+                  <QrCode size={16} />
+                  {scannerVisible ? "Close Scanner" : "Scan QR"}
                 </button>
-              </form>
-              <button
-                type="button"
-                className="doctor-secondary-button doctor-secondary-button--full"
-                onClick={() => setScannerVisible((current) => !current)}
-              >
-                <QrCode size={16} />
-                {scannerVisible ? "Close Scanner" : "Scan QR"}
-              </button>
-            </div> */}
-          </aside>
+              </div> */}
+            </aside>
+          )}
 
           <main className="doctor-main">
+            {sidebarCollapsed && (
+              <button 
+                type="button" 
+                onClick={() => setSidebarCollapsed(false)} 
+                onMouseEnter={() => setSidebarCollapsed(false)}
+                className="doctor-secondary-button"
+                style={{ 
+                  marginBottom: '20px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  width: 'fit-content'
+                }}
+              >
+                <Menu size={16} /> Show Navigation
+              </button>
+            )}
             {activeView === "overview" && (
               <>
                 <section className="doctor-metrics-grid">
@@ -1508,13 +1785,26 @@ export default function DoctorDashboardNew() {
                     <div className="patient-builder-column">
                       {/* Patient Profile Card */}
                       <article className="doctor-panel">
-                        <div className="doctor-panel-heading">
+                        <div className="doctor-panel-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
                             <span>Patient Profile</span>
                             <h2>{patientProfile.name}</h2>
                           </div>
-                          <div className="doctor-chip-row">
-                            <span className="doctor-chip">{patientProfile.age || "N/A"} yrs • {patientProfile.gender || "Unknown"}</span>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div className="doctor-chip-row">
+                              <span className="doctor-chip">{patientProfile.age || "N/A"} yrs • {patientProfile.gender || "Unknown"}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="doctor-secondary-button"
+                              onClick={() => {
+                                setPatientData(null);
+                                setSidebarCollapsed(false);
+                              }}
+                              style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                            >
+                              Close Workspace
+                            </button>
                           </div>
                         </div>
 
@@ -1589,17 +1879,17 @@ export default function DoctorDashboardNew() {
                         </div>
                       </article>
 
-                      {/* Added Medicines Table */}
-                      <article className="doctor-panel medicines-list-panel">
+                      {/* Active Prescription Pad */}
+                      <article className="doctor-panel active-pad-panel">
                         <div className="doctor-panel-heading">
-                           <h2>Added Medicines List</h2>
-                           <span className="count-pill">{patientPrescriptions.length} items</span>
+                           <h2>Active Prescription Pad</h2>
+                           <span className="count-pill" style={{ background: '#0b7a72', color: 'white' }}>{patientPrescriptions.length} items</span>
                         </div>
                         
                         <div className="medicines-table-container">
                           {patientPrescriptions.length === 0 ? (
                             <EmptyState
-                               title="No medicines added"
+                               title="No active medicines in pad"
                                text="Start by adding medicines using the form above."
                             />
                           ) : (
@@ -1617,15 +1907,95 @@ export default function DoctorDashboardNew() {
                                   {patientPrescriptions.map((med, idx) => (
                                     <tr key={med.id || idx}>
                                        <td><strong>{med.medicine_name}</strong></td>
-                                       <td>{med.dosage}</td>
-                                       <td>{med.frequency}</td>
-                                       <td>{med.duration}</td>
+                                       <td>{med.dosage || "—"}</td>
+                                       <td>{med.frequency || "—"}</td>
+                                       <td>{med.duration || "—"}</td>
                                        <td className="actions-cell">
-                                          <button onClick={() => updatePrescriptionMedicine(med)}><Edit size={14} /></button>
-                                          <button className="del-btn" onClick={() => stopPrescriptionMedicine(med)}><Trash2 size={14} /></button>
+                                          <button onClick={() => updatePrescriptionMedicine(med)} title="Edit"><Edit size={14} /></button>
+                                          <button className="del-btn" onClick={() => stopPrescriptionMedicine(med)} title="Stop / Discontinue"><Trash2 size={14} /></button>
                                        </td>
                                     </tr>
                                   ))}
+                               </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </article>
+
+                      {/* Added Medicines List (All Doctors History) */}
+                      <article className="doctor-panel medicines-list-panel">
+                        <div className="doctor-panel-heading">
+                           <h2>Added Medicines List (All Doctors)</h2>
+                           <span className="count-pill">{patientHistoryPrescriptions.length} items</span>
+                        </div>
+                        
+                        <div className="medicines-table-container" style={{ maxHeight: '480px', overflowY: 'auto' }}>
+                          {patientHistoryPrescriptions.length === 0 ? (
+                            <EmptyState
+                               title="No medicine history"
+                               text="No medicines have been prescribed by any doctor yet."
+                            />
+                          ) : (
+                            <table className="doctor-table medicines-table">
+                               <thead>
+                                  <tr>
+                                     <th>Medicine</th>
+                                     <th>Prescribed By</th>
+                                     <th>Details</th>
+                                     <th>Date</th>
+                                     <th>Status</th>
+                                     <th>Actions</th>
+                                  </tr>
+                               </thead>
+                               <tbody>
+                                  {patientHistoryPrescriptions.map((med, idx) => {
+                                    const dateStr = med.created_at || med.extracted_at 
+                                      ? new Date(med.created_at || med.extracted_at).toLocaleDateString()
+                                      : "—";
+                                    const prescBy = med.doctor_name 
+                                      ? (med.doctor_name.toLowerCase().includes("upload") 
+                                          ? med.doctor_name 
+                                          : `Dr. ${med.doctor_name.replace(/^dr\.?\s+/i, "")}`)
+                                      : "User Upload";
+                                    const isCurrentDocActive = patientPrescriptions.some(
+                                      pm => pm.medicine_name?.toLowerCase() === med.medicine_name?.toLowerCase()
+                                    );
+                                    return (
+                                      <tr key={med.id || idx} style={{ opacity: med.is_deleted ? 0.65 : 1 }}>
+                                         <td><strong>{med.medicine_name}</strong></td>
+                                         <td><span style={{ fontSize: '0.85rem', color: '#666' }}>{prescBy}</span></td>
+                                         <td>
+                                           <div style={{ fontSize: '0.8rem', color: '#555' }}>
+                                             {med.dosage || "—"} • {med.frequency || "—"} • {med.duration || "—"}
+                                           </div>
+                                         </td>
+                                         <td><span style={{ fontSize: '0.8rem', color: '#777' }}>{dateStr}</span></td>
+                                         <td>
+                                           <span style={{ 
+                                             fontSize: '0.75rem', 
+                                             padding: '2px 6px', 
+                                             borderRadius: '4px',
+                                             fontWeight: 'bold',
+                                             background: med.is_deleted ? '#fee2e2' : '#dcfce7',
+                                             color: med.is_deleted ? '#b91c1c' : '#15803d'
+                                           }}>
+                                             {med.is_deleted ? "Stopped" : "Active"}
+                                           </span>
+                                         </td>
+                                         <td className="actions-cell">
+                                            {!isCurrentDocActive && (
+                                              <button 
+                                                onClick={() => handleCopyMedicineToPad(med)} 
+                                                title="Add this medicine to your prescription pad"
+                                                style={{ background: '#eef7f5', color: '#0b7a72', border: '1px solid #d1eae4', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                                              >
+                                                <PlusCircle size={14} /> Add to Pad
+                                              </button>
+                                            )}
+                                         </td>
+                                      </tr>
+                                    );
+                                  })}
                                </tbody>
                             </table>
                           )}
@@ -1767,10 +2137,23 @@ export default function DoctorDashboardNew() {
                         <DigitalPrescription 
                            doctor={{ 
                              name: `Dr. ${doctorDisplayName}`, 
-                             specialty: user?.specialty || user?.category || "Senior Practitioner" 
+                             specialty: user?.specialty || user?.category || "Senior Practitioner",
+                             email: user?.email,
+                             phone: user?.phone,
+                             reg_no: user?.reg_no
                            }}
                            patient={patientProfile}
-                          medicines={Array.from(new Map(patientPrescriptions.map(m => [m.medicine_name?.toLowerCase(), m])).values())}
+                          medicines={(() => {
+                            const historicMyMeds = patientHistoryPrescriptions.filter(m => {
+                              const isMyId = m.doctor_id && String(m.doctor_id) === String(user?.id);
+                              const nameMatch = m.doctor_name && String(user?.name) && 
+                                               String(m.doctor_name).toLowerCase().includes(String(user?.name).toLowerCase());
+                              return isMyId || nameMatch;
+                            });
+                            const optimisticMeds = patientPrescriptions.filter(m => m.is_optimistic);
+                            const allMyMeds = [...optimisticMeds, ...historicMyMeds];
+                            return Array.from(new Map(allMyMeds.map(m => [m.medicine_name?.toLowerCase() + '_' + (m.is_deleted ? 'deleted' : 'active'), m])).values());
+                          })()}
                           diagnosis={diagnosis}
                           notes={additionalNotes}
                           rxNumber={prescriptionNumber}

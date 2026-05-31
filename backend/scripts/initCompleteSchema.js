@@ -67,6 +67,8 @@ export async function initializeCompletSchema() {
         consultation_fee NUMERIC DEFAULT 500,
         experience INTEGER,
         branch_id INTEGER,
+        phone VARCHAR(50),
+        reg_no VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE

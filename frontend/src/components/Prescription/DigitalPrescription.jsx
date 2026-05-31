@@ -13,15 +13,45 @@ const DigitalPrescription = ({
   onSaveToWallet = null,
   isSaving = false
 }) => {
-  const doctorName = doctor?.name || "Practitioner Name";
+  const doctorName = doctor?.name || "Specialist Consultant";
   const doctorSpecialty = doctor?.specialty || "Medical Consultant";
+  const isDoc = doctorName && !doctorName.toLowerCase().includes("upload");
   const clinicName = "TechMedix Clinical Sanctuary";
   const clinicAddress = "124, Healthcare Boulevard, Medical District";
-  const clinicContact = "+91 98765-43210 | support@techmedix.com";
+  const clinicContact = isDoc && (doctor?.phone || doctor?.email)
+    ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
+    : "+91 98765-43210 | support@techmedix.com";
   
   const handlePrint = () => {
     window.print();
   };
+
+  const getGroupKey = (med) => {
+    const dateVal = med.created_at || med.extracted_at || new Date();
+    const d = new Date(dateVal);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatGroupKey = (dateKey) => {
+    return new Date(dateKey).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+  };
+
+  const groupsByDate = medicines.reduce((acc, med) => {
+    const key = getGroupKey(med);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(med);
+    return acc;
+  }, {});
+
+  const sortedDateKeys = Object.keys(groupsByDate).sort((a, b) => b.localeCompare(a));
+  let globalIdx = 0;
 
   return (
     <div className={`digital-prescription-container ${isPatientView ? 'patient-mode' : 'doctor-mode'}`}>
@@ -62,12 +92,12 @@ const DigitalPrescription = ({
           </div>
           <div className="doctor-info-strip">
             <div className="doc-main">
-              <strong>{doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`}</strong>
+              <strong>{isDoc ? (doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`) : doctorName}</strong>
               <span>{doctorSpecialty}</span>
             </div>
             <div className="doc-meta">
               <p>{clinicContact}</p>
-              <p>Reg No: TM-DOC-2024-001</p>
+              {isDoc && <p>Reg No: {doctor?.reg_no || "TM-DOC-2024-001"}</p>}
             </div>
           </div>
         </div>
@@ -116,26 +146,53 @@ const DigitalPrescription = ({
                 </tr>
               </thead>
               <tbody>
-                {medicines.length > 0 ? (
-                  medicines.map((med, idx) => (
-                    <tr key={idx}>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <div className="med-name-wrap">
-                          <strong>{med.medicine_name}</strong>
-                          {med.salt_name && <small>{med.salt_name}</small>}
-                        </div>
-                      </td>
-                      <td>{med.dosage}</td>
-                      <td>{med.frequency}</td>
-                      <td>{med.duration}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="empty-row">No medications prescribed yet.</td>
-                  </tr>
-                )}
+                {sortedDateKeys.map((dateKey, groupIdx) => {
+                   const meds = groupsByDate[dateKey];
+                   const dateStr = formatGroupKey(dateKey);
+                   return (
+                     <React.Fragment key={dateKey}>
+                       <tr className="rx-table-section-header no-print">
+                         <td colSpan="5" style={{ fontWeight: 'bold', backgroundColor: '#f1f5f9', padding: '10px 12px', color: '#334155', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                           Prescribed / Modified on: {dateStr}
+                         </td>
+                       </tr>
+                       <tr className="rx-table-section-header print-only-header" style={{ display: 'none' }}>
+                         <td colSpan="5" style={{ fontWeight: 'bold', borderTop: '2px solid #0f6b57', padding: '10px 12px 6px', color: '#1a1a1a', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                           Prescribed / Modified on: {dateStr}
+                         </td>
+                       </tr>
+                       {meds.map((med, idx) => {
+                         globalIdx++;
+                         return (
+                           <tr key={med.id || `med-${groupIdx}-${idx}`} className={med.is_deleted ? "discontinued-row" : ""}>
+                             <td>{globalIdx}</td>
+                             <td>
+                               <div className="med-name-wrap">
+                                 <strong>
+                                   {med.medicine_name}
+                                   {med.is_deleted && (
+                                     <span style={{ color: '#b91c1c', fontSize: '0.7rem', fontWeight: 'normal', marginLeft: '8px', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', border: '1px solid #fca5a5' }}>
+                                       Stopped
+                                     </span>
+                                   )}
+                                 </strong>
+                                 {med.salt_name && <small>{med.salt_name}</small>}
+                               </div>
+                             </td>
+                             <td>{med.dosage || "—"}</td>
+                             <td>{med.frequency || "—"}</td>
+                             <td>{med.duration || "—"}</td>
+                           </tr>
+                         );
+                       })}
+                     </React.Fragment>
+                   );
+                 })}
+                 {sortedDateKeys.length === 0 && (
+                   <tr>
+                     <td colSpan="5" className="empty-row">No medications prescribed yet.</td>
+                   </tr>
+                 )}
               </tbody>
             </table>
           </div>
@@ -152,15 +209,29 @@ const DigitalPrescription = ({
         <div className="paper-footer">
           <div className="footer-top">
             <div className="qr-code-placeholder">
-              {/* Optional: Add a real QR here if needed */}
-              <div className="qr-box">Rx</div>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                  `TechMedix Verification\nPatient: ${patient?.name || "N/A"}\nPatient ID: ${patient?.id || "N/A"}\nRx No: ${rxNumber || "RX-TEMP"}\nDoctor: ${doctorName}`
+                )}`}
+                alt="Verification QR Code"
+                className="qr-box"
+                style={{ width: '70px', height: '70px', border: '1px solid #cbd5e1', padding: '4px', borderRadius: '8px', background: 'white', objectFit: 'contain' }}
+              />
               <p>Scan to Verify</p>
             </div>
-            <div className="signature-block">
-              <div className="sig-line"></div>
-              <p>Digital Signature</p>
-              <strong>{doctorName}</strong>
-            </div>
+            {isDoc ? (
+              <div className="signature-block">
+                <div className="sig-line"></div>
+                <p>Digital Signature</p>
+                <strong>{doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`}</strong>
+              </div>
+            ) : (
+              <div className="signature-block">
+                <div className="sig-line"></div>
+                <p>Uploaded Prescription Record</p>
+                <strong>{patient?.name || "Patient Verified"}</strong>
+              </div>
+            )}
           </div>
           <div className="footer-bottom">
             <p>This is a digitally generated prescription. It does not require a physical stamp for validation.</p>

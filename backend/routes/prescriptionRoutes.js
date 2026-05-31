@@ -35,10 +35,18 @@ router.get(
     pm.dosage,
     pm.frequency,
     pm.duration,
-    pm.instructions
+    pm.instructions,
+    pm.is_deleted,
+    p.doctor_id,
+    p.created_at,
+    COALESCE(d.name, 'User Upload') AS doctor_name,
+    COALESCE(d.specialty, 'Prescription Uploads') AS doctor_specialty,
+    d.email AS doctor_email,
+    d.phone AS doctor_phone,
+    d.reg_no AS doctor_reg_no
   FROM prescription_medicines pm
-  JOIN prescriptions p
-  ON pm.prescription_id = p.id
+  JOIN prescriptions p ON pm.prescription_id = p.id
+  LEFT JOIN doctors d ON p.doctor_id = d.id
   WHERE p.user_id = ${patientId}
   ORDER BY p.created_at DESC
 `;
@@ -364,9 +372,11 @@ router.post("/manual", authenticate, async (req, res) => {
   try {
     const { patient_id, medicine_name, dosage, frequency, duration } = req.body;
 
+    const doctorId = req.body.doctor_id || req.user?.doctor_id || req.user?.id || null;
+
     const prescription = await sql`
-      INSERT INTO prescriptions (user_id, created_at)
-      VALUES (${patient_id}, NOW())
+      INSERT INTO prescriptions (user_id, doctor_id, created_at)
+      VALUES (${patient_id}, ${doctorId}, NOW())
       RETURNING id
     `;
 
@@ -440,7 +450,8 @@ router.delete(
       const { id } = req.params;
 
       const result = await sql`
-        DELETE FROM prescription_medicines
+        UPDATE prescription_medicines
+        SET is_deleted = TRUE
         WHERE id = ${id}
         RETURNING id
       `;

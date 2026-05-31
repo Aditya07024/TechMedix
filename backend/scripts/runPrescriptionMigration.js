@@ -60,4 +60,19 @@ export async function runPrescriptionMigration() {
   } catch (err) {
     console.warn("⚠ Prescription migration warning:", err.message);
   }
+
+  try {
+    // Ensure soft delete support exists on prescription medicines
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
+  } catch (err) {
+    console.warn("⚠ Prescription medicines migration warning:", err.message);
+  }
+
+  try {
+    // Ensure doctors table has phone and reg_no columns
+    await sql`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`;
+    await sql`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS reg_no VARCHAR(50)`;
+  } catch (err) {
+    console.warn("⚠ Doctors table migration warning:", err.message);
+  }
 }

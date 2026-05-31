@@ -53,7 +53,7 @@ export const getDoctorById = async (id) => {
   try {
     const result = await sql`
       SELECT id, name, email, specialty,
-             consultation_fee, branch_id, created_at
+             consultation_fee, branch_id, created_at, phone, reg_no
       FROM doctors
       WHERE id = ${id}
         AND is_deleted = FALSE
@@ -88,6 +88,8 @@ export const getDoctorByEmail = async (email) => {
 /*
   UPDATE DOCTOR (Safe Version)
 */
+
+
 export const updateDoctor = async (id, doctorData) => {
   try {
     const name = doctorData?.name ?? null;
@@ -95,6 +97,8 @@ export const updateDoctor = async (id, doctorData) => {
     const specialty = doctorData?.specialty ?? null;
     const consultationFee = doctorData?.consultation_fee ?? null;
     const branchId = doctorData?.branch_id ?? null;
+    const phone = doctorData?.phone ?? null;
+    const reg_no = doctorData?.reg_no ?? null;
 
     const result = await sql`
       UPDATE doctors
@@ -103,14 +107,14 @@ export const updateDoctor = async (id, doctorData) => {
           specialty = COALESCE(${specialty}, specialty),
           consultation_fee = COALESCE(${consultationFee}, consultation_fee),
           branch_id = COALESCE(${branchId}, branch_id),
+          phone = COALESCE(${phone}, phone),
+          reg_no = COALESCE(${reg_no}, reg_no),
           updated_at = NOW()
       WHERE id = ${id}
         AND is_deleted = FALSE
-      RETURNING id, name, email, specialty, consultation_fee, branch_id
+      RETURNING id, name, email, specialty, consultation_fee, branch_id, phone, reg_no
     `;
-
     return result.length ? result[0] : null;
-
   } catch (error) {
     console.error("Update doctor failed:", error);
     return null;

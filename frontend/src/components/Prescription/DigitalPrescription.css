@@ -356,29 +356,58 @@
 
 /* Print CSS */
 @media print {
-  body {
-    background: white !important;
+  /* Hide standard non-printable elements */
+  header, footer, nav, aside, button, .no-print, .preview-header, .navbar, .patient-sidebar, .doctor-sidebar, .doctor-command-bar, .patient-builder-column, .doctor-panel-heading {
+    display: none !important;
   }
-  
-  .no-print, .preview-header, button, .patient-sidebar, .dashboard-content > *:not(.digital-prescription-container) {
+
+  /* Reset layout wrappers to block and visible to prevent blank pages or height cutoff */
+  html, body, #root, 
+  .doctor-dashboard, .doctor-dashboard-shell, .doctor-workspace, .doctor-main, 
+  .patient-workspace-container, .patient-preview-column, 
+  .patient-dashboard, .dashboard-modal-backdrop, .dashboard-modal-card {
+    background: white !important;
+    background-color: white !important;
+    color: black !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Sibling views inside patient dashboard or modal cards should also be hidden */
+  .patient-dashboard > *:not(.dashboard-modal-backdrop),
+  .dashboard-modal-backdrop > *:not(.dashboard-modal-card),
+  .dashboard-modal-card > *:not(.digital-prescription-container) {
     display: none !important;
   }
 
   .digital-prescription-container {
+    display: block !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
     background: white !important;
     width: 100% !important;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
   .prescription-paper {
     padding: 0 !important;
+    margin: 0 !important;
     width: 100% !important;
-    min-height: auto !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+    background: white !important;
   }
 }
 
@@ -400,5 +429,29 @@
   
   .doctor-info-strip {
     text-align: left;
+  }
+}
+
+/* Soft Delete / Discontinued Medications Styles */
+.discontinued-row {
+  opacity: 0.6;
+  background-color: #fafafa;
+}
+
+.discontinued-row strong {
+  text-decoration: line-through;
+  color: var(--rx-muted);
+}
+
+.rx-table-section-header td {
+  font-weight: 700 !important;
+  color: #334155 !important;
+  background-color: #f1f5f9 !important;
+  letter-spacing: 0.5px;
+}
+
+@media print {
+  .print-only-header {
+    display: table-row !important;
   }
 }

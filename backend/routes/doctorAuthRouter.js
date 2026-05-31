@@ -113,6 +113,8 @@ router.post("/login", async (req, res) => {
         role: "doctor",
         consultation_fee: doctor.consultation_fee || 0,
         specialty: doctor.specialty,
+        phone: doctor.phone,
+        reg_no: doctor.reg_no,
       },
     });
   } catch (error) {
@@ -150,11 +152,13 @@ router.patch(
   authorizeRoles("doctor"),
   async (req, res) => {
     try {
-      const { consultation_fee, name, specialty } = req.body;
+      const { consultation_fee, name, specialty, phone, reg_no } = req.body;
       const updated = await updateDoctor(req.user.id, {
         consultation_fee,
         name,
         specialty,
+        phone,
+        reg_no,
       });
       if (!updated) {
         return res.status(400).json({ error: "Update failed" });

@@ -29,7 +29,7 @@ export async function getPatientTimeline(patientId) {
   p.frequency,
   p.duration_days,
   p.created_at,
-  d.name as doctor_name
+  COALESCE(d.name, 'User Upload') as doctor_name
       FROM prescriptions p
       LEFT JOIN doctors d ON p.doctor_id = d.id
       WHERE p.patient_id::text = ${pid}

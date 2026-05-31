@@ -296,6 +296,10 @@
   gap: 20px;
 }
 
+.doctor-workspace.sidebar-collapsed {
+  grid-template-columns: 1fr;
+}
+
 .doctor-sidebar {
   display: grid;
   gap: 18px;
@@ -722,7 +726,7 @@
 /* Prescription Builder & Preview Layout */
 .patient-workspace-container {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 24px;
   align-items: start;
 }

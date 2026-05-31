@@ -66,7 +66,7 @@ import {
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const getQuickActionPrefsKey = (patientId) => `patient-dashboard-quick-actions-${patientId}`;
-const DEFAULT_QUICK_ACTION_IDS = ["upload-prescription", "add-data", "view-history"];
+const DEFAULT_QUICK_ACTION_IDS = ["upload-prescription", "add-data", "view-history", "prescription-pad"];
 
 const getDashboardCacheKey = (patientId) =>
   `patient-dashboard-cache-${patientId}`;
@@ -172,7 +172,15 @@ const renderPrescriptionToBlob = async ({
   ctx.font = "24px Arial";
   ctx.fillStyle = "#66788b";
   ctx.fillText("124, Healthcare Boulevard, Medical District", 215, 190);
-  ctx.fillText("+91 98765-43210 | support@techmedix.com", 215, 225);
+  const docEmail = doctor?.email;
+  const docPhone = doctor?.phone;
+  let canvasContact = "";
+  if (doctor?.name && !doctor.name.toLowerCase().includes("upload") && (docEmail || docPhone)) {
+    canvasContact = [docPhone, docEmail].filter(Boolean).join(" | ");
+  } else {
+    canvasContact = "+91 98765-43210 | support@techmedix.com";
+  }
+  ctx.fillText(canvasContact, 215, 225);
 
   ctx.strokeStyle = "#d9e2ea";
   ctx.lineWidth = 2;
@@ -183,14 +191,28 @@ const renderPrescriptionToBlob = async ({
 
   ctx.fillStyle = "#203246";
   ctx.font = "bold 32px Arial";
+  const isUploaded = doctor?.name?.toLowerCase().includes("upload");
   ctx.fillText(
-    doctor?.name?.startsWith("Dr.") ? doctor.name : `Dr. ${doctor?.name || "Medical Professional"}`,
+    isUploaded
+      ? (doctor?.name || "User Upload")
+      : (doctor?.name?.startsWith("Dr.") ? doctor.name : `Dr. ${doctor?.name || "Specialist Consultant"}`),
     90,
     340,
   );
   ctx.font = "24px Arial";
   ctx.fillStyle = "#66788b";
-  ctx.fillText(doctor?.specialty || "Clinical Specialist", 90, 375);
+  ctx.fillText(
+    isUploaded ? "Prescription Uploads" : (doctor?.specialty || "Clinical Specialist"),
+    90,
+    375,
+  );
+  if (!isUploaded) {
+    ctx.fillText(
+      `Reg No: ${doctor?.reg_no || "TM-DOC-2024-001"}`,
+      90,
+      410,
+    );
+  }
 
   const today = new Date().toLocaleDateString();
   ctx.textAlign = "right";
@@ -513,6 +535,7 @@ export default function PatientDashboard() {
   const [draftQuickActionIds, setDraftQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
   const [viewingDigitalRx, setViewingDigitalRx] = useState(null);
   const [isWalletSaving, setIsWalletSaving] = useState(false);
+  const [showDownloadPadModal, setShowDownloadPadModal] = useState(false);
 
   const refreshNotifications = async (patientId) => {
     if (!patientId) return [];
@@ -1186,7 +1209,7 @@ export default function PatientDashboard() {
                 specialty: appointments[0].specialty || "Medical Practitioner",
               }
             : {
-                name: "Dr. Medical Professional",
+                name: "Dr. Specialist Consultant",
                 specialty: "Clinical Specialist",
               };
 
@@ -1851,6 +1874,13 @@ export default function PatientDashboard() {
       action: () => navigate("/new/dashboard"),
     },
     {
+      id: "prescription-pad",
+      label: "Prescription Pad",
+      iconClassName: "rose-icon",
+      icon: FileText,
+      action: () => setShowDownloadPadModal(true),
+    },
+    {
       id: "prescriptions",
       label: "My Prescriptions",
       iconClassName: "mint-icon",
@@ -1965,6 +1995,74 @@ export default function PatientDashboard() {
   const recentSpending = walletTransactions
     .filter((tx) => tx.type === "debit")
     .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+  // Group prescriptions by doctor at the component level so both the tab and download modal can access them
+  const groupedPrescriptionPads = (() => {
+    const list = prescriptions.length > 0 ? prescriptions : medicines;
+    const grouped = list.reduce((acc, item) => {
+      const firstMed = item.medicines?.[0] || (item.medicine_name ? item : {});
+      
+      // Check if this medicine/prescription has a doctor ID (is a clinical consultation)
+      const docId = item.doctor_id || firstMed.doctor_id || 
+                    item.doctorId || firstMed.doctorId;
+      
+      let resolvedName = "";
+      let resolvedSpecialty = "";
+      let groupKey = "";
+      let pId = null;
+
+      if (!docId) {
+        // If there's no doctor ID, it is a user-uploaded prescription!
+        resolvedName = "User Upload";
+        resolvedSpecialty = "Prescription Uploads";
+        groupKey = "user-upload";
+        pId = "user-upload";
+      } else {
+        pId = docId;
+        const docFromAppt = appointments.find(a => String(a.doctor_id || a.doctor?.id) === String(pId));
+        const docFromList = doctors.find(d => String(d.id || d._id) === String(pId));
+
+        let rawName = item.doctor_name || item.doctorName || item.doc_name || 
+                     item.prescribed_by || firstMed.doctor_name || firstMed.doctorName || 
+                     firstMed.doc_name || firstMed.prescribed_by ||
+                     docFromList?.name || docFromList?.full_name ||
+                     docFromAppt?.doctor_name || docFromAppt?.doctor?.name || "";
+        
+        // Sanitize name
+        if (!rawName || rawName === "null" || rawName === "undefined") rawName = "";
+        resolvedName = rawName || "Specialist Consultant";
+        
+        // Enforce Dr. naming
+        if (resolvedName && !resolvedName.toLowerCase().startsWith("dr") && resolvedName !== "User Upload") {
+          resolvedName = `Dr. ${resolvedName}`;
+        }
+
+        resolvedSpecialty = item.doctor_specialty || firstMed.doctor_specialty || 
+                            docFromList?.specialty || docFromList?.category || 
+                            docFromAppt?.specialty || "Specialist";
+        groupKey = String(pId);
+      }
+
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
+          id: pId,
+          doctor_name: resolvedName,
+          doctor_specialty: resolvedSpecialty,
+          doctor_email: item.doctor_email || firstMed.doctor_email || docFromList?.email || "",
+          doctor_phone: item.doctor_phone || firstMed.doctor_phone || docFromList?.phone || "",
+          doctor_reg_no: item.doctor_reg_no || firstMed.doctor_reg_no || docFromList?.reg_no || "",
+          medicines: [],
+          created_at: item.created_at || firstMed.created_at || new Date().toISOString()
+        };
+      }
+      
+      const medsToAdd = item.medicines || (item.medicine_name ? [item] : []);
+      acc[groupKey].medicines.push(...medsToAdd);
+      return acc;
+    }, {});
+
+    return Object.values(grouped).filter(p => p.medicines.length > 0);
+  })();
 
   return (
     <div className="patient-dashboard">
@@ -2595,112 +2693,48 @@ export default function PatientDashboard() {
                 </div>
 
                 <div className="digital-rx-listings" style={{ marginBottom: '30px' }}>
-                  {(() => {
-                    // Pre-process and group prescriptions by doctor to ensure one pad per practitioner
-                    const grouped = (prescriptions.length > 0 ? prescriptions : medicines).reduce((acc, item) => {
-                      const firstMed = item.medicines?.[0] || (item.medicine_name ? item : {});
-                      
-                      // Aggressive ID resolution
-                      const pId = item.doctor_id || firstMed.doctor_id || 
-                                 item.doctorId || firstMed.doctorId || 
-                                 item.pm_id || item.id; // Fallback to item ID if it might be a doctor record
-                      
-                      const docFromAppt = pId ? appointments.find(a => String(a.doctor_id || a.doctor?.id) === String(pId)) : null;
-                      const docFromList = pId ? doctors.find(d => String(d.id || d._id) === String(pId)) : null;
-
-                      let rawName = item.doctor_name || item.doctorName || item.doc_name || 
-                                   item.prescribed_by || firstMed.doctor_name || firstMed.doctorName || 
-                                   firstMed.doc_name || firstMed.prescribed_by ||
-                                   docFromList?.name || docFromList?.full_name ||
-                                   docFromAppt?.doctor_name || docFromAppt?.doctor?.name || "";
-                      
-                      // Sanitize name
-                      if (!rawName || rawName === "null" || rawName === "undefined") rawName = "";
-                      let resolvedName = rawName || "Specialist Consultant";
-                      
-                      // Enforce Dr. naming
-                      if (resolvedName && !resolvedName.toLowerCase().startsWith("dr")) {
-                        resolvedName = `Dr. ${resolvedName}`;
-                      }
-
-                      // Key for grouping: Use ID if possible, otherwise Name
-                      const groupKey = pId ? String(pId) : resolvedName;
-
-                      if (!acc[groupKey]) {
-                        acc[groupKey] = {
-                          id: pId || `group-${resolvedName}`,
-                          doctor_name: resolvedName,
-                          doctor_specialty: item.doctor_specialty || firstMed.doctor_specialty || 
-                                           docFromList?.specialty || docFromList?.category || 
-                                           docFromAppt?.specialty || "Specialist",
-                          medicines: [],
-                          created_at: item.created_at || firstMed.created_at || new Date().toISOString()
-                        };
-                      }
-                      
-                      const medsToAdd = item.medicines || (item.medicine_name ? [item] : []);
-                      acc[groupKey].medicines.push(...medsToAdd);
-                      return acc;
-                    }, {});
-
-                    const displayPads = Object.values(grouped).filter(p => p.medicines.length > 0);
-
-                    if (displayPads.length === 0) {
-                      return (
-                        <div className="empty-panel" style={{ padding: '20px' }}>
-                          <p>No recent digital prescriptions found.</p>
+                  <div style={{ display: 'grid', gap: '20px' }}>
+                    <div className="digital-rx-card active-rx-highlight" style={{ 
+                      background: 'linear-gradient(135deg, #0f6b57, #0b7a72)', 
+                      padding: '24px', 
+                      borderRadius: '20px', 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      boxShadow: '0 10px 25px rgba(15, 107, 87, 0.15)',
+                      color: 'white',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setShowDownloadPadModal(true)}
+                    >
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <div style={{ width: '48px', height: '48px', background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: '14px', display: 'grid', placeItems: 'center' }}>
+                          <FileText size={26} />
                         </div>
-                      );
-                    }
-
-                    return (
-                      <div style={{ display: 'grid', gap: '20px' }}>
-                        {displayPads.map((pad, idx) => (
-                          <div key={pad.id || idx} className="digital-rx-card active-rx-highlight" style={{ 
-                            background: idx % 2 === 0 ? '#183126' : '#0F6B57', 
-                            padding: '20px', 
-                            borderRadius: '20px', 
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            boxShadow: '0 10px 25px rgba(24, 49, 38, 0.15)',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => setViewingDigitalRx(pad)}
-                          >
-                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                              <div style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.1)', color: 'white', borderRadius: '12px', display: 'grid', placeItems: 'center' }}>
-                                <ShieldCheck size={24} />
-                              </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <strong style={{ fontSize: '1.05rem' }}>{pad.doctor_name}</strong>
-                                  <span style={{ background: '#22c55e', color: 'white', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>Active</span>
-                                </div>
-                                <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>
-                                  {pad.medicines.length} medications prescribed • Issued {new Date(pad.created_at).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            <button 
-                              className="action-btn" 
-                              style={{ 
-                                padding: '10px 20px', 
-                                background: 'white', 
-                                color: idx % 2 === 0 ? '#183126' : '#0F6B57',
-                                fontWeight: 700,
-                                borderRadius: '12px',
-                                border: 'none'
-                              }}
-                            >
-                              Open Pad
-                            </button>
-                          </div>
-                        ))}
+                        <div>
+                          <strong style={{ fontSize: '1.15rem', display: 'block' }}>Prescription Pad</strong>
+                          <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.85)', margin: '4px 0 0' }}>
+                            Access, view, and download individual clinician prescription sheets and uploaded records.
+                          </p>
+                        </div>
                       </div>
-                    );
-                  })()}
+                      <button 
+                        className="action-btn" 
+                        style={{ 
+                          padding: '12px 24px', 
+                          background: 'white', 
+                          color: '#0F6B57',
+                          fontWeight: 700,
+                          borderRadius: '12px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        View Pads
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="prescriptions-block-header">
@@ -3615,18 +3649,33 @@ export default function PatientDashboard() {
              <DigitalPrescription 
                 doctor={
                   (viewingDigitalRx?.doctor_name) 
-                    ? { name: viewingDigitalRx.doctor_name, specialty: viewingDigitalRx.doctor_specialty || "Consultant" }
+                    ? { 
+                        name: viewingDigitalRx.doctor_name, 
+                        specialty: viewingDigitalRx.doctor_specialty || "Consultant",
+                        email: viewingDigitalRx.doctor_email,
+                        phone: viewingDigitalRx.doctor_phone,
+                        reg_no: viewingDigitalRx.doctor_reg_no
+                      }
                     : (medicines.find(m => m.doctor_name))
-                    ? { name: medicines.find(m => m.doctor_name).doctor_name, specialty: medicines.find(m => m.doctor_name).doctor_specialty || "Practitioner" }
+                    ? { 
+                        name: medicines.find(m => m.doctor_name).doctor_name, 
+                        specialty: medicines.find(m => m.doctor_name).doctor_specialty || "Practitioner",
+                        email: medicines.find(m => m.doctor_name).doctor_email,
+                        phone: medicines.find(m => m.doctor_name).doctor_phone,
+                        reg_no: medicines.find(m => m.doctor_name).doctor_reg_no
+                      }
                     : (appointments.length > 0)
                     ? { 
                         name: appointments[0].doctor_name,
-                        specialty: appointments[0].specialty || "Medical Practitioner"
+                        specialty: appointments[0].specialty || "Medical Practitioner",
+                        email: appointments[0].doctor_email || appointments[0].doctor?.email,
+                        phone: appointments[0].doctor_phone || appointments[0].doctor?.phone,
+                        reg_no: appointments[0].doctor_reg_no || appointments[0].doctor?.reg_no
                       }
-                    : { name: "Dr. Medical Professional", specialty: "Clinical Specialist" }
+                    : { name: "Dr. Specialist Consultant", specialty: "Clinical Specialist" }
                 }
                 patient={user}
-                medicines={Array.from(new Map((viewingDigitalRx.medicines || medicines).map(m => [m.medicine_name?.toLowerCase(), m])).values())} 
+                medicines={Array.from(new Map((viewingDigitalRx.medicines || medicines).map(m => [m.medicine_name?.toLowerCase() + '_' + (m.is_deleted ? 'deleted' : 'active'), m])).values())} 
                 diagnosis={viewingDigitalRx.diagnosis}
                 notes={viewingDigitalRx.notes || "Please follow-up in 2 weeks."}
                 rxNumber="RX-2024-9921"
@@ -3643,6 +3692,51 @@ export default function PatientDashboard() {
                   Close Preview
                 </button>
              </div>
+          </div>
+        </div>
+      )}
+      {showDownloadPadModal && (
+        <div className="dashboard-modal-backdrop" onClick={() => setShowDownloadPadModal(false)} style={{ zIndex: 9998 }}>
+          <div className="dashboard-modal-card" onClick={e => e.stopPropagation()} style={{ width: 'min(500px, 95vw)', padding: '24px', background: 'white', borderRadius: '16px', border: '1px solid #eee', boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }}>
+            <div className="dashboard-modal-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span className="section-kicker" style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#0b7a72', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Prescription Pad</span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#10203a' }}>Select Doctor's Pad</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#6d7985' }}>Choose which doctor's prescription pad you want to download or print.</p>
+              </div>
+              <button type="button" onClick={() => setShowDownloadPadModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6d7985', fontWeight: 'normal', padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+            <div className="doctor-pads-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {groupedPrescriptionPads.map((pad, idx) => (
+                <div key={pad.id || idx} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  background: '#f8fafc'
+                }}>
+                  <div>
+                    <strong style={{ display: 'block', color: '#10203a', fontSize: '0.95rem' }}>{pad.doctor_name}</strong>
+                    <span style={{ fontSize: '0.8rem', color: '#6d7985' }}>{pad.doctor_specialty}</span>
+                  </div>
+                  <button 
+                    className="action-btn" 
+                    style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#0b7a72', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                    onClick={() => {
+                      setShowDownloadPadModal(false);
+                      setViewingDigitalRx(pad);
+                    }}
+                  >
+                    Select
+                  </button>
+                </div>
+              ))}
+              {groupedPrescriptionPads.length === 0 && (
+                <p style={{ textAlign: 'center', color: '#6d7985', padding: '20px 10px', margin: 0, fontSize: '0.9rem', fontStyle: 'italic' }}>No prescription pads available.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
