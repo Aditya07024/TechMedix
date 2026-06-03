@@ -42,7 +42,7 @@ const Header = () => {
 
     const interval = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % slides.length);
-    }, 1000); // cycle every 1 second (1 sec 1 poster)
+    }, 5000); // cycle every 2 seconds
 
     return () => clearInterval(interval);
   }, [slides]);
@@ -79,13 +79,12 @@ const Header = () => {
                 </button>
               </div>
             ) : (
-              <div className="header-contents promoted-doctor-contents">
+              <div className="header-contents promoted-doctor-contents" onClick={() => navigate('/dashboard')}>
                 <span className="promoted-badge">Featured Specialist</span>
                 <h2>Dr. {slide.doctor_name}</h2>
                 <p>{slide.specialty}</p>
                 <button
                   className="header-cta-btn promoted-cta"
-                  onClick={() => navigate('/dashboard')}
                 >
                   Book Appointment Now
                 </button>
@@ -95,7 +94,7 @@ const Header = () => {
         );
       })}
 
-      {slides.length > 1 && (
+      {/* {slides.length > 1 && (
         <div className="slider-dots">
           {slides.map((_, index) => (
             <span
@@ -105,7 +104,7 @@ const Header = () => {
             />
           ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 };

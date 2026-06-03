@@ -1268,3 +1268,17 @@
     font-size: 0.8rem;
   }
 }
+
+
+.contact-button{
+  padding: 10px;
+  background-color: #2ca59ddb;
+  /* color: white; */
+  border: 2px solid rgb(255, 255, 255);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+}

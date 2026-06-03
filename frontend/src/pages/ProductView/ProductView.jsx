@@ -74,20 +74,43 @@ const ProductView = () => {
     };
   }, [id]);
 
-  const medicineId = medicine?.id ?? medicine?._id;
+  const medicineId =
+    medicine?.id ??
+    medicine?._id ??
+    medicine?.medicine_id ??
+    medicine?.medicineId ??
+    medicine?.slug ??
+    medicine?.name;
+
+  console.log('Medicine ID:', medicineId);
+  console.log('Wishlist Items:', wishItems);
   const isInWishlist = medicineId ? wishItems[medicineId] : false;
 
-  const handleWishlistClick = () => {
-    if (!medicineId) {
-      return;
-    }
+  const handleWishlistClick = async () => {
+  const token = localStorage.getItem("token");
 
-    if (isInWishlist) {
-      removeFromWish(medicineId);
-    } else {
-      addToWish(medicineId);
-    }
-  };
+  if (!token) {
+    alert("Please login to use wishlist");
+    navigate("/login");
+    return;
+  }
+
+  const wishlistId =
+    medicine?.id ??
+    medicine?._id ??
+    medicine?.medicine_id ??
+    medicine?.medicineId ??
+    medicine?.slug ??
+    medicine?.name;
+
+  if (!wishlistId) return;
+
+  if (isInWishlist) {
+    await removeFromWish(wishlistId);
+  } else {
+    await addToWish(wishlistId);
+  }
+};
 
   if (loading) {
     return <div className="product-view">Loading medicine details...</div>;
@@ -291,3 +314,4 @@ const ProductView = () => {
 };
 
 export default ProductView;
+

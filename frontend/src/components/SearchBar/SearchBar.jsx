@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import Button from '@mui/material/Button';
 import Aipop from "../AiPop/Aipop";
 import next from "../../assets/next.png";
+import { ArrowLeft } from "lucide-react";
+
 
 const SearchBar = () => {
   const [medicine, setMedicine] = useState("");
@@ -41,7 +43,15 @@ const SearchBar = () => {
           <button type="submit" className="search-btn">
             Search &gt;
           </button>
+          <button className="back-button" >
+        <a href="/" className="admin-auth-home-link" >
+                  <ArrowLeft size={16} strokeWidth={2} />
+
+          Return to home
+        </a>
+      </button>
         </form>
+        
         <div className="right-div">
               <img
                 src={next}

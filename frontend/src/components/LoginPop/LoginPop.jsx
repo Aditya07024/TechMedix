@@ -43,7 +43,7 @@ const LoginPop = ({ setShowLogin }) => {
       ? requestedPath
       : getDefaultRouteForRole(role);
 
-  const [currState, setCurrState] = useState("Sign Up");
+  const [currState, setCurrState] = useState("Login");
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -68,7 +68,9 @@ const LoginPop = ({ setShowLogin }) => {
         login(res.data.user, res.data.token || null);
 
         setShowLogin(false);
-        navigate(getRedirectPath(res.data.user?.role || "patient"), { replace: true });
+        navigate(getRedirectPath(res.data.user?.role || "patient"), {
+          replace: true,
+        });
       } catch (err) {
         console.error(err);
         setError("Google login failed");
@@ -182,7 +184,9 @@ const LoginPop = ({ setShowLogin }) => {
       console.error(err);
       const signupConflict =
         err?.response?.status === 400 &&
-        String(err?.response?.data?.error || "").toLowerCase().includes("exists");
+        String(err?.response?.data?.error || "")
+          .toLowerCase()
+          .includes("exists");
       setError(
         signupConflict
           ? "Demo patient account exists, but the password does not match on the backend."
@@ -208,7 +212,7 @@ const LoginPop = ({ setShowLogin }) => {
             helps you manage medicines and connect with customers seamlessly.
           </p>
 
-          <button>techmedix@gmail.com</button>
+          <button>techmedixcare@gmail.com</button>
         </div>
       </div>
 
@@ -334,12 +338,18 @@ const LoginPop = ({ setShowLogin }) => {
               {currState === "Login" ? (
                 <>
                   Create a new account?
-                  <span onClick={() => !submitting && setCurrState("Sign Up")}> Click here</span>
+                  <span onClick={() => !submitting && setCurrState("Sign Up")}>
+                    {" "}
+                    Click here
+                  </span>
                 </>
               ) : (
                 <>
                   Already have an account?
-                  <span onClick={() => !submitting && setCurrState("Login")}> Login here</span>
+                  <span onClick={() => !submitting && setCurrState("Login")}>
+                    {" "}
+                    Login here
+                  </span>
                 </>
               )}
             </p>

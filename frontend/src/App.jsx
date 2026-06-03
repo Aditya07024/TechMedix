@@ -40,7 +40,7 @@ import AppointmentHistory from "./pages/AppointmentHistory/AppointmentHistory";
 import QueueFullPage from "./pages/QueueFullPage/QueueFullPage";
 import LiquidGlassDemo from "./pages/LiquidGlassDemo/LiquidGlassDemo";
 import AboutTechMedix from "./pages/AboutTechMedix/AboutTechMedix";
-
+import Suggestions from "./pages/Suggestions/Suggestions";
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const location = useLocation();
@@ -71,14 +71,14 @@ const App = () => {
           />
           <Route path="/about-techmedix" element={<AboutTechMedix />} />
           <Route path="/home" element={<Home />} />
-          <Route path="/wishlist" element={<WishList />} />
+          <Route path="/wishlist" element={<WishList setShowLogin={setShowLogin} />} />
           <Route path="/view" element={<ProductView />} />
           <Route path="/medicines/:id" element={<ProductView />} />
           <Route path="/reminders" element={<MedicineReminder />} />
           <Route path="/health-tips" element={<HealthTips />} />
-          <Route path="/search" element={<Search />} />
+          <Route path="/search" element={<Search setShowLogin={setShowLogin} />} />
           <Route path="/health" element={<HealthMetrics />} />
-
+<Route path="/suggestions" element={<Suggestions />} />
           {/* 🔥 PRESCRIPTION FLOW */}
           <Route path="/upload-prescription" element={<UploadPrescription />} />
           <Route

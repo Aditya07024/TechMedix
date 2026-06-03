@@ -107,6 +107,13 @@ const AdminLogin = () => {
             <LockKeyhole size={18} strokeWidth={2} />
             Admin access is restricted to authorized personnel only
           </div>
+           <button className="contact-button">
+
+              
+              <span className="landing-footer__caption">
+                Contact: <a href="mailto:techmedixcare@gmail.com">techmedixcare@gmail.com</a>
+              </span>
+              </button>
         </section>
 
         <section className="admin-login-form admin-auth-panel">
@@ -128,7 +135,7 @@ const AdminLogin = () => {
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@techmedix.com"
+                  placeholder="Admin ID"
                   required
                 />
               </div>

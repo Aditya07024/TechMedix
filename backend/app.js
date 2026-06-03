@@ -132,6 +132,7 @@ import staffRoutes from "./routes/staffRoutes.js";
 import doctorStaffRoutes from "./routes/doctorStaffRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 import { getHealthWalletDocumentsByPatientId } from "./models-pg/healthWalletDocument.js";
 import { getPatientReports } from "./services/staffService.js";
@@ -1402,6 +1403,7 @@ app.use("/api/v2/admin", adminBranchRoutes);
 app.use("/api/scan/xray", xrayRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 // New API Routes (Clean Architecture)
 app.use("/api/v2/appointments", appointmentApiRoutes);

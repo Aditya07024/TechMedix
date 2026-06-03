@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
   Bell,
@@ -241,7 +241,21 @@ function SectionHeading({ eyebrow, title, description }) {
 
 const Landingpage = ({ setShowLogin }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
+  const handleAdminPortalAccess = () => {
+    const password = window.prompt("Enter admin access password");
+
+    if (password === null) return;
+
+    if (password === "1234567890") {
+      navigate("/admin/login");
+    } else {
+      alert(
+        "Incorrect password. Please Contact techmedixcare@gmail.com for access.",
+      );
+    }
+  };
   useEffect(() => {
     api.get("/health").catch((error) => {
       console.error("Landing page health check failed:", error);
@@ -293,7 +307,7 @@ const Landingpage = ({ setShowLogin }) => {
             >
               Patient login
             </button>
-            
+
             <Link
               className="landing-button landing-button--primary"
               to="/doctor/login"
@@ -489,7 +503,7 @@ const Landingpage = ({ setShowLogin }) => {
             </div>
           </div>
         </section>
-
+        
         <section className="landing-section" id="tracking">
           <SectionHeading
             title="Health tracking that fits your routine"
@@ -563,6 +577,24 @@ const Landingpage = ({ setShowLogin }) => {
             })}
           </div>
         </section>
+        <div
+          style={{
+            marginTop: "18px",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            background: "#f8fafc",
+            border: "1px solid #000000",
+            fontSize: "14px",
+            color: "#475569",
+            lineHeight: "1.6",
+          }}
+        >
+          <strong>Important:</strong> TechMedix does not sell medicines, drugs,
+          or pharmaceutical products. We provide a secure digital healthcare
+          platform that connects patients, doctors, clinics, hospitals, and
+          pharmacists for appointments, prescriptions, records, and care
+          coordination.
+        </div>
         <section className="landing-section" id="download">
           <SectionHeading
             title="Download the TechMedix mobile app"
@@ -618,7 +650,6 @@ const Landingpage = ({ setShowLogin }) => {
                 )}
               </nav>
             </div>
-            
 
             <div className="landing-footer__column">
               <h3>Why it works</h3>
@@ -654,21 +685,39 @@ const Landingpage = ({ setShowLogin }) => {
                   <span>Want to know more about the website</span>
                 </div>
               </Link>
-              <Link
-              className="landing-button landing-button--ghost"
-              to="/admin/login"
-            >
-              Admin portal
-            </Link>
               <p className="landing-footer__caption">
                 Built for queue visibility, secure sessions, reminders, and
                 continuous patient context.
               </p>
+
+              <Link
+                className="landing-button landing-button--secondary landing-button--inline"
+                to="/suggestions"
+              >
+                Any Suggestions?
+              </Link>
+              <button className="contact-button">
+                <span className="landing-footer__caption">
+                  Contact:{" "}
+                  <a href="mailto:techmedixcare@gmail.com">
+                    techmedixcare@gmail.com
+                  </a>
+                </span>
+              </button>
             </div>
           </div>
 
           <div className="landing-footer__meta">
             <p>© 2025 TechMedix</p>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                handleAdminPortalAccess();
+              }}
+            >
+              Admin portal
+            </a>
             <span>Built for calm, connected care.</span>
           </div>
         </div>

@@ -6,6 +6,9 @@ const MedicineReminder = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState('');
   const [dosage, setDosage] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderType, setReminderType] = useState('medicine');
+  const [activeTab, setActiveTab] = useState('all');
   const [time, setTime] = useState('08:00');
   const [period, setPeriod] = useState('AM');
   const [hasLoadedReminders, setHasLoadedReminders] = useState(false);
@@ -103,27 +106,34 @@ const MedicineReminder = () => {
   const showNotification = (reminder) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('💊 Medicine Reminder', {
-        body: `Time to take ${reminder.medicine} - ${reminder.dosage}`,
+        body: `${reminder.message || 'Time to take your medicine'}\n${reminder.medicine} - ${reminder.dosage}`,
         icon: '/favicon.ico',
         tag: `reminder-${reminder.id}`,
         requireInteraction: true
       });
     } else {
       // Fallback alert
-      alert(`💊 Medicine Reminder!\n\nTime to take: ${reminder.medicine}\nDosage: ${reminder.dosage}\nTime: ${reminder.time} ${reminder.period}`);
+      alert(`💊 Medicine Reminder!\n\n${reminder.message || 'Time to take your medicine'}\n\nMedicine: ${reminder.medicine}\nDosage: ${reminder.dosage}\nTime: ${reminder.time} ${reminder.period}`);
     }
   };
 
   const handleAddReminder = () => {
-    if (!selectedMedicine || !dosage) {
+    if (reminderType === 'medicine' && (!selectedMedicine || !dosage)) {
       alert('Please fill in all fields');
+      return;
+    }
+
+    if (reminderType === 'message' && !reminderMessage) {
+      alert('Please enter a reminder message');
       return;
     }
     
     const newReminder = {
       id: Date.now(),
-      medicine: selectedMedicine,
-      dosage,
+      type: reminderType,
+      medicine: reminderType === 'medicine' ? selectedMedicine : 'General Reminder',
+      dosage: reminderType === 'medicine' ? dosage : '-',
+      message: reminderMessage,
       time,
       period,
       completed: [],
@@ -134,6 +144,8 @@ const MedicineReminder = () => {
     setOpenDialog(false);
     setSelectedMedicine('');
     setDosage('');
+    setReminderMessage('');
+    setReminderType('medicine');
     setTime('08:00');
     setPeriod('AM');
   };
@@ -163,6 +175,11 @@ const MedicineReminder = () => {
     const today = new Date().toDateString();
     return reminder.completed.includes(today);
   };
+
+  const filteredReminders = reminders.filter((reminder) => {
+    if (activeTab === 'all') return true;
+    return reminder.type === activeTab;
+  });
 
   const getHourMinute = (time) => {
     const [hourStr, minuteStr] = time.split(':');
@@ -196,7 +213,7 @@ const MedicineReminder = () => {
   return (
     <div className="medicine-reminder">
       <div className="reminder-header">
-        <h2>💊 Medicine Reminder</h2>
+        <h2>🔔 Health Reminders</h2>
         <div className="header-actions">
           <button 
             className="test-notification-btn"
@@ -204,17 +221,52 @@ const MedicineReminder = () => {
           >
             🔔 Test Notifications
           </button>
-          <button 
+          <button
             className="add-button"
-            onClick={() => setOpenDialog(true)}
+            onClick={() => {
+              setReminderType('medicine');
+              setOpenDialog(true);
+            }}
           >
-            ➕ Add Reminder
+            💊 Add Medicine Reminder
+          </button>
+
+          <button
+            className="add-button"
+            onClick={() => {
+              setReminderType('message');
+              setOpenDialog(true);
+            }}
+          >
+            📝 Add Message Reminder
           </button>
         </div>
       </div>
+      <div className="reminder-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <button
+          className={activeTab === 'all' ? 'add-button' : 'test-notification-btn'}
+          onClick={() => setActiveTab('all')}
+        >
+          📋 All Reminders
+        </button>
+
+        <button
+          className={activeTab === 'medicine' ? 'add-button' : 'test-notification-btn'}
+          onClick={() => setActiveTab('medicine')}
+        >
+          💊 Medicine Reminders
+        </button>
+
+        <button
+          className={activeTab === 'message' ? 'add-button' : 'test-notification-btn'}
+          onClick={() => setActiveTab('message')}
+        >
+          📝 Message Reminders
+        </button>
+      </div>
 
       <div className="reminders-grid">
-        {reminders.length === 0 ? (
+        {filteredReminders.length === 0 ? (
           <div className="empty-reminders">
             <h3>No Medicine Reminders</h3>
             <p>Add your first medicine reminder to stay on track!</p>
@@ -223,18 +275,26 @@ const MedicineReminder = () => {
             </p>
           </div>
         ) : (
-          reminders.map(reminder => (
+          filteredReminders.map(reminder => (
             <div 
               key={reminder.id} 
               className={`reminder-card ${isTodayCompleted(reminder) ? 'completed' : ''}`}
             >
               <div className="reminder-header-card">
-                <h3>{reminder.medicine}</h3>
-                <span className="dosage">{reminder.dosage}</span>
+                <h3>{reminder.type === 'message' ? '📝 Message Reminder' : reminder.medicine}</h3>
+                {reminder.type !== 'message' && (
+                  <span className="dosage">{reminder.dosage}</span>
+                )}
               </div>
               
               <div className="reminder-details">
                 <p><strong>Time:</strong> {formatTime(reminder.time, reminder.period)}</p>
+                {reminder.type === 'message' && (
+                  <p><strong>Type:</strong> General Message Reminder</p>
+                )}
+                {reminder.message && (
+                  <p><strong>Message:</strong> {reminder.message}</p>
+                )}
                 <p><strong>Taken:</strong> {reminder.completed.length} times</p>
                 <p><strong>Status:</strong> {isTodayCompleted(reminder) ? '✅ Taken Today' : '⏰ Pending'}</p>
               </div>
@@ -261,7 +321,13 @@ const MedicineReminder = () => {
       {openDialog && (
         <div className="dialog-overlay">
           <div className="dialog">
-            <h3>Add Medicine Reminder</h3>
+            <h3>
+              {reminderType === 'medicine'
+                ? '💊 Add Medicine Reminder'
+                : '📝 Add Message Reminder'}
+            </h3>
+            {reminderType === 'medicine' && (
+            <>
             <div className="form2-group">
               <label>Medicine Name:</label>
               <input
@@ -279,6 +345,17 @@ const MedicineReminder = () => {
                 value={dosage}
                 onChange={(e) => setDosage(e.target.value)}
                 placeholder="e.g., 1 tablet, 10ml"
+              />
+            </div>
+            </>
+            )}
+            <div className="form2-group">
+              <label>Reminder Message (Optional):</label>
+              <input
+                type="text"
+                value={reminderMessage}
+                onChange={(e) => setReminderMessage(e.target.value)}
+                placeholder="e.g., Take after breakfast, prescribed by Dr. Sharma"
               />
             </div>
             <div className="time-group">

@@ -326,15 +326,104 @@ const PoseCard = ({ pose }) => {
   );
 };
 
+const healthyTips = [
+  {
+    title: '🥗 Eat a Balanced Diet',
+    description: 'Include fruits, vegetables, whole grains, lean proteins, and healthy fats in your daily meals.'
+  },
+  {
+    title: '💧 Stay Hydrated',
+    description: 'Drink 2-3 liters of water daily to support digestion, circulation, and overall health.'
+  },
+  {
+    title: '🏃 Exercise Regularly',
+    description: 'Aim for at least 30 minutes of physical activity five days a week.'
+  },
+  {
+    title: '😴 Get Quality Sleep',
+    description: 'Adults should get 7-9 hours of sleep every night for recovery and mental wellbeing.'
+  },
+  {
+    title: '🧘 Manage Stress',
+    description: 'Practice yoga, meditation, deep breathing, or mindfulness to reduce stress levels.'
+  },
+  {
+    title: '🚭 Avoid Smoking & Excess Alcohol',
+    description: 'Limiting harmful substances significantly improves long-term health.'
+  }
+];
+
+const healthyFoods = [
+  '🍎 Apples',
+  '🥦 Broccoli',
+  '🥕 Carrots',
+  '🥬 Spinach',
+  '🍌 Bananas',
+  '🥑 Avocados',
+  '🥜 Nuts & Seeds',
+  '🐟 Fish Rich In Omega-3',
+  '🥛 Milk & Yogurt',
+  '🌾 Whole Grains'
+];
+
 const HealthTips = () => {
   return (
     <div className="health-tips">
       <header className="hero">
         <div>
-          <h1>🧘 Yoga Poses for Health & Wellness</h1>
+          <h1>🧘 Health Tips, Yoga & Wellness Guide</h1>
           <p>Click on any pose to see detailed instructions, benefits, and step-by-step guidance.</p>
         </div>
       </header>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '20px',
+          marginBottom: '20px'
+        }}
+      >
+        <div className="safety-note" style={{ height: '100%',background: '#e8f5e9' }}>
+          <h3>Healthy Lifestyle Tips</h3>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {healthyTips.map((tip, index) => (
+              <div key={index}>
+                <strong>{tip.title}</strong>
+                <p>{tip.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="safety-note" style={{ height: '100%', background: '#e8f5e9' }}>
+          <h3>Recommended Healthy Foods</h3>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '10px'
+            }}
+          >
+            {healthyFoods.map((food, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: '#f8fafc'
+                }}
+              >
+                {food}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <h2 style={{ textAlign: 'center', marginTop: '50px',marginBottom: '10px' }}>
+        Yoga Poses For Health & Wellness
+      </h2>
 
       <div className="poses-grid">
         {yogaPoses.map((pose) => (

@@ -3,7 +3,7 @@
   min-height: 260px;
   width: 80%;
   border-radius: 14px;
-  background-color: white;
+  background-color: var(--card-bg);
   color: var(--text-color);
   box-shadow: 0 4px 24px #00000010;
   padding: 10px;
@@ -163,4 +163,14 @@
     font-size: 1rem;
     padding: 10px 20px;
   }
+}
+
+
+.back-button{
+    background-color: var(--card-bg);
+    border:0px;
+    a{
+        font-size: 14px;
+        color: var(--text-color);
+    }
 }

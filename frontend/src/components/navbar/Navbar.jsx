@@ -101,11 +101,11 @@ const Navbar = ({ setShowLogin }) => {
             </div>
           </div>
 
-          {/* <div className="nav-icon-container">
+          <div className="nav-icon-container">
             <Link to="/wishlist">
               <img src={assets.wishlist} alt="Wishlist" className="nav-icon" />
             </Link>
-          </div> */}
+          </div>
 
           {/* LOGIN ICON */}
           {!isAuthenticated && (

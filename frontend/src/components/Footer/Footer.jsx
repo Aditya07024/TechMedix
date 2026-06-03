@@ -1,10 +1,10 @@
-import React from 'react'
-import './Footer.css';
-import { assets } from '../../assets/assets';
+import React from "react";
+import "./Footer.css";
+import { assets } from "../../assets/assets";
 
 const Footer = () => {
   return (
-    <div className='footer' id='footer'>
+    <div className="footer" id="footer">
       <div className="footer-content">
         <div className="footer-content-left">
           <img src={assets.logo} alt="TechMedix Logo" className="footer-logo" />
@@ -49,14 +49,24 @@ const Footer = () => {
           <h2>About / Contacts</h2>
           <div className="footer-contact-row">
             <span className="contact-icon">✉️</span>
-            <span>Techmedix@gmail.com</span>
+            <span>techmedixcare@gmail.com</span>
           </div>
           <div className="footer-social-row">
-            <a href="#"><img src={assets.facebook} alt=""></img></a>
-            <a href="#"><img src={assets.instagram} alt=""></img></a>
-            <a href="#"><img src={assets.twitter} alt=""></img></a>
-            <a href="#"><img src={assets.linkedin} alt=""></img></a>
-            <a href="#"><img src={assets.youtube} alt=""></img></a>
+            <a href="#">
+              <img src={assets.facebook} alt=""></img>
+            </a>
+            <a href="#">
+              <img src={assets.instagram} alt=""></img>
+            </a>
+            <a href="#">
+              <img src={assets.twitter} alt=""></img>
+            </a>
+            <a href="#">
+              <img src={assets.linkedin} alt=""></img>
+            </a>
+            <a href="#">
+              <img src={assets.youtube} alt=""></img>
+            </a>
           </div>
         </div>
       </div>
@@ -65,7 +75,7 @@ const Footer = () => {
         Copyright 2024 @ TechMedix - All Rights Reserved.
       </p>
     </div>
-  )
-}
+  );
+};
 
-export default Footer
+export default Footer;
