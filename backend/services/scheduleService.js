@@ -198,7 +198,10 @@ export async function getAvailableTimeSlots(
   const safeDoctorId = doctorId;
 
   // Get day of week (0-6) in UTC to avoid local timezone shifts
-  const [year, month, dateVal] = String(targetDate).split("-").map(Number);
+  const cleanDate = targetDate instanceof Date
+    ? `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}-${String(targetDate.getDate()).padStart(2, "0")}`
+    : String(targetDate).split("T")[0];
+  const [year, month, dateVal] = cleanDate.split("-").map(Number);
   const dayOfWeek = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   console.log("🔍 Getting slots for:", {

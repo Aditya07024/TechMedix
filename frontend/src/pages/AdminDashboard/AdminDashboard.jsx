@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === "payouts") {
       loadPayoutData();
-    } else if (activeTab === "tickets") {
+    } else if (activeTab === "tickets" || activeTab === "transfers") {
       loadSupportTickets();
     }
   }, [activeTab]);
@@ -244,6 +244,12 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("tickets")}
         >
           🎫 Support Tickets
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "transfers" ? "active" : ""}`}
+          onClick={() => setActiveTab("transfers")}
+        >
+          🔄 Patient Transfers
         </button>
         <button
           className={`tab-btn ${activeTab === "profile" ? "active" : ""}`}
@@ -597,61 +603,149 @@ export default function AdminDashboard() {
               </button>
             </div>
             
-            {ticketsLoading && supportTickets.length === 0 ? (
+            {ticketsLoading && supportTickets.filter(t => t.category !== 'withdrawal').length === 0 ? (
               <div className="loading-state">Loading support tickets...</div>
-            ) : supportTickets.length === 0 ? (
+            ) : supportTickets.filter(t => t.category !== 'withdrawal').length === 0 ? (
               <div className="empty-state">No support tickets have been submitted yet.</div>
             ) : (
               <div className="tickets-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {supportTickets.map((ticket) => (
-                  <div key={ticket.id} className="ticket-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', background: '#edf2f7', padding: '4px 8px', borderRadius: '4px', marginRight: '10px', color: '#4a5568' }}>
-                          {ticket.category?.toUpperCase() || 'GENERAL'}
+                {supportTickets
+                  .filter(t => t.category !== 'withdrawal')
+                  .map((ticket) => (
+                    <div key={ticket.id} className="ticket-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', background: '#edf2f7', padding: '4px 8px', borderRadius: '4px', marginRight: '10px', color: '#4a5568' }}>
+                            {ticket.category?.toUpperCase() || 'GENERAL'}
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: '#718096' }}>
+                            Ticket ID: {String(ticket.id).slice(0, 8)}...
+                          </span>
+                        </div>
+                        <span className={`status-badge ${ticket.status}`} style={{ fontSize: '0.8rem', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', background: ticket.status === 'open' ? '#feebc8' : '#e6fffa', color: ticket.status === 'open' ? '#c05621' : '#319795' }}>
+                          {ticket.status?.toUpperCase()}
                         </span>
-                        <span style={{ fontSize: '0.8rem', color: '#718096' }}>
-                          Ticket ID: {String(ticket.id).slice(0, 8)}...
-                        </span>
-                      </div>
-                      <span className={`status-badge ${ticket.status}`} style={{ fontSize: '0.8rem', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', background: ticket.status === 'open' ? '#feebc8' : '#e6fffa', color: ticket.status === 'open' ? '#c05621' : '#319795' }}>
-                        {ticket.status?.toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    <h3 style={{ margin: '5px 0 10px 0', fontSize: '1.1rem', color: '#2d3748' }}>{ticket.subject}</h3>
-                    <p style={{ fontSize: '0.95rem', color: '#4a5568', margin: '0 0 15px 0', whiteSpace: 'pre-wrap' }}>{ticket.description}</p>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#718096', borderTop: '1px solid #edf2f7', paddingTop: '15px' }}>
-                      <div>
-                        Submitted by: <strong>{ticket.patient_name || 'Patient'}</strong> ({ticket.patient_email || ticket.patient_id})
-                        <br />
-                        Date: {new Date(ticket.created_at).toLocaleString()}
                       </div>
                       
-                      {ticket.status === 'open' && (
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
-                            disabled={updatingTicketId === ticket.id}
-                            style={{ padding: '6px 12px', background: '#319795', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                          >
-                            Mark as Resolved
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTicketStatus(ticket.id, 'closed')}
-                            disabled={updatingTicketId === ticket.id}
-                            style={{ padding: '6px 12px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                          >
-                            Close Ticket
-                          </button>
+                      <h3 style={{ margin: '5px 0 10px 0', fontSize: '1.1rem', color: '#2d3748' }}>{ticket.subject}</h3>
+                      <p style={{ fontSize: '0.95rem', color: '#4a5568', margin: '0 0 15px 0', whiteSpace: 'pre-wrap' }}>{ticket.description}</p>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#718096', borderTop: '1px solid #edf2f7', paddingTop: '15px' }}>
+                        <div>
+                          Submitted by: <strong>{ticket.patient_name || 'Patient'}</strong> ({ticket.patient_email || ticket.patient_id})
+                          <br />
+                          Date: {new Date(ticket.created_at).toLocaleString()}
                         </div>
-                      )}
+                        
+                        {ticket.status === 'open' && (
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
+                              disabled={updatingTicketId === ticket.id}
+                              style={{ padding: '6px 12px', background: '#319795', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Mark as Resolved
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTicketStatus(ticket.id, 'closed')}
+                              disabled={updatingTicketId === ticket.id}
+                              style={{ padding: '6px 12px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                              Close Ticket
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "transfers" && (
+          <div className="tab-content transfers-tab">
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>Patient Wallet Transfers</h2>
+              <button type="button" onClick={loadSupportTickets} disabled={ticketsLoading} className="refresh-btn">
+                {ticketsLoading ? "Refreshing..." : "🔄 Refresh"}
+              </button>
+            </div>
+
+            <p style={{ marginBottom: '20px', color: '#4a5568' }}>
+              Review and process wallet withdrawal requests submitted by patients. Approving a request marks the transfer as completed. Rejecting a request closes the request and automatically refunds the deducted amount back to the patient's wallet balance.
+            </p>
+            
+            {ticketsLoading && supportTickets.filter(t => t.category === 'withdrawal').length === 0 ? (
+              <div className="loading-state">Loading transfer requests...</div>
+            ) : supportTickets.filter(t => t.category === 'withdrawal').length === 0 ? (
+              <div className="empty-state">No patient transfer requests found.</div>
+            ) : (
+              <div className="transfers-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {supportTickets
+                  .filter(t => t.category === 'withdrawal')
+                  .map((ticket) => {
+                    const desc = ticket.description || "";
+                    const upiMatch = desc.match(/UPI ID:\s*([^\s\.]+)/i);
+                    const upiId = upiMatch ? upiMatch[1] : "N/A";
+                    
+                    const amountMatch = desc.match(/transfer ₹([\d\.]+)/i);
+                    const requestedAmount = amountMatch ? amountMatch[1] : "N/A";
+
+                    return (
+                      <div key={ticket.id} className="ticket-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', background: '#e2e8f0', padding: '4px 8px', borderRadius: '4px', marginRight: '10px', color: '#4a5568' }}>
+                              ₹{requestedAmount}
+                            </span>
+                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>
+                              Request ID: {String(ticket.id).slice(0, 8)}...
+                            </span>
+                          </div>
+                          <span className={`status-badge ${ticket.status}`} style={{ fontSize: '0.8rem', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px', background: ticket.status === 'open' ? '#feebc8' : ticket.status === 'resolved' ? '#e6fffa' : '#fed7d7', color: ticket.status === 'open' ? '#c05621' : ticket.status === 'resolved' ? '#319795' : '#c53030' }}>
+                            {ticket.status === 'open' ? 'PENDING' : ticket.status === 'resolved' ? 'APPROVED (PAID)' : 'REJECTED (REFUNDED)'}
+                          </span>
+                        </div>
+                        
+                        <h3 style={{ margin: '5px 0 10px 0', fontSize: '1.1rem', color: '#2d3748' }}>
+                          Withdrawal to UPI: <code style={{ background: '#f7fafc', padding: '2px 6px', borderRadius: '4px', fontSize: '0.95rem' }}>{upiId}</code>
+                        </h3>
+                        <p style={{ fontSize: '0.95rem', color: '#4a5568', margin: '0 0 15px 0', whiteSpace: 'pre-wrap' }}>{ticket.description}</p>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#718096', borderTop: '1px solid #edf2f7', paddingTop: '15px' }}>
+                          <div>
+                            Patient: <strong>{ticket.patient_name || 'Patient'}</strong> ({ticket.patient_email || ticket.patient_id})
+                            <br />
+                            Date: {new Date(ticket.created_at).toLocaleString()}
+                          </div>
+                          
+                          {ticket.status === 'open' && (
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
+                                disabled={updatingTicketId === ticket.id}
+                                style={{ padding: '6px 12px', background: '#319795', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                Approve & Pay UPI
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateTicketStatus(ticket.id, 'closed')}
+                                disabled={updatingTicketId === ticket.id}
+                                style={{ padding: '6px 12px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                Reject & Refund
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

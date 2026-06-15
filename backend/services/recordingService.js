@@ -62,6 +62,8 @@ export async function getPatientRecordings(patientId) {
       r.audio_url as file_url,
       r.duration,
       r.created_at,
+      r.patient_consent,
+      r.doctor_consent,
       d.name as doctor_name,
       a.appointment_date,
       a.slot_time
@@ -82,6 +84,8 @@ export async function getDoctorRecordings(doctorId) {
       r.audio_url as file_url,
       r.duration,
       r.created_at,
+      r.patient_consent,
+      r.doctor_consent,
       p.name as patient_name,
       a.appointment_date,
       a.slot_time
@@ -97,11 +101,32 @@ export async function getDoctorRecordings(doctorId) {
 
 export async function getRecordingById(id) {
   const rows = await sql`
-    SELECT id, doctor_id, patient_id, audio_url, duration, created_at
+    SELECT id, doctor_id, patient_id, audio_url, duration, patient_consent, doctor_consent, created_at
     FROM recordings
     WHERE id = ${id}
       AND COALESCE(is_deleted, FALSE) = FALSE
     LIMIT 1
   `;
   return rows[0] || null;
+}
+
+export async function updateRecordingConsent(id, role, consent) {
+  if (role === "patient") {
+    const result = await sql`
+      UPDATE recordings
+      SET patient_consent = ${consent}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return result[0] || null;
+  } else if (role === "doctor") {
+    const result = await sql`
+      UPDATE recordings
+      SET doctor_consent = ${consent}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return result[0] || null;
+  }
+  return null;
 }

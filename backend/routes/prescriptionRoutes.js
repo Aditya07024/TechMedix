@@ -29,19 +29,27 @@ router.get(
       const { patientId } = req.params;
 
       const medicines = await sql`
-  SELECT
-    pm.id AS medicine_id,
-    pm.medicine_name,
-    pm.dosage,
-    pm.frequency,
-    pm.duration,
-    pm.instructions
-  FROM prescription_medicines pm
-  JOIN prescriptions p
-  ON pm.prescription_id = p.id
-  WHERE p.user_id = ${patientId}
-  ORDER BY p.created_at DESC
-`;
+        SELECT
+          pm.id AS medicine_id,
+          pm.medicine_name,
+          pm.dosage,
+          pm.frequency,
+          pm.duration,
+          pm.instructions,
+          pm.is_deleted,
+          p.doctor_id,
+          p.created_at,
+          COALESCE(d.name, 'User Upload') AS doctor_name,
+          COALESCE(d.specialty, 'Prescription Uploads') AS doctor_specialty,
+          d.email AS doctor_email,
+          d.phone AS doctor_phone,
+          d.reg_no AS doctor_reg_no
+        FROM prescription_medicines pm
+        JOIN prescriptions p ON pm.prescription_id = p.id
+        LEFT JOIN doctors d ON p.doctor_id = d.id
+        WHERE p.user_id = ${patientId}
+        ORDER BY p.created_at DESC
+      `;
 
       res.json({
         success: true,
@@ -360,13 +368,15 @@ router.post(
   }
 );
 
+/* ===================== ADD MEDICINE MANUALLY (PRESCRIPTION PAD) ===================== */
 router.post("/manual", authenticate, async (req, res) => {
   try {
     const { patient_id, medicine_name, dosage, frequency, duration } = req.body;
+    const doctorId = req.body.doctor_id || req.user?.doctor_id || req.user?.id || null;
 
     const prescription = await sql`
-      INSERT INTO prescriptions (user_id, created_at)
-      VALUES (${patient_id}, NOW())
+      INSERT INTO prescriptions (user_id, doctor_id, created_at)
+      VALUES (${patient_id}, ${doctorId}, NOW())
       RETURNING id
     `;
 
@@ -382,7 +392,6 @@ router.post("/manual", authenticate, async (req, res) => {
       success: true,
       data: medicine[0]
     });
-
   } catch (err) {
     console.error("Manual prescription failed:", err);
     res.status(500).json({ success: false });

@@ -57,7 +57,22 @@ export async function runPrescriptionMigration() {
   try {
     // Ensure soft delete support exists
     await sql`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
+    // Add risk score and level columns
+    await sql`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS risk_score NUMERIC`;
+    await sql`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS risk_level VARCHAR(50)`;
+    await sql`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS patient_id_int INTEGER`;
   } catch (err) {
-    console.warn("⚠ Prescription migration warning:", err.message);
+    console.warn("⚠ Prescription migration warning (prescriptions columns):", err.message);
+  }
+
+  try {
+    // Ensure prescription_medicines fields exist
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS duration_days INTEGER`;
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS generic_name VARCHAR(255)`;
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS salt_name VARCHAR(255)`;
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`;
+    await sql`ALTER TABLE prescription_medicines ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
+  } catch (err) {
+    console.warn("⚠ Prescription migration warning (prescription_medicines columns):", err.message);
   }
 }

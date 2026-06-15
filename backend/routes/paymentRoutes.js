@@ -326,4 +326,67 @@ router.get(
   }
 );
 
+// Wallet: Request Transfer / Withdraw to Bank
+router.post(
+  "/wallet/withdraw",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const { amount, upi_id } = req.body;
+      const withdrawAmount = Number(amount);
+
+      if (!withdrawAmount || withdrawAmount <= 0) {
+        return res.status(400).json({ error: "Invalid withdrawal amount" });
+      }
+
+      if (!upi_id || typeof upi_id !== "string" || !upi_id.includes("@")) {
+        return res.status(400).json({ error: "Invalid UPI ID format" });
+      }
+
+      // Check balance and deduct in a single atomic transaction/operation
+      const debited = await sql`
+        UPDATE wallets
+        SET balance = balance - ${withdrawAmount}, updated_at = NOW()
+        WHERE patient_id = ${req.user.id}
+          AND balance >= ${withdrawAmount}
+        RETURNING id, balance
+      `;
+
+      if (!debited.length) {
+        return res.status(400).json({ error: "Insufficient wallet balance" });
+      }
+
+      // Insert transaction
+      const tx = await sql`
+        INSERT INTO wallet_transactions (wallet_id, patient_id, type, amount, source, note)
+        VALUES (${debited[0].id}, ${req.user.id}, 'debit', ${withdrawAmount}, 'withdrawal', 'Pending transfer to account (UPI: ' || ${upi_id} || ')')
+        RETURNING id
+      `;
+
+      // Create a support ticket for the admin to process
+      const ticket = await sql`
+        INSERT INTO support_tickets (patient_id, subject, category, description, status)
+        VALUES (
+          ${req.user.id},
+          'Wallet Withdrawal Request - ₹' || ${withdrawAmount},
+          'withdrawal',
+          'Patient requested to transfer ₹' || ${withdrawAmount} || ' to account. UPI ID: ' || ${upi_id} || '. Transaction ID: ' || ${tx[0].id},
+          'open'
+        )
+        RETURNING *
+      `;
+
+      res.json({
+        success: true,
+        message: "Withdrawal request submitted successfully",
+        balance: debited[0].balance,
+        ticket: ticket[0]
+      });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
 export default router;

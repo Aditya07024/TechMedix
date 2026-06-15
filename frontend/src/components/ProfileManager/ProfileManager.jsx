@@ -15,6 +15,10 @@ const getInitialForm = (role, profile = {}) => ({
   specialty: profile.specialty || "",
   consultation_fee: profile.consultation_fee ?? "",
   department: profile.department || "",
+  qrShareEhr: profile.qrShareEhr ?? true,
+  qrSharePrescriptions: profile.qrSharePrescriptions ?? true,
+  qrShareRecordings: profile.qrShareRecordings ?? true,
+  qrShareReports: profile.qrShareReports ?? true,
 });
 
 export default function ProfileManager({
@@ -75,6 +79,10 @@ export default function ProfileManager({
       phone: nextProfile?.phone ?? user?.phone ?? "",
       email: nextProfile?.email || user?.email || "",
       uniqueCode: nextProfile?.uniqueCode ?? user?.uniqueCode ?? null,
+      qrShareEhr: nextProfile?.qrShareEhr ?? user?.qrShareEhr ?? true,
+      qrSharePrescriptions: nextProfile?.qrSharePrescriptions ?? user?.qrSharePrescriptions ?? true,
+      qrShareRecordings: nextProfile?.qrShareRecordings ?? user?.qrShareRecordings ?? true,
+      qrShareReports: nextProfile?.qrShareReports ?? user?.qrShareReports ?? true,
     };
 
     login(mergedUser, token);
@@ -235,6 +243,52 @@ export default function ProfileManager({
               <span>Current QR Code</span>
               <input value={profile?.uniqueCode || ""} readOnly />
             </label>
+            <div className="profile-manager-full" style={{ marginTop: "18px", borderTop: "1px solid var(--doctor-line)", paddingTop: "18px" }}>
+              <span className="profile-manager-kicker" style={{ display: "block", marginBottom: "12px", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.08em", color: "var(--doctor-muted)" }}>
+                QR / Manual Code Access Sharing Preferences
+              </span>
+              <p style={{ fontSize: "0.85rem", color: "var(--doctor-muted)", marginBottom: "14px", marginTop: 0 }}>
+                Choose what health information is shared when a medical provider scans your QR code or enters your manual access code.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: "normal", background: "none", border: "none", padding: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.qrShareEhr}
+                    onChange={(event) => updateField("qrShareEhr", event.target.checked)}
+                    style={{ width: "auto", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>EHR History</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: "normal", background: "none", border: "none", padding: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.qrSharePrescriptions}
+                    onChange={(event) => updateField("qrSharePrescriptions", event.target.checked)}
+                    style={{ width: "auto", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Prescriptions</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: "normal", background: "none", border: "none", padding: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.qrShareRecordings}
+                    onChange={(event) => updateField("qrShareRecordings", event.target.checked)}
+                    style={{ width: "auto", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Recordings</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: "normal", background: "none", border: "none", padding: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.qrShareReports}
+                    onChange={(event) => updateField("qrShareReports", event.target.checked)}
+                    style={{ width: "auto", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Reports & Files</span>
+                </label>
+              </div>
+            </div>
           </>
         ) : null}
 

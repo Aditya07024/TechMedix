@@ -292,14 +292,60 @@
 
 .doctor-workspace {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 20px;
+  position: relative;
+}
+
+.doctor-sidebar-container {
+  position: relative;
+  z-index: 1000;
+}
+
+.doctor-hamburger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--doctor-radius-sm);
+  background: var(--doctor-paper);
+  border: 1px solid var(--doctor-line);
+  color: var(--doctor-ink);
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(29, 47, 38, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-top: 10px;
+}
+
+.doctor-hamburger-btn:hover {
+  background: var(--doctor-accent-soft);
+  color: var(--doctor-accent-deep);
+  border-color: var(--doctor-accent);
+  transform: translateY(-1px);
 }
 
 .doctor-sidebar {
   display: grid;
   gap: 18px;
   align-content: start;
+  position: absolute;
+  top: 64px;
+  left: 0;
+  width: 280px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.doctor-sidebar.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .doctor-sidebar-card,
@@ -666,15 +712,10 @@
 
 @media (max-width: 1200px) {
   .doctor-command-bar,
-  .doctor-workspace,
   .doctor-metrics-grid,
   .doctor-layout-grid,
   .doctor-layout-grid--patient {
     grid-template-columns: 1fr;
-  }
-
-  .doctor-sidebar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -708,5 +749,177 @@
   .doctor-patient-search-grid {
     flex-direction: column;
     align-items: start;
+  }
+}
+
+/* Prescription Builder & Preview Layout */
+.patient-workspace-container {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.patient-builder-column {
+  display: grid;
+  gap: 18px;
+}
+
+.patient-preview-column {
+  position: sticky;
+  top: 24px;
+  height: fit-content;
+}
+
+/* Medicine Builder Panel */
+.medicine-builder-panel {
+  border-left: 4px solid var(--doctor-accent);
+}
+
+.builder-header .builder-label {
+  color: var(--doctor-accent-deep);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.medicine-input-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--doctor-muted);
+}
+
+.form-row-multi {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.add-medicine-btn {
+  background: #0f6b57;
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.add-medicine-btn:hover {
+  background: #0d5a49;
+  transform: translateY(-1px);
+}
+
+.medicines-list-panel .count-pill {
+  background: var(--doctor-accent-soft);
+  color: var(--doctor-accent-deep);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.medicines-table th {
+  background: rgba(24, 49, 38, 0.02);
+}
+
+.actions-cell {
+  display: flex;
+  gap: 6px;
+}
+
+.actions-cell button {
+  background: white;
+  border: 1px solid var(--doctor-line);
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--doctor-muted);
+}
+
+.actions-cell button:hover {
+  color: var(--doctor-accent);
+  border-color: var(--doctor-accent);
+}
+
+.actions-cell .del-btn:hover {
+  color: #a8443b;
+  border-color: #a8443b;
+}
+
+/* Diagnosis & Notes */
+.builder-extra-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.builder-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 16px;
+  border: 1px solid var(--doctor-line);
+  border-radius: 14px;
+  background: white;
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  resize: vertical;
+}
+
+.builder-textarea:focus {
+  border-color: var(--doctor-accent);
+  box-shadow: 0 0 0 3px var(--doctor-accent-soft);
+}
+
+.finalize-btn {
+  background: #183126;
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(24, 49, 38, 0.2);
+  transition: all 0.2s;
+}
+
+.finalize-btn:hover {
+  background: #10211a;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1100px) {
+  .patient-workspace-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .patient-preview-column {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-row-multi, .builder-extra-fields {
+    grid-template-columns: 1fr;
   }
 }

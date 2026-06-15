@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
   Megaphone,
+  Menu,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../context/AuthContext";
@@ -26,6 +27,7 @@ import DoctorPromotions from "../../components/DoctorPromotions/DoctorPromotions
 import { doctorApi, paymentApi } from "../../api";
 import { formatTime12Hour } from "../../utils/dateTime";
 import "./DoctorDashboardNew.css";
+import DigitalPrescription from "../../components/Prescription/DigitalPrescription";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Activity },
@@ -71,6 +73,7 @@ function MetricCard({ icon: Icon, label, value, detail, accent = "blue" }) {
 export default function DoctorDashboardNew() {
   const { user } = useAuth();
   const [activeView, setActiveView] = useState("overview");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayIso());
   const [queue, setQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -95,6 +98,10 @@ export default function DoctorDashboardNew() {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [patientData, setPatientData] = useState(null);
   const [patientPrescriptions, setPatientPrescriptions] = useState([]);
+  const [patientHistoryPrescriptions, setPatientHistoryPrescriptions] = useState([]);
+  const [prescriptionNumber, setPrescriptionNumber] = useState(`RX-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [diagnosis, setDiagnosis] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
   const [patientRecordings, setPatientRecordings] = useState([]);
   const [patientReports, setPatientReports] = useState([]);
   const [patientShareSections, setPatientShareSections] = useState([]);
@@ -371,31 +378,81 @@ export default function DoctorDashboardNew() {
       const payload = await response.json();
       const prescriptions = payload.data || payload || [];
 
-      const medicines =
-        Array.isArray(prescriptions) &&
-        prescriptions.length > 0 &&
-        prescriptions[0]?.medicines
-          ? prescriptions.flatMap((entry) => entry.medicines || [])
-          : Array.isArray(prescriptions)
-            ? prescriptions
-            : [];
+      const medicines = Array.isArray(prescriptions)
+        ? prescriptions.flatMap((entry) => {
+            if (entry.medicines && Array.isArray(entry.medicines)) {
+              return entry.medicines.map(m => ({
+                ...m,
+                doctor_id: m.doctor_id || entry.doctor_id,
+                doctor_name: m.doctor_name || entry.doctor_name,
+                created_at: m.created_at || entry.created_at
+              }));
+            }
+            if (entry.medicine_name || entry.name) {
+              return [{
+                ...entry,
+                medicine_name: entry.medicine_name || entry.name,
+                doctor_id: entry.doctor_id,
+                doctor_name: entry.doctor_name
+              }];
+            }
+            return [];
+          })
+        : [];
 
-      setPatientPrescriptions(medicines);
+      setPatientHistoryPrescriptions(medicines);
+      
+      // Filter active items prescribed by current doctor
+      const currentDoctorMeds = medicines.filter(m => {
+        const isMyId = m.doctor_id && String(m.doctor_id) === String(user?.id);
+        const nameMatch = m.doctor_name && String(user?.name) && 
+                         String(m.doctor_name).toLowerCase().includes(String(user?.name).toLowerCase());
+        const belongsToMe = isMyId || nameMatch;
+        return belongsToMe && !m.is_deleted;
+      });
+      setPatientPrescriptions(currentDoctorMeds);
 
-      try {
-        const recordingsResponse = await fetch(`/api/recordings/patient/${patientId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-          credentials: "include",
-        });
-        const recordingsPayload = await recordingsResponse.json();
-        setPatientRecordings(
-          recordingsResponse.ok && Array.isArray(recordingsPayload) ? recordingsPayload : [],
-        );
-      } catch {
-        setPatientRecordings([]);
-      }
+      await loadPatientRecordings(patientId);
     } catch (prescriptionError) {
       setError(readErrorMessage(prescriptionError, "Failed to load patient treatment data"));
+    }
+  }
+
+  async function loadPatientRecordings(patientId) {
+    try {
+      const recordingsResponse = await fetch(`/api/recordings/patient/${patientId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        credentials: "include",
+      });
+      const recordingsPayload = await recordingsResponse.json();
+      setPatientRecordings(
+        recordingsResponse.ok && Array.isArray(recordingsPayload) ? recordingsPayload : [],
+      );
+    } catch {
+      setPatientRecordings([]);
+    }
+  }
+
+  async function handleConsentRecording(recordingId, consent) {
+    try {
+      const response = await fetch(`/api/recordings/${recordingId}/consent`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ consent }),
+      });
+      if (response.ok) {
+        if (patientData?.patient?.id) {
+          await loadPatientRecordings(patientData.patient.id);
+        }
+      } else {
+        const errData = await response.json();
+        setError(errData.error || "Failed to update recording consent");
+      }
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -460,12 +517,13 @@ export default function DoctorDashboardNew() {
       const payload = response.data;
       const patient = payload?.patient || payload;
       setPatientData(payload);
-      setPatientShareSections(["ehr", "prescriptions", "recordings", "reports"]);
+      setPatientShareSections(payload?.allowed_sections || []);
       setActiveView("patients");
       if (patient?.id) {
         await Promise.all([
           loadPatientPrescriptions(patient.id),
           loadPatientReports(patient.id),
+          loadPatientRecordings(patient.id),
         ]);
       }
     } catch (searchError) {
@@ -489,16 +547,21 @@ export default function DoctorDashboardNew() {
     await withBusy(`open-patient-${appointmentId}`, async () => {
       const response = await doctorApi.getSharedAppointmentContext(appointmentId);
       const payload = response.data || {};
+      const patient = payload.patient;
       setPatientData({
         patient: payload.patient,
         ehrHistory: payload.ehrHistory || [],
         appointment: payload.appointment || null,
       });
       setPatientShareSections(payload.allowed_sections || []);
-      setPatientPrescriptions(payload.prescriptions || []);
-      setPatientRecordings(payload.recordings || []);
-      setPatientReports(payload.reports || []);
       setActiveView("patients");
+      if (patient?.id) {
+        await Promise.all([
+          loadPatientPrescriptions(patient.id),
+          loadPatientReports(patient.id),
+          loadPatientRecordings(patient.id),
+        ]);
+      }
       if (!payload.appointment?.share_history) {
         setStatusMessage("This patient did not share health history for this appointment.");
       }
@@ -674,32 +737,107 @@ export default function DoctorDashboardNew() {
       return;
     }
 
+    // Optimistic UI updates
+    const optimisticMed = {
+      id: `temp-${Date.now()}`,
+      medicine_name: newMedicineName,
+      dosage: newMedicineDosage,
+      frequency: newMedicineFrequency,
+      duration: newMedicineDuration,
+      doctor_id: user?.id,
+      doctor_name: user?.name,
+      is_optimistic: true
+    };
+    setPatientPrescriptions(prev => [...prev, optimisticMed]);
+
     await withBusy("add-medicine", async () => {
-      const response = await fetch("/api/prescriptions/manual", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          patient_id: patientProfile.id,
-          medicine_name: newMedicineName,
-          dosage: newMedicineDosage,
-          frequency: newMedicineFrequency,
-          duration: newMedicineDuration,
-        }),
-      });
+      try {
+        const response = await fetch("/api/prescriptions/manual", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            patient_id: patientProfile.id,
+            medicine_name: newMedicineName,
+            dosage: newMedicineDosage,
+            frequency: newMedicineFrequency,
+            duration: newMedicineDuration,
+            doctor_id: user?.id,
+            doctor_name: user?.name
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to add medicine");
+        if (!response.ok) throw new Error("Failed to add medicine");
+
+        setNewMedicineName("");
+        setNewMedicineDosage("");
+        setNewMedicineFrequency("");
+        setNewMedicineDuration("");
+        setStatusMessage("Medicine added successfully.");
+        await loadPatientPrescriptions(patientProfile.id);
+      } catch (err) {
+        setPatientPrescriptions(prev => prev.filter(m => m.id !== optimisticMed.id));
+        setError(err.message);
       }
+    });
+  }
 
-      setNewMedicineName("");
-      setNewMedicineDosage("");
-      setNewMedicineFrequency("");
-      setNewMedicineDuration("");
-      setStatusMessage("Medicine added to active prescription.");
-      await loadPatientPrescriptions(patientProfile.id);
+  async function handleCopyMedicineToPad(med) {
+    if (!med.medicine_name || !patientProfile?.id) return;
+
+    const optimisticMed = {
+      id: `temp-${Date.now()}`,
+      medicine_name: med.medicine_name,
+      dosage: med.dosage || "",
+      frequency: med.frequency || "",
+      duration: med.duration || "",
+      doctor_id: user?.id,
+      doctor_name: user?.name,
+      is_optimistic: true
+    };
+    setPatientPrescriptions(prev => [...prev, optimisticMed]);
+
+    await withBusy("add-medicine", async () => {
+      try {
+        const response = await fetch("/api/prescriptions/manual", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            patient_id: patientProfile.id,
+            medicine_name: med.medicine_name,
+            dosage: med.dosage || "",
+            frequency: med.frequency || "",
+            duration: med.duration || "",
+            doctor_id: user?.id,
+            doctor_name: user?.name
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to add medicine");
+
+        setStatusMessage("Medicine added to your prescription pad.");
+        await loadPatientPrescriptions(patientProfile.id);
+      } catch (err) {
+        setPatientPrescriptions(prev => prev.filter(m => m.id !== optimisticMed.id));
+        setError(err.message);
+      }
+    });
+  }
+
+  async function handleFinalizePrescription() {
+    if (!patientProfile?.id || patientPrescriptions.length === 0) {
+      setError("Please add at least one medicine before finalizing.");
+      return;
+    }
+
+    await withBusy("finalize-rx", async () => {
+      setStatusMessage(`Prescription finalized and sent to ${patientProfile.name}.`);
+      setPrescriptionNumber(`RX-${Math.floor(1000 + Math.random() * 9000)}`);
     });
   }
 
@@ -860,71 +998,89 @@ export default function DoctorDashboardNew() {
         )}
 
         <div className="doctor-workspace">
-          <aside className="doctor-sidebar">
-            <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Navigation</span>
-              <div className="doctor-sidebar-nav">
-                {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={activeView === id ? "active" : ""}
-                    onClick={() => setActiveView(id)}
-                  >
-                    <Icon size={16} />
-                    {label}
+          <div
+            className="doctor-sidebar-container"
+            onMouseEnter={() => setIsSidebarOpen(true)}
+            onMouseLeave={() => setIsSidebarOpen(false)}
+          >
+            <button
+              type="button"
+              className="doctor-hamburger-btn"
+              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              aria-label="Toggle Navigation"
+            >
+              <Menu size={20} />
+            </button>
+
+            <aside className={`doctor-sidebar ${isSidebarOpen ? "is-open" : ""}`}>
+              <div className="doctor-sidebar-card">
+                <span className="doctor-sidebar-label">Navigation</span>
+                <div className="doctor-sidebar-nav">
+                  {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={activeView === id ? "active" : ""}
+                      onClick={() => {
+                        setActiveView(id);
+                        setIsSidebarOpen(false);
+                      }}
+                    >
+                      <Icon size={16} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="doctor-sidebar-card">
+                <span className="doctor-sidebar-label">Today at a glance</span>
+                <div className="doctor-mini-stats">
+                  <div>
+                    <strong>{appointments.length}</strong>
+                    <span>Appointments</span>
+                  </div>
+                  <div>
+                    <strong>{queueStats.waiting}</strong>
+                    <span>Waiting</span>
+                  </div>
+                  <div>
+                    <strong>{formatMoney(earnings.today_earnings)}</strong>
+                    <span>Today’s revenue</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* <div className="doctor-sidebar-card">
+                <span className="doctor-sidebar-label">Patient Search</span>
+                <form
+                  className="doctor-quick-search"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    searchPatient();
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={uniqueCode}
+                    onChange={(event) => setUniqueCode(event.target.value)}
+                    placeholder="Patient code"
+                  />
+                  <button type="submit">
+                    <Search size={16} />
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Today at a glance</span>
-              <div className="doctor-mini-stats">
-                <div>
-                  <strong>{appointments.length}</strong>
-                  <span>Appointments</span>
-                </div>
-                <div>
-                  <strong>{queueStats.waiting}</strong>
-                  <span>Waiting</span>
-                </div>
-                <div>
-                  <strong>{formatMoney(earnings.today_earnings)}</strong>
-                  <span>Today’s revenue</span>
-                </div>
-              </div>
-            </div>
-
-            {/* <div className="doctor-sidebar-card">
-              <span className="doctor-sidebar-label">Patient Search</span>
-              <form
-                className="doctor-quick-search"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  searchPatient();
-                }}
-              >
-                <input
-                  type="text"
-                  value={uniqueCode}
-                  onChange={(event) => setUniqueCode(event.target.value)}
-                  placeholder="Patient code"
-                />
-                <button type="submit">
-                  <Search size={16} />
+                </form>
+                <button
+                  type="button"
+                  className="doctor-secondary-button doctor-secondary-button--full"
+                  onClick={() => setScannerVisible((current) => !current)}
+                >
+                  <QrCode size={16} />
+                  {scannerVisible ? "Close Scanner" : "Scan QR"}
                 </button>
-              </form>
-              <button
-                type="button"
-                className="doctor-secondary-button doctor-secondary-button--full"
-                onClick={() => setScannerVisible((current) => !current)}
-              >
-                <QrCode size={16} />
-                {scannerVisible ? "Close Scanner" : "Scan QR"}
-              </button>
-            </div> */}
-          </aside>
+              </div> */}
+            </aside>
+          </div>
 
           <main className="doctor-main">
             {activeView === "overview" && (
@@ -1337,8 +1493,10 @@ export default function DoctorDashboardNew() {
                     />
                   </article>
                 ) : (
-                  <>
-                    <section className="doctor-layout-grid doctor-layout-grid--patient">
+                  <div className="patient-workspace-container">
+                    <div className="patient-builder-column">
+                      
+                      {/* Patient Profile */}
                       <article className="doctor-panel">
                         <div className="doctor-panel-heading">
                           <div>
@@ -1409,10 +1567,11 @@ export default function DoctorDashboardNew() {
                         )}
                       </article>
 
-                      <article className="doctor-panel">
+                      {/* Medicine Builder Form */}
+                      <article className="doctor-panel medicine-builder-panel">
                         <div className="doctor-panel-heading">
-                          <div>
-                            <span>Prescription Builder</span>
+                          <div className="builder-header">
+                            <span className="builder-label">Prescription Builder</span>
                             <h2>Add and adjust treatment</h2>
                           </div>
                         </div>
@@ -1424,44 +1583,196 @@ export default function DoctorDashboardNew() {
                           />
                         ) : null}
 
-                        <div className="doctor-form-grid">
-                          <input
-                            placeholder="Medicine name"
-                            value={newMedicineName}
-                            onChange={(event) => setNewMedicineName(event.target.value)}
-                          />
-                          <input
-                            placeholder="Dosage"
-                            value={newMedicineDosage}
-                            onChange={(event) => setNewMedicineDosage(event.target.value)}
-                          />
-                          <input
-                            placeholder="Frequency"
-                            value={newMedicineFrequency}
-                            onChange={(event) => setNewMedicineFrequency(event.target.value)}
-                          />
-                          <input
-                            placeholder="Duration"
-                            value={newMedicineDuration}
-                            onChange={(event) => setNewMedicineDuration(event.target.value)}
-                          />
+                        <div className="medicine-input-form">
+                           <div className="input-group">
+                              <label>Medicine Name</label>
+                              <input
+                                placeholder="e.g. Dolo 650"
+                                value={newMedicineName}
+                                onChange={(e) => setNewMedicineName(e.target.value)}
+                              />
+                           </div>
+                           <div className="form-row-multi">
+                              <div className="input-group">
+                                <label>Dosage</label>
+                                <input
+                                  placeholder="650mg"
+                                  value={newMedicineDosage}
+                                  onChange={(e) => setNewMedicineDosage(e.target.value)}
+                                />
+                              </div>
+                              <div className="input-group">
+                                <label>Frequency</label>
+                                <input
+                                  placeholder="1-0-1"
+                                  value={newMedicineFrequency}
+                                  onChange={(e) => setNewMedicineFrequency(e.target.value)}
+                                />
+                              </div>
+                              <div className="input-group">
+                                <label>Duration</label>
+                                <input
+                                  placeholder="5 Days"
+                                  value={newMedicineDuration}
+                                  onChange={(e) => setNewMedicineDuration(e.target.value)}
+                                />
+                              </div>
+                           </div>
+                           <button 
+                              type="button"
+                              className="add-medicine-btn"
+                              onClick={handleAddMedicine}
+                              disabled={busyMap["add-medicine"]}
+                           >
+                              Add Medicine
+                           </button>
                         </div>
+                      </article>
 
-                        <button
+                      {/* Active Prescription Pad */}
+                      <article className="doctor-panel active-pad-panel">
+                        <div className="doctor-panel-heading">
+                           <h2>Active Prescription Pad</h2>
+                           <span className="count-pill">{patientPrescriptions.length} items</span>
+                        </div>
+                        
+                        <div className="medicines-table-container">
+                          {patientPrescriptions.length === 0 ? (
+                            <p>No active medicines in pad. Start by adding medicines above.</p>
+                          ) : (
+                            <table className="doctor-table medicines-table">
+                               <thead>
+                                  <tr>
+                                     <th>Medicine</th>
+                                     <th>Dosage</th>
+                                     <th>Freq</th>
+                                     <th>Dur</th>
+                                     <th>Actions</th>
+                                  </tr>
+                               </thead>
+                               <tbody>
+                                  {patientPrescriptions.map((med, idx) => (
+                                    <tr key={med.id || idx}>
+                                       <td>
+                                          <strong>{med.medicine_name}</strong>
+                                          {med.salt_name && <small style={{ display: 'block', color: 'var(--doctor-muted)', fontSize: '0.75rem' }}>{med.salt_name}</small>}
+                                       </td>
+                                       <td>{med.dosage || "—"}</td>
+                                       <td>{med.frequency || "—"}</td>
+                                       <td>{med.duration || "—"}</td>
+                                       <td className="actions-cell">
+                                          <button 
+                                            type="button"
+                                            onClick={() =>
+                                              window.location.assign(
+                                                `/search?medicine=${encodeURIComponent(med.medicine_name)}`,
+                                              )
+                                            }
+                                          >
+                                            Compare
+                                          </button>
+                                          <button type="button" onClick={() => updatePrescriptionMedicine(med)}>Edit</button>
+                                          <button type="button" className="del-btn" onClick={() => stopPrescriptionMedicine(med)}>Stop</button>
+                                       </td>
+                                    </tr>
+                                  ))}
+                               </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </article>
+
+                      {/* All Doctors History List */}
+                      <article className="doctor-panel medicines-list-panel">
+                        <div className="doctor-panel-heading">
+                           <h2>Added Medicines List (All Doctors)</h2>
+                           <span className="count-pill">{patientHistoryPrescriptions.length} items</span>
+                        </div>
+                        
+                        <div className="medicines-table-container">
+                          {patientHistoryPrescriptions.length === 0 ? (
+                            <p>No medicine history records available.</p>
+                          ) : (
+                            <table className="doctor-table medicines-table">
+                               <thead>
+                                  <tr>
+                                     <th>Medicine</th>
+                                     <th>Prescribed By</th>
+                                     <th>Details</th>
+                                     <th>Status</th>
+                                     <th>Actions</th>
+                                  </tr>
+                               </thead>
+                               <tbody>
+                                  {patientHistoryPrescriptions.map((med, idx) => {
+                                    const prescBy = med.doctor_name || "Unknown Doctor";
+                                    const isCurrentActive = patientPrescriptions.some(
+                                      pm => pm.medicine_name?.toLowerCase() === med.medicine_name?.toLowerCase()
+                                    );
+                                    return (
+                                      <tr key={med.id || idx} style={{ opacity: med.is_deleted ? 0.6 : 1 }}>
+                                         <td><strong>{med.medicine_name}</strong></td>
+                                         <td>{prescBy}</td>
+                                         <td>{med.dosage} • {med.frequency} • {med.duration}</td>
+                                         <td>{med.is_deleted ? "Stopped" : "Active"}</td>
+                                         <td className="actions-cell">
+                                            {!isCurrentActive && (
+                                              <button type="button" onClick={() => handleCopyMedicineToPad(med)}>Add to Pad</button>
+                                            )}
+                                         </td>
+                                      </tr>
+                                    );
+                                  })}
+                               </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </article>
+
+                      {/* Diagnosis & Instructions */}
+                      <div className="builder-extra-fields">
+                        <article className="doctor-panel">
+                           <div className="doctor-panel-heading">
+                              <h2>Diagnosis Section</h2>
+                           </div>
+                           <textarea 
+                              placeholder="Enter diagnosis findings..."
+                              value={diagnosis}
+                              onChange={(e) => setDiagnosis(e.target.value)}
+                              className="builder-textarea"
+                           />
+                        </article>
+                        <article className="doctor-panel">
+                           <div className="doctor-panel-heading">
+                              <h2>Additional Instructions</h2>
+                           </div>
+                           <textarea 
+                              placeholder="Notes for the patient..."
+                              value={additionalNotes}
+                              onChange={(e) => setAdditionalNotes(e.target.value)}
+                              className="builder-textarea"
+                           />
+                        </article>
+                      </div>
+
+                      <button 
                           type="button"
-                          className="doctor-primary-button doctor-primary-button--full"
-                          onClick={handleAddMedicine}
-                          disabled={busyMap["add-medicine"]}
-                        >
-                          <ShieldPlus size={16} />
-                          Add Medicine
-                        </button>
+                          className="finalize-btn"
+                          onClick={handleFinalizePrescription}
+                          disabled={busyMap["finalize-rx"]}
+                      >
+                          Finalize & Send to Patient
+                      </button>
 
-                        <div className="doctor-recording-panel">
+                      {/* Voice prescription / recordings */}
+                      <article className="doctor-panel">
+                        <div className="doctor-panel-heading">
                           <div>
-                            <h3>Voice prescription</h3>
+                            <h3>Voice Prescription</h3>
                             <p>Capture a quick note and attach it to the patient case.</p>
                           </div>
+                        </div>
+                        <div className="doctor-recording-panel">
                           <div className="doctor-inline-actions">
                             {!isRecording ? (
                               <button
@@ -1494,79 +1805,8 @@ export default function DoctorDashboardNew() {
                           {audioURL && <audio controls src={audioURL} className="doctor-audio-player" />}
                         </div>
                       </article>
-                    </section>
 
-                    <section className="doctor-layout-grid doctor-layout-grid--patient">
-                      <article className="doctor-panel">
-                        <div className="doctor-panel-heading">
-                          <div>
-                            <span>Active Prescriptions</span>
-                            <h2>{patientPrescriptions.length} medicines</h2>
-                          </div>
-                        </div>
-
-                        {!patientShareSections.includes("prescriptions") ? (
-                          <EmptyState
-                            title="Prescriptions not shared"
-                            text="The patient did not share prescription history for this appointment."
-                          />
-                        ) : patientPrescriptions.length === 0 ? (
-                          <EmptyState
-                            title="No active prescriptions"
-                            text="Added medicines and prescription entries will appear here."
-                          />
-                        ) : (
-                          <div className="doctor-prescription-list">
-                            {patientPrescriptions.map((medicine, index) => (
-                              <div
-                                key={
-                                  medicine.id ||
-                                  medicine.medicine_id ||
-                                  medicine.prescription_medicine_id ||
-                                  index
-                                }
-                                className="doctor-prescription-card"
-                              >
-                                <div>
-                                  <strong>{medicine.medicine_name}</strong>
-                                  <p>
-                                    {medicine.dosage || "-"} • {medicine.frequency || "-"} •{" "}
-                                    {medicine.duration || "-"}
-                                  </p>
-                                </div>
-                                <div className="doctor-inline-actions">
-                                  <button
-                                    type="button"
-                                    className="doctor-link-button"
-                                    onClick={() =>
-                                      window.location.assign(
-                                        `/search?medicine=${encodeURIComponent(medicine.medicine_name)}`,
-                                      )
-                                    }
-                                  >
-                                    Compare
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="doctor-link-button"
-                                    onClick={() => updatePrescriptionMedicine(medicine)}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="doctor-link-button danger"
-                                    onClick={() => stopPrescriptionMedicine(medicine)}
-                                  >
-                                    Stop
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </article>
-
+                      {/* Patient Voice Notes History */}
                       <article className="doctor-panel">
                         <div className="doctor-panel-heading">
                           <div>
@@ -1598,12 +1838,42 @@ export default function DoctorDashboardNew() {
                                   <span>Recorded case note</span>
                                 </div>
                                 <audio controls src={recording.file_url} />
+                                <div className="recording-consent-footer" style={{ marginTop: "12px", borderTop: "1px solid var(--doctor-line)", paddingTop: "12px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div style={{ fontSize: "0.8rem" }}>
+                                      <span style={{ marginRight: "10px" }}>Patient Share: <strong style={{ color: recording.patient_consent === "rejected" ? "#a8443b" : "#0d8d76" }}>{recording.patient_consent === "rejected" ? "Rejected" : "Approved"}</strong></span>
+                                      <span>Doctor Share: <strong style={{ color: recording.doctor_consent === "rejected" ? "#a8443b" : "#0d8d76" }}>{recording.doctor_consent === "rejected" ? "Rejected" : "Approved"}</strong></span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "6px" }}>
+                                      {recording.doctor_consent === "rejected" ? (
+                                        <button
+                                          type="button"
+                                          className="doctor-primary-button"
+                                          style={{ padding: "6px 12px", fontSize: "0.75rem", borderRadius: "8px", boxShadow: "none" }}
+                                          onClick={() => handleConsentRecording(recording.id, "approved")}
+                                        >
+                                          Approve Sharing
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="doctor-secondary-button"
+                                          style={{ padding: "6px 12px", fontSize: "0.75rem", borderColor: "#a8443b", color: "#a8443b", borderRadius: "8px" }}
+                                          onClick={() => handleConsentRecording(recording.id, "rejected")}
+                                        >
+                                          Reject Sharing
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>
                         )}
                       </article>
 
+                      {/* Shared files / Reports */}
                       <article className="doctor-panel">
                         <div className="doctor-panel-heading">
                           <div>
@@ -1647,8 +1917,27 @@ export default function DoctorDashboardNew() {
                           </div>
                         )}
                       </article>
-                    </section>
-                  </>
+
+                    </div>
+
+                    {/* Sticky Live Preview Column */}
+                    <div className="patient-preview-column">
+                        <DigitalPrescription 
+                           doctor={{ 
+                             name: user?.name, 
+                             specialty: user?.specialty || "Practitioner",
+                             email: user?.email,
+                             phone: user?.phone,
+                             reg_no: user?.reg_no
+                           }}
+                           patient={patientProfile}
+                           medicines={patientPrescriptions}
+                           diagnosis={diagnosis}
+                           notes={additionalNotes}
+                           rxNumber={prescriptionNumber}
+                        />
+                    </div>
+                  </div>
                 )}
               </section>
             )}

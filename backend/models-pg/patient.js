@@ -82,7 +82,8 @@ export const getPatientById = async (id) => {
   const result = await sql`
     SELECT id, name, email, age, gender,
            phone, blood_group, medical_history,
-           unique_code, created_at
+           unique_code, qr_share_ehr, qr_share_prescriptions,
+           qr_share_recordings, qr_share_reports, created_at
     FROM patients
     WHERE id = ${id}
       AND is_deleted = FALSE
@@ -112,7 +113,8 @@ export const getPatientByUniqueCode = async (uniqueCode) => {
   const result = await sql`
     SELECT id, name, email, age, gender,
            phone, blood_group, medical_history,
-           unique_code, created_at
+           unique_code, qr_share_ehr, qr_share_prescriptions,
+           qr_share_recordings, qr_share_reports, created_at
     FROM patients
     WHERE unique_code = ${uniqueCode}
       AND is_deleted = FALSE
@@ -133,6 +135,10 @@ export const updatePatient = async (id, data) => {
   const bloodGroup = data?.bloodGroup ?? null;
   const medicalHistory = data?.medicalHistory ?? null;
   const uniqueCode = data?.uniqueCode ?? null;
+  const qrShareEhr = data?.qrShareEhr !== undefined ? data.qrShareEhr : null;
+  const qrSharePrescriptions = data?.qrSharePrescriptions !== undefined ? data.qrSharePrescriptions : null;
+  const qrShareRecordings = data?.qrShareRecordings !== undefined ? data.qrShareRecordings : null;
+  const qrShareReports = data?.qrShareReports !== undefined ? data.qrShareReports : null;
 
   const result = await sql`
     UPDATE patients
@@ -144,11 +150,16 @@ export const updatePatient = async (id, data) => {
         blood_group = COALESCE(${bloodGroup}, blood_group),
         medical_history = COALESCE(${medicalHistory}, medical_history),
         unique_code = COALESCE(${uniqueCode}, unique_code),
+        qr_share_ehr = COALESCE(${qrShareEhr}, qr_share_ehr),
+        qr_share_prescriptions = COALESCE(${qrSharePrescriptions}, qr_share_prescriptions),
+        qr_share_recordings = COALESCE(${qrShareRecordings}, qr_share_recordings),
+        qr_share_reports = COALESCE(${qrShareReports}, qr_share_reports),
         updated_at = NOW()
     WHERE id = ${id}
       AND is_deleted = FALSE
     RETURNING id, name, email, age, gender,
-              phone, blood_group, medical_history, unique_code
+              phone, blood_group, medical_history, unique_code,
+              qr_share_ehr, qr_share_prescriptions, qr_share_recordings, qr_share_reports
   `;
 
   return result.length ? result[0] : null;

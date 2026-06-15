@@ -199,6 +199,10 @@ function mapPatientRowToFrontend(row) {
     bloodGroup: row.blood_group,
     medicalHistory: row.medical_history,
     uniqueCode: row.unique_code,
+    qrShareEhr: row.qr_share_ehr !== undefined ? Boolean(row.qr_share_ehr) : true,
+    qrSharePrescriptions: row.qr_share_prescriptions !== undefined ? Boolean(row.qr_share_prescriptions) : true,
+    qrShareRecordings: row.qr_share_recordings !== undefined ? Boolean(row.qr_share_recordings) : true,
+    qrShareReports: row.qr_share_reports !== undefined ? Boolean(row.qr_share_reports) : true,
     createdAt: row.created_at,
   };
 }
@@ -965,9 +969,16 @@ app.get(
       const rows = await getPatientDataByPatientId(patientRow.id);
       const ehrHistory = rows.map(mapPatientDataRowToFrontend);
 
+      const allowed_sections = [];
+      if (patientRow.qr_share_ehr !== false) allowed_sections.push("ehr");
+      if (patientRow.qr_share_prescriptions !== false) allowed_sections.push("prescriptions");
+      if (patientRow.qr_share_recordings !== false) allowed_sections.push("recordings");
+      if (patientRow.qr_share_reports !== false) allowed_sections.push("reports");
+
       res.status(200).json({
         patient: mapPatientRowToFrontend(patientRow),
-        ehrHistory,
+        ehrHistory: patientRow.qr_share_ehr !== false ? ehrHistory : [],
+        allowed_sections
       });
     } catch (error) {
       console.error("Error fetching patient data for doctor:", error);
@@ -1102,7 +1113,11 @@ app.get(
       responsePayload.prescriptions =
         prescriptionRows.status === "fulfilled" ? prescriptionRows.value : [];
       responsePayload.recordings =
-        recordingRows.status === "fulfilled" ? recordingRows.value : [];
+        recordingRows.status === "fulfilled"
+          ? recordingRows.value.filter(
+              (rec) => rec.patient_consent === "approved" && rec.doctor_consent === "approved"
+            )
+          : [];
       responsePayload.reports = [
         ...((reportRows.status === "fulfilled" ? reportRows.value : []).map((report) => ({
           id: `report-${report.id}`,

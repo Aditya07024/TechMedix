@@ -145,6 +145,10 @@ export async function initializeCompletSchema() {
         blood_group VARCHAR(10),
         medical_history TEXT,
         unique_code VARCHAR(10) UNIQUE,
+        qr_share_ehr BOOLEAN DEFAULT TRUE,
+        qr_share_prescriptions BOOLEAN DEFAULT TRUE,
+        qr_share_recordings BOOLEAN DEFAULT TRUE,
+        qr_share_reports BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE
@@ -153,7 +157,11 @@ export async function initializeCompletSchema() {
 
     await sql`
       ALTER TABLE patients
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS qr_share_ehr BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS qr_share_prescriptions BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS qr_share_recordings BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS qr_share_reports BOOLEAN DEFAULT TRUE;
     `;
 
     // 4️⃣ APPOINTMENTS TABLE
@@ -296,12 +304,19 @@ export async function initializeCompletSchema() {
         audio_url VARCHAR(500) NOT NULL,
         duration INTEGER,
         transcript TEXT,
+        patient_consent VARCHAR(20) DEFAULT 'approved',
+        doctor_consent VARCHAR(20) DEFAULT 'approved',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE
       );
     `;
     // Ensure columns exist even if table was created earlier without them
-    await sql`ALTER TABLE recordings ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`;
+    await sql`
+      ALTER TABLE recordings
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS patient_consent VARCHAR(20) DEFAULT 'approved',
+      ADD COLUMN IF NOT EXISTS doctor_consent VARCHAR(20) DEFAULT 'approved';
+    `;
 
     // 7️⃣ PATIENT DATA (EHR)
     await sql`

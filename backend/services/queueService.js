@@ -129,7 +129,10 @@ function weightedAverage(weightedValues, fallback) {
 }
 
 async function getConsultationDurationMinutes(doctorId, queueDate) {
-  const [year, month, dateVal] = String(queueDate).split("-").map(Number);
+  const cleanDate = queueDate instanceof Date
+    ? `${queueDate.getFullYear()}-${String(queueDate.getMonth() + 1).padStart(2, "0")}-${String(queueDate.getDate()).padStart(2, "0")}`
+    : String(queueDate).split("T")[0];
+  const [year, month, dateVal] = cleanDate.split("-").map(Number);
   const dayOfWeek = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
   const durationColumn = await getDoctorScheduleDurationColumn();
 

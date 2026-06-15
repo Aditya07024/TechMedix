@@ -11,7 +11,8 @@ import {
   supportAPI,
   reviewAPI,
 } from "../../api/techmedixAPI";
-import { patientDataApi } from "../../api";
+import { patientDataApi, healthWalletApi, authApi } from "../../api";
+import DigitalPrescription from "../../components/Prescription/DigitalPrescription";
 import AppointmentBooking from "../../components/AppointmentBooking/AppointmentBooking";
 import PatientQueuePosition from "../../components/PatientQueuePosition/PatientQueuePosition";
 import MedicalTimeline from "../../components/MedicalTimeline/MedicalTimeline";
@@ -61,6 +62,7 @@ import {
   Trash2,
   Wallet,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
 
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -250,12 +252,301 @@ const getMedicineDisplayName = (medicine) =>
   medicine?.medicine ||
   medicine?.drug_name ||
   "";
+
+const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight) => {
+  const words = text.split(" ");
+  let line = "";
+  let currentY = y;
+
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + " ";
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    if (testWidth > maxWidth && n > 0) {
+      ctx.fillText(line, x, currentY);
+      line = words[n] + " ";
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, x, currentY);
+  return currentY + lineHeight;
+};
+
+const renderPrescriptionToBlob = async (doctor, patient, medicines, diagnosis, notes, rxNumber) => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 1130;
+  const ctx = canvas.getContext("2d");
+
+  // White background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Top header green band
+  ctx.fillStyle = "#0f6b57";
+  ctx.fillRect(0, 0, canvas.width, 15);
+
+  // Clinic Logo Box
+  ctx.fillStyle = "#0f6b57";
+  ctx.fillRect(40, 40, 60, 60);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 24px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("TM", 70, 70);
+
+  // Clinic Info
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "bold 22px sans-serif";
+  ctx.fillText("TechMedix Clinical Sanctuary", 120, 65);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "14px sans-serif";
+  ctx.fillText("124, Healthcare Boulevard, Medical District", 120, 88);
+
+  // Divider
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, 115);
+  ctx.lineTo(760, 115);
+  ctx.stroke();
+
+  // Doctor Details
+  const doctorName = doctor?.name || "Specialist Consultant";
+  const doctorSpecialty = doctor?.specialty || "Medical Consultant";
+  const isDoc = doctorName && !doctorName.toLowerCase().includes("upload");
+  const clinicContact = isDoc && (doctor?.phone || doctor?.email)
+    ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
+    : "+91 98765-43210 | support@techmedix.com";
+
+  ctx.fillStyle = "#0f6b57";
+  ctx.font = "bold 16px sans-serif";
+  const docDisplayName = isDoc ? (doctorName.startsWith("Dr.") ? doctorName : `Dr. ${doctorName}`) : doctorName;
+  ctx.fillText(docDisplayName, 40, 145);
+  
+  ctx.fillStyle = "#475569";
+  ctx.font = "14px sans-serif";
+  ctx.fillText(doctorSpecialty, 40, 168);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#64748b";
+  ctx.font = "12px sans-serif";
+  ctx.fillText(clinicContact, 760, 145);
+  if (isDoc) {
+    ctx.fillText(`Reg No: ${doctor?.reg_no || "TM-DOC-2024-001"}`, 760, 168);
+  }
+
+  // Patient Info Strip Box
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(40, 190, 720, 65);
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.strokeRect(40, 190, 720, 65);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#475569";
+  ctx.font = "12px sans-serif";
+  ctx.fillText("Patient Name:", 60, 215);
+  ctx.fillText("Patient ID:", 60, 240);
+  ctx.fillText("Date:", 420, 215);
+  ctx.fillText("Rx No:", 420, 240);
+
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "bold 13px sans-serif";
+  ctx.fillText(patient?.name || "Walk-in Patient", 150, 215);
+  ctx.fillText(patient?.id ? `#${String(patient.id).slice(0, 8)}` : "—", 150, 240);
+  ctx.fillText(new Date().toLocaleDateString(), 470, 215);
+  ctx.fillText(rxNumber || "RX-TEMP", 470, 240);
+
+  // Rx Symbol
+  ctx.fillStyle = "#0f6b57";
+  ctx.font = "italic bold 36px Georgia, serif";
+  ctx.fillText("Rx", 40, 300);
+
+  let currentY = 320;
+
+  // Diagnosis Findings
+  if (diagnosis) {
+    ctx.fillStyle = "#0f6b57";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText("Diagnosis / Clinical Findings", 40, currentY);
+    currentY += 20;
+
+    ctx.fillStyle = "#334155";
+    ctx.font = "13px sans-serif";
+    currentY = drawWrappedText(ctx, diagnosis, 40, currentY, 720, 18);
+    currentY += 15;
+  }
+
+  // Medicines Table
+  ctx.fillStyle = "#0f6b57";
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText("Prescribed Medications", 40, currentY);
+  currentY += 15;
+
+  // Table Header
+  ctx.fillStyle = "#f1f5f9";
+  ctx.fillRect(40, currentY, 720, 25);
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.strokeRect(40, currentY, 720, 25);
+
+  ctx.fillStyle = "#334155";
+  ctx.font = "bold 12px sans-serif";
+  ctx.fillText("#", 50, currentY + 17);
+  ctx.fillText("Medicine Name", 80, currentY + 17);
+  ctx.fillText("Dosage", 380, currentY + 17);
+  ctx.fillText("Frequency", 500, currentY + 17);
+  ctx.fillText("Duration", 640, currentY + 17);
+
+  currentY += 25;
+
+  // Render Medicine list
+  const activeMeds = medicines.filter(m => !m.is_deleted);
+  const stoppedMeds = medicines.filter(m => m.is_deleted);
+  const orderedMeds = [...activeMeds, ...stoppedMeds];
+
+  ctx.font = "12px sans-serif";
+  orderedMeds.forEach((med, idx) => {
+    if (med.is_deleted) {
+      ctx.fillStyle = "#fff1f2";
+      ctx.fillRect(40, currentY, 720, 25);
+    }
+    
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.beginPath();
+    ctx.moveTo(40, currentY + 25);
+    ctx.lineTo(760, currentY + 25);
+    ctx.stroke();
+
+    ctx.fillStyle = med.is_deleted ? "#991b1b" : "#1e293b";
+    ctx.fillText(String(idx + 1), 50, currentY + 17);
+    
+    ctx.font = "bold 12px sans-serif";
+    const nameStr = med.is_deleted ? `${med.medicine_name} (Stopped)` : med.medicine_name;
+    ctx.fillText(nameStr, 80, currentY + 17);
+    ctx.font = "12px sans-serif";
+
+    ctx.fillText(med.dosage || "—", 380, currentY + 17);
+    ctx.fillText(med.frequency || "—", 500, currentY + 17);
+    ctx.fillText(med.duration || "—", 640, currentY + 17);
+
+    currentY += 25;
+  });
+
+  if (orderedMeds.length === 0) {
+    ctx.fillStyle = "#64748b";
+    ctx.fillText("No medications prescribed.", 50, currentY + 17);
+    currentY += 25;
+  }
+
+  currentY += 20;
+
+  // Additional Instructions
+  if (notes) {
+    ctx.fillStyle = "#0f6b57";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText("Additional Instructions / Advice", 40, currentY);
+    currentY += 20;
+
+    ctx.fillStyle = "#334155";
+    ctx.font = "13px sans-serif";
+    currentY = drawWrappedText(ctx, notes, 40, currentY, 720, 18);
+  }
+
+  // Footer Setup
+  const footerY = 980;
+
+  // Footer Divider line
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, footerY);
+  ctx.lineTo(760, footerY);
+  ctx.stroke();
+
+  // QR Code
+  const qrDataText = `TechMedix Verification\nPatient: ${patient?.name || "N/A"}\nPatient ID: ${patient?.id || "N/A"}\nRx No: ${rxNumber || "RX-TEMP"}\nDoctor: ${doctorName}`;
+  const qrImg = new Image();
+  qrImg.crossOrigin = "anonymous";
+  qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrDataText)}`;
+  
+  await new Promise((resolve) => {
+    qrImg.onload = () => {
+      ctx.drawImage(qrImg, 40, footerY + 15, 80, 80);
+      resolve();
+    };
+    qrImg.onerror = () => {
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.strokeRect(40, footerY + 15, 80, 80);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "10px sans-serif";
+      ctx.fillText("QR Code", 55, footerY + 55);
+      resolve();
+    };
+  });
+
+  ctx.fillStyle = "#64748b";
+  ctx.font = "10px sans-serif";
+  ctx.fillText("Scan to Verify", 40, footerY + 110);
+
+  // Digital Signature
+  if (isDoc) {
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(540, footerY + 70);
+    ctx.lineTo(760, footerY + 70);
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#475569";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("Digital Signature", 650, footerY + 85);
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText(docDisplayName, 650, footerY + 60);
+  } else {
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(540, footerY + 70);
+    ctx.lineTo(760, footerY + 70);
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#475569";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("Uploaded Prescription Record", 650, footerY + 85);
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText(patient?.name || "Patient Verified", 650, footerY + 60);
+  }
+
+  // Footer Tagline & info
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#64748b";
+  ctx.font = "10px sans-serif";
+  ctx.fillText("This is a digitally generated prescription. It does not require a physical stamp for validation.", 400, footerY + 115);
+  ctx.fillStyle = "#0f6b57";
+  ctx.font = "bold 10px sans-serif";
+  ctx.fillText("TechMedix - Precision in Every Care", 400, footerY + 130);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Canvas blob conversion failed"));
+    }, "image/png");
+  });
+};
 /**
  * PATIENT DASHBOARD
  * Central hub for patient - shows appointments, queue, prescriptions, timeline, notifications
  */
 export default function PatientDashboard() {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -303,6 +594,130 @@ export default function PatientDashboard() {
   const [showCustomizeGridModal, setShowCustomizeGridModal] = useState(false);
   const [savedQuickActionIds, setSavedQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
   const [draftQuickActionIds, setDraftQuickActionIds] = useState(DEFAULT_QUICK_ACTION_IDS);
+  
+  // Digital Prescription Pad states
+  const [showDownloadPadModal, setShowDownloadPadModal] = useState(false);
+  const [selectedPad, setSelectedPad] = useState(null);
+  const [viewingDigitalRx, setViewingDigitalRx] = useState(false);
+  const [isWalletSaving, setIsWalletSaving] = useState(false);
+  const [isDownloadingRx, setIsDownloadingRx] = useState(false);
+
+  // Wallet transfer/withdrawal states
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawUpiId, setWithdrawUpiId] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Grouped prescriptions by doctor
+  const groupedPrescriptionPads = React.useMemo(() => {
+    if (!Array.isArray(prescriptions)) return [];
+    
+    const groups = {};
+    prescriptions.forEach((item) => {
+      const docId = item.doctor_id || "user-upload";
+      if (!groups[docId]) {
+        groups[docId] = {
+          doctor: {
+            id: item.doctor_id || null,
+            name: item.doctor_name || "User Upload",
+            specialty: item.doctor_specialty || "Prescription Uploads",
+            email: item.doctor_email || "",
+            phone: item.doctor_phone || "",
+            reg_no: item.doctor_reg_no || "",
+          },
+          medicines: [],
+          latestDate: null,
+        };
+      }
+      groups[docId].medicines.push(item);
+      
+      const itemDate = new Date(item.created_at || item.recorded_at || Date.now());
+      if (!groups[docId].latestDate || itemDate > groups[docId].latestDate) {
+        groups[docId].latestDate = itemDate;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => b.latestDate - a.latestDate);
+  }, [prescriptions]);
+
+  // Handle Save to Health Wallet
+  const handleSaveToWallet = async () => {
+    if (!selectedPad) return;
+    
+    setIsWalletSaving(true);
+    try {
+      const rxNo = `RX-${Math.floor(1000 + Math.random() * 9000)}`;
+      const doc = selectedPad.doctor;
+      
+      const firstMedWithInstructions = selectedPad.medicines.find(m => m.instructions);
+      const notes = firstMedWithInstructions ? firstMedWithInstructions.instructions : "";
+      
+      const blob = await renderPrescriptionToBlob(
+        doc,
+        { id: user.id, name: user.name },
+        selectedPad.medicines,
+        "", 
+        notes, 
+        rxNo
+      );
+      
+      const formData = new FormData();
+      formData.append(
+        "documents",
+        blob,
+        `prescription-${(doc.name || "doctor").toLowerCase().replace(/\s+/g, "_")}-${Date.now()}.png`
+      );
+      
+      const response = await healthWalletApi.uploadDocuments(formData);
+      if (response.data?.success) {
+        alert("Prescription saved to your Health Wallet successfully!");
+      } else {
+        throw new Error(response.data?.error || "Failed to upload");
+      }
+    } catch (err) {
+      console.error("Save to Wallet error:", err);
+      alert(`Failed to save prescription to Health Wallet: ${err.message}`);
+    } finally {
+      setIsWalletSaving(false);
+    }
+  };
+
+  // Handle direct file download
+  const handleDownloadPrescription = async () => {
+    if (!selectedPad) return;
+    
+    setIsDownloadingRx(true);
+    try {
+      const rxNo = `RX-${Math.floor(1000 + Math.random() * 9000)}`;
+      const doc = selectedPad.doctor;
+      
+      const firstMedWithInstructions = selectedPad.medicines.find(m => m.instructions);
+      const notes = firstMedWithInstructions ? firstMedWithInstructions.instructions : "";
+      
+      const blob = await renderPrescriptionToBlob(
+        doc,
+        { id: user.id, name: user.name },
+        selectedPad.medicines,
+        "", 
+        notes, 
+        rxNo
+      );
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `prescription-${(doc.name || "doctor").toLowerCase().replace(/\s+/g, "_")}-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download prescription error:", err);
+      alert(`Failed to download prescription: ${err.message}`);
+    } finally {
+      setIsDownloadingRx(false);
+    }
+  };
 
   const refreshNotifications = async (patientId) => {
     if (!patientId) return [];
@@ -558,6 +973,26 @@ export default function PatientDashboard() {
   }, [user]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    if (!user?.uniqueCode) {
+      authApi.getProfile()
+        .then((res) => {
+          const profileData = res.data?.data;
+          if (profileData) {
+            login({
+              ...user,
+              ...profileData,
+              uniqueCode: profileData.uniqueCode || user?.uniqueCode || null,
+            });
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch profile for dashboard uniqueCode:", err);
+        });
+    }
+  }, [user?.id, user?.uniqueCode]);
+
+  useEffect(() => {
     if (!selectedDoctorId) {
       setSelectedDoctorReviews([]);
       setSelectedDoctorRating("0.0");
@@ -665,6 +1100,7 @@ export default function PatientDashboard() {
   }, [medicines, interactionCheckNonce]);
 
   const loadDashboardData = async ({ showLoader = true } = {}) => {
+    if (!user?.id) return;
     try {
       if (showLoader) {
         setLoading(true);
@@ -1017,6 +1453,58 @@ export default function PatientDashboard() {
       alert("Error: " + (err.response?.data?.error || err.message));
     } finally {
       setSubmittingTicket(false);
+    }
+  };
+
+  const handleWithdrawSubmit = async (e) => {
+    e.preventDefault();
+    const amountNum = Number(withdrawAmount);
+    if (!withdrawAmount || amountNum <= 0) {
+      alert("Please enter a valid amount to transfer.");
+      return;
+    }
+    if (amountNum > Number(walletBalance)) {
+      alert("Insufficient wallet balance.");
+      return;
+    }
+    if (!withdrawUpiId.trim() || !withdrawUpiId.includes("@")) {
+      alert("Please enter a valid UPI ID (e.g. username@bank).");
+      return;
+    }
+
+    try {
+      setIsWithdrawing(true);
+      const { response, data } = await fetchJsonWithTimeout(
+        toBackendUrl("/api/payments/wallet/withdraw"),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: amountNum,
+            upi_id: withdrawUpiId.trim(),
+          }),
+          credentials: "include",
+        },
+        8000,
+        "Wallet withdrawal",
+      );
+
+      if (response.ok) {
+        alert("Withdrawal request submitted successfully! Funds have been deducted and the request has been sent to the admin.");
+        setShowWithdrawModal(false);
+        setWithdrawAmount("");
+        setWithdrawUpiId("");
+        loadDashboardData();
+      } else {
+        alert("Failed to submit withdrawal request: " + (data?.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error submitting request: " + err.message);
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -1517,7 +2005,7 @@ export default function PatientDashboard() {
     },
     {
       id: "wallet",
-      label: "Wallet",
+      label: "Funds",
       icon: Wallet,
       action: () => setActiveTab("wallet"),
     },
@@ -1823,7 +2311,7 @@ export default function PatientDashboard() {
                     <div className="profile-avatar">{patientInitial}</div>
                     <div className="profile-copy">
                       <strong>{user?.name || "Patient Name"}</strong>
-                      <p>Patient ID: #{String(user?.id || "TM-8829-01").slice(0, 12)}</p>
+                      <p>User ID: {user?.uniqueCode || "—"}</p>
                     </div>
                   </div>
                   <div className="profile-subcard">
@@ -1847,6 +2335,18 @@ export default function PatientDashboard() {
                   <h3>₹{Number(walletBalance).toFixed(2)}</h3>
                   <button className="ghost-link-btn wallet-link-btn" onClick={() => setActiveTab("wallet")}>
                     Go to Wallet
+                    <ChevronRight size={14} strokeWidth={2} />
+                  </button>
+                </div>
+
+                <div className="home-card quick-action-card-rx" onClick={() => setShowDownloadPadModal(true)}>
+                  <div className="home-card-title">
+                    <FileText size={16} strokeWidth={2} />
+                    <span>Digital Prescription Pad</span>
+                  </div>
+                  <p>View, print, and save digital prescription pads from your doctors.</p>
+                  <button className="ghost-link-btn rx-link-btn">
+                    Open Selection Pad
                     <ChevronRight size={14} strokeWidth={2} />
                   </button>
                 </div>
@@ -2288,28 +2788,50 @@ export default function PatientDashboard() {
                 <h2>Your Prescriptions</h2>
                 <p>Manage and track your active medications and history with clinical precision.</p>
               </div>
-              <button
-                className="prescription-upload-cta"
-                onClick={() => navigate("/upload-prescription")}
-              >
-                <FileText size={18} strokeWidth={2} />
-                Upload New Prescription
-              </button>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <button
+                  className="prescription-see-pad-cta"
+                  onClick={() => setShowDownloadPadModal(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 18px",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--surface)",
+                    color: "var(--text)"
+                  }}
+                >
+                  <FileText size={18} strokeWidth={2} className="teal-icon" />
+                  See Prescription Pad
+                </button>
+                <button
+                  className="prescription-upload-cta"
+                  onClick={() => navigate("/upload-prescription")}
+                >
+                  <FileText size={18} strokeWidth={2} />
+                  Upload New Prescription
+                </button>
+              </div>
             </div>
 
             <div className="prescriptions-reference-layout">
               <div className="prescriptions-main-column">
-                <div className="prescriptions-block-header">
+                {/* <div className="prescriptions-block-header">
                   <div className="prescriptions-block-title">
                     <span className="prescriptions-accent-line" />
                     <h3>Active Medications</h3>
                   </div>
                   <span className="prescriptions-count-label">{prescriptionsFoundLabel}</span>
-                </div>
+                </div> */}
 
                 {activeMedicationCards.length > 0 ? (
                   <div className="active-medications-grid">
-                    {activeMedicationCards.map((med, idx) => (
+                    {/* {activeMedicationCards.map((med, idx) => (
                       <div key={`${med.medicine_name}-${idx}`} className="active-medication-card">
                         <div className="active-medication-head">
                           <h4>{med.medicine_name}</h4>
@@ -2331,7 +2853,7 @@ export default function PatientDashboard() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ))} */}
                   </div>
                 ) : (
                   <div className="empty-panel">
@@ -2518,7 +3040,8 @@ export default function PatientDashboard() {
                 </button>
                 <button type="button" className="action-btn" onClick={() => navigate("/health-wallet")}>
                   <FolderHeart size={16} strokeWidth={2} />
-                  View All Records
+                  View All Files & Records 
+                  
                 </button>
                 <button type="button" className="action-btn" onClick={handleDownloadReport}>
                   <Download size={16} strokeWidth={2} />
@@ -2657,13 +3180,15 @@ export default function PatientDashboard() {
                     <Bell size={18} strokeWidth={2} />
                     <h3>AI Insights</h3>
                   </div>
-                  <p>{healthSummaryMessage}</p>
+                  <p>{sortedEhrHistory[0]?.aiInsights || healthSummaryMessage}</p>
                   <div className="records-observation-card">
                     <span>Observation</span>
                     <strong>
-                      {latestMetrics?.heartRate != null
-                        ? `Latest heart rate recorded at ${latestMetrics.heartRate} BPM.`
-                        : "No additional observation is available yet."}
+                      {sortedEhrHistory[0]?.predictedDisease && sortedEhrHistory[0]?.predictedDisease !== "Agent prediction unavailable"
+                        ? `Predicted health condition: ${sortedEhrHistory[0].predictedDisease}${sortedEhrHistory[0].confidence ? ` (Confidence: ${Math.round(Number(sortedEhrHistory[0].confidence) * 100)}%)` : ""}`
+                        : latestMetrics?.heartRate != null
+                          ? `Latest heart rate recorded at ${latestMetrics.heartRate} BPM.`
+                          : "No additional observation is available yet."}
                     </strong>
                   </div>
                 </div>
@@ -2925,7 +3450,33 @@ export default function PatientDashboard() {
                     </span>
                   </div>
                   <p>Use your health wallet balance for appointments and verified care services when available.</p>
-
+                  {Number(walletBalance) > 0 && (
+                    <button
+                      type="button"
+                      className="wallet-transfer-btn"
+                      onClick={() => {
+                        setWithdrawAmount(String(walletBalance));
+                        setShowWithdrawModal(true);
+                      }}
+                      style={{
+                        marginTop: '15px',
+                        padding: '10px 18px',
+                        background: '#0b7a72',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'background 0.2s',
+                      }}
+                    >
+                      <ArrowRightLeft size={16} />
+                      Transfer Funds to Bank Account
+                    </button>
+                  )}
                 </div>
 
                 <div className="wallet-summary-grid">
@@ -3098,6 +3649,70 @@ export default function PatientDashboard() {
                 </div>
               </div>
             )}
+
+            {showWithdrawModal && (
+              <div className="dashboard-modal-backdrop" onClick={() => setShowWithdrawModal(false)}>
+                <div className="dashboard-modal-card" onClick={(e) => e.stopPropagation()}>
+                  <div className="dashboard-modal-header">
+                    <div>
+                      <span className="section-kicker">Transfer Funds</span>
+                      <h3>Request Transfer to Account</h3>
+                      <p>Send a payout request to the admin by specifying the transfer amount and your UPI details.</p>
+                    </div>
+                    <button type="button" className="close-modal-btn" onClick={() => setShowWithdrawModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                  </div>
+                  <form onSubmit={handleWithdrawSubmit} className="dashboard-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>Available Balance</label>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#0b7a72', background: '#f0fdfa', padding: '10px', borderRadius: '6px', border: '1px solid #ccfbf1' }}>
+                        ₹{Number(walletBalance).toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>Transfer Amount (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={Number(walletBalance)}
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder={`Max: ₹${Number(walletBalance).toFixed(2)}`}
+                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        required
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10203a' }}>UPI ID</label>
+                      <input
+                        type="text"
+                        value={withdrawUpiId}
+                        onChange={(e) => setWithdrawUpiId(e.target.value)}
+                        placeholder="E.g., username@bank"
+                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        required
+                      />
+                    </div>
+                    <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowWithdrawModal(false)}
+                        style={{ padding: '10px 15px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isWithdrawing || Number(walletBalance) <= 0}
+                        style={{ padding: '10px 15px', borderRadius: '6px', border: 'none', background: '#0b7a72', color: '#fff', cursor: (isWithdrawing || Number(walletBalance) <= 0) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                      >
+                        {isWithdrawing ? "Submitting..." : "Send Transfer Request"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3195,6 +3810,159 @@ export default function PatientDashboard() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* clinician pad selection modal */}
+      {showDownloadPadModal && (
+        <div className="dashboard-modal-backdrop clinician-selection-modal-overlay no-print" onClick={() => setShowDownloadPadModal(false)}>
+          <div className="dashboard-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="dashboard-modal-header">
+              <h3>Select Clinician Pad</h3>
+              <p>Choose a doctor whose digital prescription pad you want to view or download.</p>
+              <button className="dashboard-modal-close" onClick={() => setShowDownloadPadModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="dashboard-modal-options selection-options-scroll">
+              {groupedPrescriptionPads.map((pad) => {
+                const doc = pad.doctor;
+                const formattedDate = new Date(pad.latestDate).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric"
+                });
+                
+                const cleanName = doc.name.replace(/^Dr\.\s+/i, "");
+                const nameParts = cleanName.split(" ").filter(Boolean);
+                const initials = nameParts.map(part => part[0]).join("").slice(0, 2).toUpperCase() || "DR";
+
+                return (
+                  <div key={doc.id || "user-upload"} className="dashboard-modal-option rx-pad-option-card">
+                    <div className="rx-pad-avatar">
+                      <span>{initials}</span>
+                    </div>
+                    <div className="rx-pad-option-info" style={{ flexGrow: 1 }}>
+                      <strong>{doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`}</strong>
+                      <span className="rx-pad-specialty">{doc.specialty}</span>
+                      <p className="rx-pad-meta-info">Latest prescription: {formattedDate} • {pad.medicines.length} medicines</p>
+                    </div>
+                    <button 
+                      className="view-rx-pad-btn-premium" 
+                      onClick={() => {
+                        setSelectedPad(pad);
+                        setShowDownloadPadModal(false);
+                        setViewingDigitalRx(true);
+                      }}
+                    >
+                      View Pad
+                    </button>
+                  </div>
+                );
+              })}
+              
+              {groupedPrescriptionPads.length === 0 && (
+                <div className="empty-panel compact-empty">
+                  <h4>No digital prescription pads found</h4>
+                  <p>You don't have any prescriptions on file yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Fullscreen Clinical Workspace Overlay */}
+      {viewingDigitalRx && selectedPad && (
+        <div className="premium-clinical-workspace-overlay no-print">
+          <div className="workspace-container">
+            {/* Left Column: Interactive Health & Safety Summary */}
+            <div className="workspace-sidebar">
+              <div className="workspace-sidebar-header">
+                <div className="workspace-back-btn" onClick={() => setViewingDigitalRx(false)}>
+                  <ChevronRight className="back-arrow-icon" style={{ transform: "rotate(180deg)" }} />
+                  <span>Back to Dashboard</span>
+                </div>
+                <h3>Prescription Workspace</h3>
+              </div>
+
+              {/* Doctor Profile Card */}
+              <div className="premium-doc-card">
+                <div className="premium-doc-avatar">
+                  {selectedPad.doctor.name.replace(/^Dr\.\s+/i, "").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "DR"}
+                </div>
+                <div className="premium-doc-details">
+                  <h4>{selectedPad.doctor.name.startsWith("Dr.") ? selectedPad.doctor.name : `Dr. ${selectedPad.doctor.name}`}</h4>
+                  <span className="doc-specialty-badge">{selectedPad.doctor.specialty}</span>
+                  <div className="doc-meta-list">
+                    <p><strong>Reg No:</strong> {selectedPad.doctor.reg_no || "TM-DOC-2024-001"}</p>
+                    {selectedPad.doctor.email && <p><strong>Email:</strong> {selectedPad.doctor.email}</p>}
+                    {selectedPad.doctor.phone && <p><strong>Phone:</strong> {selectedPad.doctor.phone}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Safety Analysis */}
+              <div className="safety-analysis-card">
+                <h4>Clinical Integrity Scan</h4>
+                <div className="safety-scan-row">
+                  <div className="safety-metric">
+                    <span className="metric-label">Safety Rating</span>
+                    <strong className="metric-value green-text">Secure</strong>
+                  </div>
+                  <div className="safety-metric">
+                    <span className="metric-label">Risk Category</span>
+                    <strong className="metric-value green-text">Low Risk</strong>
+                  </div>
+                </div>
+                <div className="safety-pill">
+                  <ShieldCheck size={16} />
+                  <span>Verified by TechMedix AI Safety Audit</span>
+                </div>
+              </div>
+
+              {/* Visual Pill Intake Schedule */}
+              <div className="pill-schedule-timeline">
+                <h4>Daily Dosage Schedule</h4>
+                <div className="schedule-list">
+                  {selectedPad.medicines.filter(m => !m.is_deleted).map((med, index) => (
+                    <div key={med.id || index} className="schedule-item">
+                      <div className="schedule-item-icon">
+                        <Pill size={16} />
+                      </div>
+                      <div className="schedule-item-content">
+                        <strong>{med.medicine_name}</strong>
+                        <p>{med.dosage || "1 pill"} • {med.frequency || "Once daily"} • {med.duration || "—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedPad.medicines.filter(m => !m.is_deleted).length === 0 && (
+                    <p className="no-active-schedule">No active medications scheduled.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Virtual Prescription Paper Sheet */}
+            <div className="workspace-main-preview">
+              <div className="preview-container-wrapper">
+                <DigitalPrescription
+                  doctor={selectedPad.doctor}
+                  patient={{ id: user.id, name: user.name }}
+                  medicines={selectedPad.medicines}
+                  diagnosis=""
+                  notes={selectedPad.medicines.find(m => m.instructions)?.instructions || ""}
+                  rxNumber={`RX-${Math.floor(1000 + Math.random() * 9000)}`}
+                  isPatientView={true}
+                  onSaveToWallet={handleSaveToWallet}
+                  isSaving={isWalletSaving}
+                  onDownload={handleDownloadPrescription}
+                  isDownloading={isDownloadingRx}
+                />
+              </div>
             </div>
           </div>
         </div>

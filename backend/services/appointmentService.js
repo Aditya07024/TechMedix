@@ -53,7 +53,10 @@ export async function validateAppointmentBookingData(data) {
   const { doctor_id, appointment_date, slot_time } = data;
 
   // Parse date in UTC to avoid local timezone shifts
-  const [year, month, dateVal] = String(appointment_date).split("-").map(Number);
+  const cleanDate = appointment_date instanceof Date
+    ? `${appointment_date.getFullYear()}-${String(appointment_date.getMonth() + 1).padStart(2, "0")}-${String(appointment_date.getDate()).padStart(2, "0")}`
+    : String(appointment_date).split("T")[0];
+  const [year, month, dateVal] = cleanDate.split("-").map(Number);
   const day = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   const schedule = await sql`
@@ -252,7 +255,10 @@ export async function rescheduleAppointment(appointmentId, newDate, newSlot) {
   const doctorId = appointment[0].doctor_id;
 
   // Validate schedule
-  const [year, month, dateVal] = String(newDate).split("-").map(Number);
+  const cleanDate = newDate instanceof Date
+    ? `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, "0")}-${String(newDate.getDate()).padStart(2, "0")}`
+    : String(newDate).split("T")[0];
+  const [year, month, dateVal] = cleanDate.split("-").map(Number);
   const day = new Date(Date.UTC(year, month - 1, dateVal)).getUTCDay();
 
   const schedule = await sql`

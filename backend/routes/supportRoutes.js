@@ -38,9 +38,9 @@ router.get(
       if (req.user.role === "admin") {
         // Fetch all tickets with patient email/name details if possible
         const tickets = await sql`
-          SELECT st.*, u.email as patient_email, u.name as patient_name
+          SELECT st.*, p.email as patient_email, p.name as patient_name
           FROM support_tickets st
-          LEFT JOIN users u ON st.patient_id = u.id
+          LEFT JOIN patients p ON st.patient_id = p.id
           ORDER BY st.created_at DESC
         `;
         return res.json({ success: true, tickets });
@@ -75,16 +75,54 @@ router.put(
         return res.status(400).json({ error: "Status is required" });
       }
 
+      const tickets = await sql`
+        SELECT * FROM support_tickets WHERE id = ${ticketId}
+      `;
+
+      if (!tickets.length) {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+
+      const ticket = tickets[0];
+
+      // If it is a withdrawal ticket in open state, and we are closing it (rejecting)
+      if (ticket.category === 'withdrawal' && ticket.status === 'open' && status === 'closed') {
+        const desc = ticket.description || "";
+        const txIdMatch = desc.match(/Transaction ID:\s*([a-f0-9\-]{36})/i);
+        if (txIdMatch && txIdMatch[1]) {
+          const txId = txIdMatch[1];
+          const txs = await sql`
+            SELECT * FROM wallet_transactions WHERE id = ${txId} AND type = 'debit' AND source = 'withdrawal'
+          `;
+          if (txs.length) {
+            const amount = Number(txs[0].amount);
+            const patientId = ticket.patient_id;
+
+            // Refund to wallet
+            const wallet = await sql`
+              UPDATE wallets
+              SET balance = balance + ${amount}, updated_at = NOW()
+              WHERE patient_id = ${patientId}
+              RETURNING id
+            `;
+
+            if (wallet.length) {
+              // Create credit transaction for refund
+              await sql`
+                INSERT INTO wallet_transactions (wallet_id, patient_id, type, amount, source, note)
+                VALUES (${wallet[0].id}, ${patientId}, 'credit', ${amount}, 'refund', 'Refund: Withdrawal request rejected')
+              `;
+            }
+          }
+        }
+      }
+
       const updated = await sql`
         UPDATE support_tickets
         SET status = ${status}, updated_at = NOW()
         WHERE id = ${ticketId}
         RETURNING *
       `;
-
-      if (!updated.length) {
-        return res.status(404).json({ error: "Ticket not found" });
-      }
 
       res.json({ success: true, ticket: updated[0] });
     } catch (err) {

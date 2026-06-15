@@ -96,7 +96,7 @@ export default function PatientQueuePosition({
   };
 
   const fetchQueueStatus = async ({ silent = false } = {}) => {
-    if (!appointmentId) {
+    if (!appointmentId || appointmentId === "undefined" || appointmentId === "null") {
       setQueueStatus(null);
       setLoading(false);
       return;

@@ -30,10 +30,10 @@ router.post(
   createPrescriptionHandler,
 );
 
-// Get patient prescriptions
+// Get patient prescriptions with Doctor Info
 router.get(
   "/patient/:patient_id",
-
+  authenticate,
   async (req, res) => {
     try {
       const { patient_id } = req.params;
@@ -44,10 +44,19 @@ router.get(
           pm.medicine_name,
           pm.dosage,
           pm.frequency,
-          pm.duration
+          pm.duration,
+          pm.instructions,
+          pm.is_deleted,
+          p.doctor_id,
+          p.created_at,
+          COALESCE(d.name, 'User Upload') AS doctor_name,
+          COALESCE(d.specialty, 'Prescription Uploads') AS doctor_specialty,
+          d.email AS doctor_email,
+          d.phone AS doctor_phone,
+          d.reg_no AS doctor_reg_no
         FROM prescription_medicines pm
-        JOIN prescriptions p
-        ON pm.prescription_id = p.id
+        JOIN prescriptions p ON pm.prescription_id = p.id
+        LEFT JOIN doctors d ON p.doctor_id = d.id
         WHERE p.user_id = ${patient_id}
         ORDER BY p.created_at DESC
       `;
@@ -120,16 +129,17 @@ router.patch("/medicine/:id", authenticate, async (req, res) => {
   }
 });
 
-// Delete medicine
+// Delete/Stop medicine (Soft Delete Flag)
 router.delete("/medicine/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
     const deleted = await sql`
-        DELETE FROM prescription_medicines
-        WHERE id = ${id}
-        RETURNING id
-      `;
+      UPDATE prescription_medicines
+      SET is_deleted = TRUE
+      WHERE id = ${id}
+      RETURNING id
+    `;
 
     if (deleted.length === 0) {
       return res.status(404).json({
@@ -140,7 +150,7 @@ router.delete("/medicine/:id", authenticate, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Medicine deleted",
+      message: "Medicine deleted/stopped successfully",
     });
   } catch (err) {
     console.error("Delete medicine error:", err);

@@ -63,9 +63,9 @@ router.get(
       const { doctorId } = req.params;
 
       const reviews = await sql`
-        SELECT dr.*, u.name as patient_name
+        SELECT dr.*, p.name as patient_name
         FROM doctor_reviews dr
-        LEFT JOIN users u ON dr.patient_id = u.id
+        LEFT JOIN patients p ON dr.patient_id = p.id
         WHERE dr.doctor_id = ${doctorId}
         ORDER BY dr.created_at DESC
       `;

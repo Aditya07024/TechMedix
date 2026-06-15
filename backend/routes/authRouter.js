@@ -69,6 +69,10 @@ function mapUserProfileByRole(role, record) {
       bloodGroup: record.blood_group ?? record.bloodGroup ?? null,
       medicalHistory: record.medical_history ?? record.medicalHistory ?? null,
       uniqueCode: record.unique_code ?? record.uniqueCode ?? null,
+      qrShareEhr: record.qr_share_ehr !== undefined ? Boolean(record.qr_share_ehr) : true,
+      qrSharePrescriptions: record.qr_share_prescriptions !== undefined ? Boolean(record.qr_share_prescriptions) : true,
+      qrShareRecordings: record.qr_share_recordings !== undefined ? Boolean(record.qr_share_recordings) : true,
+      qrShareReports: record.qr_share_reports !== undefined ? Boolean(record.qr_share_reports) : true,
       createdAt: record.created_at ?? record.createdAt ?? null,
     };
   }

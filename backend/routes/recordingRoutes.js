@@ -4,6 +4,7 @@ import {
   getPatientRecordings,
   getDoctorRecordings,
   getRecordingById,
+  updateRecordingConsent,
 } from "../services/recordingService.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import multer from "multer";
@@ -181,7 +182,12 @@ router.get(
           error: "You can only view your own recordings",
         });
       }
-      const recordings = await getPatientRecordings(patientId);
+      let recordings = await getPatientRecordings(patientId);
+      if (req.user.role === "doctor") {
+        recordings = recordings.filter(
+          (rec) => rec.patient_consent === "approved" && rec.doctor_consent === "approved"
+        );
+      }
       console.log(`[RecordingList ${reqId}] Returned ${recordings.length} items`);
       // file_url from DB already contains full URL
       res.json(recordings);
@@ -412,6 +418,42 @@ router.post(
       });
     }
   },
+);
+
+// Update recording consent (approve/reject sharing)
+router.patch(
+  "/:id/consent",
+  authenticate,
+  authorizeRoles("patient", "doctor"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { consent } = req.body; // 'approved' | 'rejected'
+
+      if (!["approved", "rejected"].includes(consent)) {
+        return res.status(400).json({ success: false, error: "Invalid consent status" });
+      }
+
+      const recording = await getRecordingById(id);
+      if (!recording) {
+        return res.status(404).json({ success: false, error: "Recording not found" });
+      }
+
+      // Check permission
+      if (req.user.role === "patient" && String(req.user.id) !== String(recording.patient_id)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+      if (req.user.role === "doctor" && String(req.user.id) !== String(recording.doctor_id)) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
+      const updated = await updateRecordingConsent(id, req.user.role, consent);
+      res.json({ success: true, recording: updated });
+    } catch (error) {
+      console.error("[RecordingConsent ERROR]", error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
 );
 
 export default router;
