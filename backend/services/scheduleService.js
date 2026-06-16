@@ -257,6 +257,7 @@ export async function getAvailableTimeSlots(
     WHERE doctor_id = ${safeDoctorId}
       AND appointment_date = ${targetDate}
       AND status NOT IN ('cancelled')
+      AND is_deleted = FALSE
     GROUP BY slot_time
   `;
 

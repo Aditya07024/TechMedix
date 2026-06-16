@@ -85,6 +85,7 @@ export async function validateAppointmentBookingData(data) {
     WHERE doctor_id = ${doctor_id}
       AND appointment_date = ${appointment_date}
       AND slot_time = ${slot_time}
+      AND status != 'cancelled'
       AND is_deleted = FALSE
   `;
 
@@ -277,6 +278,7 @@ export async function rescheduleAppointment(appointmentId, newDate, newSlot) {
     WHERE doctor_id = ${doctorId}
       AND appointment_date = ${newDate}
       AND slot_time = ${newSlot}
+      AND status != 'cancelled'
       AND is_deleted = FALSE
   `;
 
