@@ -3,7 +3,24 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
-import Razorpay from "razorpay";
+import axios from "axios";
+
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+const CASHFREE_ENV = CASHFREE_SECRET_KEY?.includes("_prod_")
+  ? "production"
+  : (CASHFREE_SECRET_KEY?.includes("_test_") ? "sandbox" : (process.env.CASHFREE_ENV || "sandbox"));
+
+const cashfreeBaseUrl = CASHFREE_ENV === "production"
+  ? "https://api.cashfree.com/pg"
+  : "https://sandbox.cashfree.com/pg";
+
+const getCashfreeHeaders = () => ({
+  "x-client-id": CASHFREE_APP_ID,
+  "x-client-secret": CASHFREE_SECRET_KEY,
+  "x-api-version": "2023-08-01",
+  "Content-Type": "application/json"
+});
 import cloudinary from "../config/cloudinary.js";
 import sql from "../config/database.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
@@ -40,13 +57,7 @@ const upload = multer({
   },
 });
 
-// Helper: Razorpay Client setup
-const getRazorpayClient = () => {
-  return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-};
+
 
 /**
  * POST /api/doctor-posters/upload
@@ -145,38 +156,68 @@ router.post(
         return res.status(400).json({ success: false, error: "Poster is already paid and active" });
       }
 
-      const rzp = getRazorpayClient();
-      const amountInPaise = Math.round(Number(poster.amount) * 100);
+      const orderId = `cf_ord_pst_${poster.id.substring(0, 8)}_${Date.now()}`;
+      
+      const doctor = await sql`
+        SELECT name, email, phone FROM doctors WHERE id = ${req.user.id}
+      `;
+      const customerEmail = doctor[0]?.email || "doctor@techmedix.com";
+      const customerPhone = doctor[0]?.phone ? String(doctor[0].phone).replace(/\D/g, "").slice(-10) : "9999999999";
+      const customerName = doctor[0]?.name || "Doctor";
 
-      const receipt = `rcpt_pst_${poster.id.substring(0, 8)}_${Date.now().toString().slice(-4)}`;
-      const order = await rzp.orders.create({
-        amount: amountInPaise,
-        currency: "INR",
-        receipt,
-      });
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+      const returnUrl = `${cleanFrontendUrl}/doctor/dashboard?payment_trigger=promotions&cf_order_id={order_id}&poster_id=${poster.id}`;
 
-      // Save Razorpay order ID to Db
+      const response = await axios.post(
+        `${cashfreeBaseUrl}/orders`,
+        {
+          order_id: orderId,
+          order_amount: Number(poster.amount),
+          order_currency: "INR",
+          customer_details: {
+            customer_id: String(req.user.id),
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+          },
+          order_meta: {
+            return_url: returnUrl
+          }
+        },
+        {
+          headers: getCashfreeHeaders()
+        }
+      );
+
+      const cashfreeOrder = response.data;
+
+      // Save Cashfree order ID to Db
       await sql`
         UPDATE doctor_posters
-        SET razorpay_order_id = ${order.id}, updated_at = NOW()
+        SET razorpay_order_id = ${cashfreeOrder.order_id}, updated_at = NOW()
         WHERE id = ${poster.id}
       `;
 
       res.json({
         success: true,
-        order,
-        razorpay_key: process.env.RAZORPAY_KEY_ID,
+        order: {
+          id: cashfreeOrder.order_id,
+          amount: cashfreeOrder.order_amount,
+          payment_session_id: cashfreeOrder.payment_session_id,
+        },
+        cashfree_mode: CASHFREE_ENV,
       });
     } catch (error) {
-      console.error("Payment initialization failed:", error);
-      res.status(500).json({ success: false, error: error.message });
+      console.error("Payment initialization failed:", error?.response?.data || error);
+      res.status(500).json({ success: false, error: error?.response?.data?.message || error.message });
     }
   }
 );
 
 /**
  * POST /api/doctor-posters/verify
- * Confirm signature and activate doctor poster campaign.
+ * Confirm payment and activate doctor poster campaign.
  */
 router.post(
   "/verify",
@@ -184,39 +225,61 @@ router.post(
   authorizeRoles("doctor"),
   async (req, res) => {
     try {
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, poster_id } = req.body;
+      const orderId = req.body.order_id || req.body.razorpay_order_id;
+      const posterId = req.body.poster_id;
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !poster_id) {
+      if (!orderId || !posterId) {
         return res.status(400).json({
           success: false,
-          error: "All signature verification parameters are required",
+          error: "order_id and poster_id are required",
         });
       }
 
-      // Verify signature
-      const body = razorpay_order_id + "|" + razorpay_payment_id;
-      const expectedSignature = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-        .update(body)
-        .digest("hex");
+      // Check order status from Cashfree
+      let orderResponse;
+      try {
+        orderResponse = await axios.get(
+          `${cashfreeBaseUrl}/orders/${orderId}`,
+          {
+            headers: getCashfreeHeaders()
+          }
+        );
+      } catch (err) {
+        console.error("Failed to fetch order details from Cashfree:", err.message);
+        return res.status(400).json({ success: false, error: `Cashfree order lookup failed: ${err.message}` });
+      }
 
-      if (expectedSignature !== razorpay_signature) {
-        console.error("Razorpay signature mismatch for promotion poster:", {
-          expected: expectedSignature,
-          received: razorpay_signature,
-        });
-        return res.status(400).json({ success: false, error: "Invalid payment signature" });
+      const { order_status } = orderResponse.data;
+      if (order_status !== "PAID") {
+        return res.status(400).json({ success: false, error: `Payment is not completed. Status: ${order_status}` });
+      }
+
+      // Fetch transaction ID
+      let transactionId = `cf_${orderId}`;
+      try {
+        const paymentsResponse = await axios.get(
+          `${cashfreeBaseUrl}/orders/${orderId}/payments`,
+          {
+            headers: getCashfreeHeaders()
+          }
+        );
+        const successPayment = paymentsResponse.data?.find(p => p.payment_status === "SUCCESS");
+        if (successPayment?.cf_payment_id) {
+          transactionId = String(successPayment.cf_payment_id);
+        }
+      } catch (err) {
+        console.warn("Could not retrieve payments detail from Cashfree:", err.message);
       }
 
       // Activate poster
       const updated = await sql`
         UPDATE doctor_posters
         SET status = 'active',
-            razorpay_payment_id = ${razorpay_payment_id},
+            razorpay_payment_id = ${transactionId},
             start_date = CURRENT_TIMESTAMP,
             end_date = CURRENT_TIMESTAMP + INTERVAL '30 days',
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${poster_id} AND doctor_id = ${req.user.id}
+        WHERE id = ${posterId} AND doctor_id = ${req.user.id}
         RETURNING *
       `;
 
@@ -226,7 +289,7 @@ router.post(
 
       res.json({ success: true, data: updated[0] });
     } catch (error) {
-      console.error("Razorpay verification failed:", error);
+      console.error("Cashfree verification failed:", error);
       res.status(500).json({ success: false, error: error.message });
     }
   }

@@ -84,6 +84,7 @@ export const paymentApi = {
   createPayment: (data) => api.post("/api/payments/create", data),
   createRazorpayOrder: (data) => api.post("/api/payments/create-order", data),
   verifyRazorpayPayment: (data) => api.post("/api/payments/verify", data),
+  verifyCashfreePayment: (data) => api.post("/api/payments/verify", data),
   confirmPayment: (data) => api.post("/api/payments/confirm", data),
   markCashPaid: (data) => api.post("/api/payments/mark-cash-paid", data),
   getDoctorSummary: (doctorId) =>

@@ -1,15 +1,32 @@
 import sql from "../config/database.js";
-import Razorpay from "razorpay";
+import axios from "axios";
 import crypto from "crypto";
 import {
   bookAppointment,
   validateAppointmentBookingData,
 } from "./appointmentService.js";
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+const CASHFREE_ENV = CASHFREE_SECRET_KEY?.includes("_prod_")
+  ? "production"
+  : (CASHFREE_SECRET_KEY?.includes("_test_") ? "sandbox" : (process.env.CASHFREE_ENV || "sandbox"));
+
+const cashfreeBaseUrl = CASHFREE_ENV === "production"
+  ? "https://api.cashfree.com/pg"
+  : "https://sandbox.cashfree.com/pg";
+
+const getCashfreeHeaders = () => ({
+  "x-client-id": CASHFREE_APP_ID,
+  "x-client-secret": CASHFREE_SECRET_KEY,
+  "x-api-version": "2023-08-01",
+  "Content-Type": "application/json"
 });
+
+function getNormalizedPhoneForCashfree(phone) {
+  const cleaned = String(phone || "").replace(/\D/g, "");
+  return cleaned.slice(-10) || "9999999999";
+}
 
 // Create Payment Entry
 export async function createPayment({
@@ -121,46 +138,73 @@ export async function createPayment({
         AND status IN ('pending','paid')
     `;
 
-    // If a pending payment already exists, recreate a Razorpay order for it
+    // If a pending payment already exists, recreate a Cashfree order for it
     if (existingPayment.length > 0 && existingPayment[0].status === "pending") {
-      let razorpayOrder = null;
+      let cashfreeOrder = null;
 
       if (paymentMethod === "online") {
         const fee = amount || Number(existingPayment[0]?.amount) || 500;
-        const razorAmount = Math.round(fee * 100);
         const receiptSource =
           resolvedAppointmentId ||
           `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
 
-        const shortReceipt = `rcpt_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 8)}_${Date.now().toString().slice(-8)}`;
-        const order = await razorpay.orders.create({
-          amount: razorAmount,
-          currency: "INR",
-          receipt: shortReceipt,
-        });
+        const orderId = `cf_ord_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 12)}_${Date.now()}`;
+        
+        // Fetch patient details for customer object
+        const patient = await sql`
+          SELECT name, email, phone FROM patients WHERE id = ${patient_id}
+        `;
+        const customerEmail = patient[0]?.email || "patient@techmedix.com";
+        const customerPhone = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : "9999999999";
+        const customerName = patient[0]?.name || "Patient";
 
-        console.log("Razorpay order recreated for existing payment", {
-          orderId: order.id,
-          amount: order.amount,
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+        const cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+        const returnUrl = `${cleanFrontendUrl}/payment?payment_trigger=cashfree&cf_order_id={order_id}&payment_id=${existingPayment[0].id}`;
+
+        const response = await axios.post(
+          `${cashfreeBaseUrl}/orders`,
+          {
+            order_id: orderId,
+            order_amount: Number(fee),
+            order_currency: "INR",
+            customer_details: {
+              customer_id: String(patient_id),
+              customer_name: customerName,
+              customer_email: customerEmail,
+              customer_phone: customerPhone,
+            },
+            order_meta: {
+              return_url: returnUrl
+            }
+          },
+          {
+            headers: getCashfreeHeaders()
+          }
+        );
+
+        cashfreeOrder = response.data;
+        console.log("Cashfree order recreated for existing payment", {
+          orderId: cashfreeOrder.order_id,
+          amount: cashfreeOrder.order_amount,
         });
 
         await sql`
           UPDATE payments
-          SET razorpay_order_id = ${order.id}
+          SET razorpay_order_id = ${cashfreeOrder.order_id}
           WHERE id = ${existingPayment[0].id}
         `;
-
-        razorpayOrder = order;
       }
 
       return {
         success: true,
-        orderId: razorpayOrder?.id,
-        amount: razorpayOrder?.amount,
-        currency: razorpayOrder?.currency,
+        orderId: cashfreeOrder?.order_id,
+        payment_session_id: cashfreeOrder?.payment_session_id,
+        amount: cashfreeOrder?.order_amount,
+        currency: cashfreeOrder?.order_currency,
+        cashfree_mode: CASHFREE_ENV,
         ...existingPayment[0],
-        order: razorpayOrder,
-        razorpay_key: process.env.RAZORPAY_KEY_ID,
+        order: cashfreeOrder,
       };
     }
 
@@ -186,9 +230,6 @@ export async function createPayment({
       amount = Number(doctor[0].consultation_fee) || 500;
     }
 
-    let razorpayOrderId = null;
-    let razorpayOrder = null;
-
     if (
       !resolvedAppointmentId &&
       bookingPayload &&
@@ -201,28 +242,6 @@ export async function createPayment({
       resolvedAppointmentId = bookedAppointment.id;
     }
 
-    if (paymentMethod === "online") {
-      const razorAmount = Math.round(amount * 100);
-      const receiptSource =
-        resolvedAppointmentId ||
-        `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
-
-      const shortReceipt = `rcpt_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 8)}_${Date.now().toString().slice(-8)}`;
-      const order = await razorpay.orders.create({
-        amount: razorAmount,
-        currency: "INR",
-        receipt: shortReceipt,
-      });
-
-      console.log("Razorpay order created", {
-        orderId: order.id,
-        amount: order.amount,
-      });
-
-      razorpayOrderId = order.id;
-      razorpayOrder = order;
-    }
-
     if (!patient_id || !doctor_id) {
       console.error("Invalid payment identifiers", {
         patient_id,
@@ -232,47 +251,108 @@ export async function createPayment({
       throw new Error("Invalid payment identifiers");
     }
 
-    const payment = await sql`
+    const paymentResult = await sql`
       INSERT INTO payments (
-  appointment_id,
-  patient_id,
-  doctor_id,
-  amount,
-  currency,
-  payment_method,
-  status,
-  razorpay_order_id,
-  booking_payload
-)
-VALUES (
-  ${resolvedAppointmentId},
-  ${patient_id},
-  ${doctor_id},
-  ${amount},
-  'INR',
-  ${paymentMethod},
-  ${paymentMethod === 'cash' ? 'due' : 'pending'},
-  ${razorpayOrderId},
-  ${bookingPayload ? sql.json(bookingPayload) : null}
-)
+        appointment_id,
+        patient_id,
+        doctor_id,
+        amount,
+        currency,
+        payment_method,
+        status,
+        booking_payload
+      )
+      VALUES (
+        ${resolvedAppointmentId},
+        ${patient_id},
+        ${doctor_id},
+        ${amount},
+        'INR',
+        ${paymentMethod},
+        ${paymentMethod === 'cash' ? 'due' : 'pending'},
+        ${bookingPayload ? sql.json(bookingPayload) : null}
+      )
       RETURNING *
     `;
 
-    // return extra fields required by frontend and debugging
+    const insertedPayment = paymentResult[0];
+    let cashfreeOrder = null;
+
+    if (paymentMethod === "online") {
+      const receiptSource =
+        resolvedAppointmentId ||
+        `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
+
+      const orderId = `cf_ord_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 12)}_${Date.now()}`;
+      
+      const patient = await sql`
+        SELECT name, email, phone FROM patients WHERE id = ${patient_id}
+      `;
+      const customerEmail = patient[0]?.email || "patient@techmedix.com";
+      const customerPhone = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : "9999999999";
+      const customerName = patient[0]?.name || "Patient";
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+      const returnUrl = `${cleanFrontendUrl}/payment?payment_trigger=cashfree&cf_order_id={order_id}&payment_id=${insertedPayment.id}`;
+
+      const response = await axios.post(
+        `${cashfreeBaseUrl}/orders`,
+        {
+          order_id: orderId,
+          order_amount: Number(amount),
+          order_currency: "INR",
+          customer_details: {
+            customer_id: String(patient_id),
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+          },
+          order_meta: {
+            return_url: returnUrl
+          }
+        },
+        {
+          headers: getCashfreeHeaders()
+        }
+      );
+
+      cashfreeOrder = response.data;
+      console.log("Cashfree order created", {
+        orderId: cashfreeOrder.order_id,
+        amount: cashfreeOrder.order_amount,
+      });
+
+      // Update payment with Cashfree order ID
+      const updatedPayment = await sql`
+        UPDATE payments
+        SET razorpay_order_id = ${cashfreeOrder.order_id}
+        WHERE id = ${insertedPayment.id}
+        RETURNING *
+      `;
+      
+      return {
+        success: true,
+        orderId: cashfreeOrder.order_id,
+        payment_session_id: cashfreeOrder.payment_session_id,
+        amount: cashfreeOrder.order_amount,
+        currency: cashfreeOrder.order_currency,
+        cashfree_mode: CASHFREE_ENV,
+        ...updatedPayment[0],
+        order: cashfreeOrder,
+      };
+    }
+
     return {
       success: true,
-      orderId: razorpayOrderId,
-      amount: razorpayOrder?.amount,
-      currency: razorpayOrder?.currency,
-      ...payment[0],
-      order: razorpayOrder,
-      razorpay_key: process.env.RAZORPAY_KEY_ID,
+      ...insertedPayment,
     };
   } catch (error) {
-    // Extract meaningful error message from various error types
     let errorMessage = "Payment creation failed";
 
-    if (error?.error?.description) {
+    if (error?.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error?.error?.description) {
       errorMessage = error.error.description;
     } else if (error?.description) {
       errorMessage = error.description;
@@ -283,7 +363,6 @@ VALUES (
     } else if (typeof error === "string") {
       errorMessage = error;
     } else if (error?.sql) {
-      // Postgres error
       errorMessage = error.detail || error.hint || "Database error occurred";
     } else if (typeof error === "object" && error !== null) {
       errorMessage = JSON.stringify(error);
@@ -293,45 +372,61 @@ VALUES (
       message: errorMessage,
       appointmentId: resolvedAppointmentId,
       paymentMethod,
-      fullError: JSON.stringify(error, null, 2),
+      fullError: error?.response?.data || JSON.stringify(error, null, 2),
     });
     throw new Error(errorMessage);
   }
 }
 
 export async function confirmOnlinePayment(
-  razorpayOrderId,
-  razorpayPaymentId,
-  razorpaySignature,
+  orderId,
+  paymentId = null,
 ) {
-  const body = razorpayOrderId + "|" + razorpayPaymentId;
+  console.log("Verifying Cashfree payment status", { orderId, paymentId });
 
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(body)
-    .digest("hex");
-
-  // logging to troubleshoot mismatches
-  console.log("Verifying payment", {
-    razorpayOrderId,
-    razorpayPaymentId,
-    razorpaySignature,
-    expectedSignature,
-  });
-
-  if (expectedSignature !== razorpaySignature) {
-    console.error("Signature mismatch", {
-      expectedSignature,
-      razorpaySignature,
-    });
-    throw new Error("Invalid Razorpay signature");
+  // Call Cashfree GET /orders/{order_id}
+  let orderResponse;
+  try {
+    orderResponse = await axios.get(
+      `${cashfreeBaseUrl}/orders/${orderId}`,
+      {
+        headers: getCashfreeHeaders()
+      }
+    );
+  } catch (err) {
+    console.error("Failed to fetch order details from Cashfree:", err.message);
+    throw new Error(`Cashfree order lookup failed: ${err.message}`);
   }
 
-  console.log("Signature verification passed, looking up payment record...");
+  const { order_status, order_amount } = orderResponse.data;
+  console.log("Cashfree order lookup success:", { order_status, order_amount });
+
+  if (order_status !== "PAID") {
+    throw new Error(`Payment is not completed. Status: ${order_status}`);
+  }
+
+  // Fetch successful transaction ID from Cashfree GET /orders/{order_id}/payments
+  let transactionId = `cf_${orderId}`;
+  try {
+    const paymentsResponse = await axios.get(
+      `${cashfreeBaseUrl}/orders/${orderId}/payments`,
+      {
+        headers: getCashfreeHeaders()
+      }
+    );
+    const successPayment = paymentsResponse.data?.find(p => p.payment_status === "SUCCESS");
+    if (successPayment?.cf_payment_id) {
+      transactionId = String(successPayment.cf_payment_id);
+    }
+  } catch (err) {
+    console.warn("Could not retrieve payments detail from Cashfree, using fallback transaction ID:", err.message);
+  }
+
+  console.log("Signature verification passed via secure API, looking up payment record...");
 
   const payment = await sql`
     SELECT * FROM payments
-    WHERE razorpay_order_id = ${razorpayOrderId}
+    WHERE razorpay_order_id = ${orderId}
   `;
 
   console.log("Payment lookup result:", {
@@ -345,7 +440,7 @@ export async function confirmOnlinePayment(
 
   if (payment[0].status === "paid") {
     console.log("Payment already confirmed");
-    return { message: "Payment already confirmed" };
+    return { message: "Payment already confirmed", transaction_id: payment[0].razorpay_payment_id };
   }
 
   console.log("Updating payment status to paid...");
@@ -365,11 +460,11 @@ export async function confirmOnlinePayment(
       await tx`
         UPDATE payments
         SET status = 'paid',
-            razorpay_payment_id = ${razorpayPaymentId},
-            razorpay_signature = ${razorpaySignature},
+            razorpay_payment_id = ${transactionId},
+            razorpay_signature = 'CASHFREE',
             appointment_id = COALESCE(${appointmentId}, appointment_id),
             updated_at = CURRENT_TIMESTAMP
-        WHERE razorpay_order_id = ${razorpayOrderId}
+        WHERE razorpay_order_id = ${orderId}
       `;
 
       if (appointmentId) {
@@ -393,7 +488,7 @@ export async function confirmOnlinePayment(
     const paidPayment = await sql`
       SELECT appointment_id
       FROM payments
-      WHERE razorpay_order_id = ${razorpayOrderId}
+      WHERE razorpay_order_id = ${orderId}
       LIMIT 1
     `;
     const confirmedAppointmentId =
@@ -420,7 +515,7 @@ export async function confirmOnlinePayment(
 
   return {
     message: "Payment successful",
-    transaction_id: razorpayPaymentId,
+    transaction_id: transactionId,
   };
 }
 

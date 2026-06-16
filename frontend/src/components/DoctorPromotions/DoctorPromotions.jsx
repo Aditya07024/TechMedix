@@ -45,6 +45,41 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
     fetchPosters();
   }, []);
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const paymentTrigger = queryParams.get("payment_trigger");
+    const cfOrderId = queryParams.get("cf_order_id");
+    const posterId = queryParams.get("poster_id");
+
+    if (paymentTrigger === "promotions" && cfOrderId && posterId) {
+      async function autoVerify() {
+        try {
+          setLoading(true);
+          setError("Verifying promotion payment, please wait...");
+          const verifyRes = await doctorPosterApi.verifyPaySignature({
+            order_id: cfOrderId,
+            poster_id: posterId,
+          });
+
+          if (verifyRes.data?.success) {
+            setSuccess("Payment successful! Your promotion banner is now active.");
+            // Clear URL parameters to avoid verification loop on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+            await fetchPosters();
+          } else {
+            setError("Payment verification failed.");
+          }
+        } catch (verifyErr) {
+          console.error("Auto-verification error:", verifyErr);
+          setError("Payment verification failed. Please check your campaign status.");
+        } finally {
+          setLoading(false);
+        }
+      }
+      autoVerify();
+    }
+  }, [window.location.search]);
+
   const fetchPosters = async () => {
     try {
       setLoading(true);
@@ -180,46 +215,45 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
         throw new Error(paySessionRes.data?.error || "Unable to initiate payment");
       }
 
-      const { order, razorpay_key } = paySessionRes.data;
+      const { order, cashfree_mode } = paySessionRes.data;
+      const paymentSessionId = order.payment_session_id;
 
-      const options = {
-        key: razorpay_key,
-        amount: order.amount,
-        currency: "INR",
-        name: "TechMedix",
-        description: "Doctor Promotion Banner Payout",
-        order_id: order.id,
-        prefill: {
-          name: user?.name || "",
-          email: user?.email || "",
-        },
-        handler: async (response) => {
-          try {
-            const verifyRes = await doctorPosterApi.verifyPaySignature({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              poster_id: posterId,
-            });
+      if (!paymentSessionId) {
+        throw new Error("Payment session ID not received from server");
+      }
 
-            if (verifyRes.data?.success) {
-              setSuccess("Payment successful! Your promotion banner is now active.");
-              await fetchPosters();
-            } else {
-              setError("Signature verification failed.");
-            }
-          } catch (verifyErr) {
-            console.error("Verification error:", verifyErr);
-            setError("Payment verification failed. Please contact support.");
+      // Initialize Cashfree
+      const cashfree = window.Cashfree({
+        mode: cashfree_mode === "production" ? "production" : "sandbox",
+      });
+
+      // Trigger checkout
+      cashfree.checkout({
+        paymentSessionId: paymentSessionId,
+        redirectTarget: "_modal",
+      }).then(async (result) => {
+        // Auto-verify when checkout returns
+        try {
+          setLoading(true);
+          setError("Verifying payment, please wait...");
+          const verifyRes = await doctorPosterApi.verifyPaySignature({
+            order_id: order.id,
+            poster_id: posterId,
+          });
+
+          if (verifyRes.data?.success) {
+            setSuccess("Payment successful! Your promotion banner is now active.");
+            await fetchPosters();
+          } else {
+            setError("Payment verification failed.");
           }
-        },
-        theme: {
-          color: "#00de94",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+        } catch (verifyErr) {
+          console.error("Verification error:", verifyErr);
+          setError("Payment verification failed. Please check your campaign status.");
+        } finally {
+          setLoading(false);
+        }
+      });
 
     } catch (err) {
       console.error("Checkout failed:", err);

@@ -2839,7 +2839,7 @@ export function AppointmentPaymentScreen({ navigation, route }) {
       });
       Alert.alert(
         "Online order created",
-        `Backend payment order created.\nOrder ID: ${response?.order?.id || "not returned"}\n\nNative Razorpay checkout is not added in this Expo app yet.`,
+        `Backend payment order created.\nOrder ID: ${response?.order?.id || "not returned"}\n\nNative Cashfree checkout is not added in this Expo app yet.`,
       );
     } catch (payError) {
       setError(payError.message);

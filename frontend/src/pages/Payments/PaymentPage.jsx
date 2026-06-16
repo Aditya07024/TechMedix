@@ -105,6 +105,35 @@ export default function PaymentPage() {
     fetchWallet();
   }, [appointmentId, user, navigate, authLoading, hasBookingIntent]);
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const paymentTrigger = queryParams.get("payment_trigger");
+    const cfOrderId = queryParams.get("cf_order_id");
+    const paymentId = queryParams.get("payment_id");
+
+    if (paymentTrigger === "cashfree" && cfOrderId && paymentId) {
+      async function autoVerify() {
+        try {
+          setLoading(true);
+          setError("Verifying payment status, please wait...");
+          await paymentApi.verifyCashfreePayment({
+            order_id: cfOrderId,
+            payment_id: paymentId,
+          });
+          alert("Payment Successful!");
+          clearBookingIntent();
+          navigate("/dashboard");
+        } catch (verifyErr) {
+          console.error("Auto-verification error:", verifyErr);
+          setError("Payment verification failed. Please check your payment status.");
+        } finally {
+          setLoading(false);
+        }
+      }
+      autoVerify();
+    }
+  }, [location.search, navigate]);
+
   const checkoutIdentity = {
     name:
       checkoutProfile?.name ||
@@ -157,7 +186,7 @@ export default function PaymentPage() {
       setError(null);
 
       const paymentRes =
-        paymentSession?.order?.id && paymentSession?.id
+        paymentSession?.order?.id && paymentSession?.payment_session_id
           ? { data: paymentSession }
           : await paymentApi.createPayment({
               ...paymentPayload,
@@ -166,69 +195,47 @@ export default function PaymentPage() {
 
       const backendPaymentId = paymentRes.data.id;
       const order = paymentRes.data.order;
-      const razorpayKey =
-        paymentRes.data.razorpay_key || import.meta.env.VITE_RAZORPAY_KEY;
+      const paymentSessionId = paymentRes.data.payment_session_id;
+      const cashfreeMode = paymentRes.data.cashfree_mode || import.meta.env.VITE_CASHFREE_MODE || "sandbox";
 
-      setLastOrderAmount(order?.amount ?? null);
+      setLastOrderAmount(paymentRes.data.amount ? Number(paymentRes.data.amount) * 100 : null);
       setPaymentSession(paymentRes.data);
 
-      if (!order?.id) {
-        setError("Failed to create payment order. Please try again.");
+      if (!paymentSessionId) {
+        setError("Failed to create payment session. Please try again.");
         return;
       }
 
-      if (!razorpayKey) {
-        setError("Razorpay key is missing. Please check payment configuration.");
-        return;
-      }
+      // Initialize Cashfree
+      const cashfree = window.Cashfree({
+        mode: cashfreeMode === "production" ? "production" : "sandbox",
+      });
 
-      const options = {
-        key: razorpayKey,
-        amount: order.amount,
-        currency: "INR",
-        name: "TechMedix",
-        description: "Doctor Consultation Payment",
-        order_id: order.id,
-        prefill: {
-          name: checkoutIdentity.name,
-          email: checkoutIdentity.email,
-          contact: checkoutIdentity.razorpayContact || undefined,
-        },
-        readonly: {
-          name: Boolean(checkoutIdentity.name),
-          email: Boolean(checkoutIdentity.email),
-          contact: Boolean(checkoutIdentity.phone),
-        },
-        notes: {
-          appointment_id: appointmentId || "",
-          appointment_date: bookingIntent?.appointment_date || "",
-          appointment_slot: bookingIntent?.slot_time || "",
-          patient_phone: checkoutIdentity.razorpayContact || "",
-        },
-        handler: async (response) => {
-          try {
-            await paymentApi.verifyRazorpayPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              payment_id: backendPaymentId,
-            });
+      // Trigger checkout
+      cashfree.checkout({
+        paymentSessionId: paymentSessionId,
+        redirectTarget: "_modal",
+      }).then(async (result) => {
+        // Cashfree promise resolves when checkout closes/redirects/completes
+        // We will call the backend verification endpoint to check if the payment is successful
+        try {
+          setLoading(true);
+          setError("Verifying payment, please wait...");
+          await paymentApi.verifyCashfreePayment({
+            order_id: paymentRes.data.razorpay_order_id || paymentRes.data.orderId || order?.id,
+            payment_id: backendPaymentId,
+          });
 
-            alert("Payment Successful!");
-            clearBookingIntent();
-            navigate("/dashboard");
-          } catch (verifyErr) {
-            console.error("Payment verification error:", verifyErr);
-            setError("Payment verification failed. Please contact support.");
-          }
-        },
-        theme: {
-          color: "#0e7490",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+          alert("Payment Successful!");
+          clearBookingIntent();
+          navigate("/dashboard");
+        } catch (verifyErr) {
+          console.error("Payment verification error:", verifyErr);
+          setError("Payment verification failed or was cancelled. Please check your payment status.");
+        } finally {
+          setLoading(false);
+        }
+      });
     } catch (err) {
       console.error("Payment error FULL:", {
         status: err.response?.status,
@@ -387,7 +394,7 @@ export default function PaymentPage() {
                 disabled={loading}
               >
                 <div>
-                  <strong>Pay Online (Razorpay)</strong>
+                  <strong>Pay Online (Cashfree)</strong>
                   <span>
                     UPI, cards, net banking, and wallets with your saved contact
                     prefilled.

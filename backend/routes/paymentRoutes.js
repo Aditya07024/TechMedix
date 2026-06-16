@@ -95,21 +95,16 @@ router.post(
   authorizeRoles("patient"),
   async (req, res) => {
     try {
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-        req.body;
+      const orderId = req.body.order_id || req.body.razorpay_order_id;
+      const paymentId = req.body.payment_id || req.body.razorpay_payment_id;
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      if (!orderId) {
         return res.status(400).json({
-          error:
-            "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
+          error: "order_id is required",
         });
       }
 
-      const result = await confirmOnlinePayment(
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature,
-      );
+      const result = await confirmOnlinePayment(orderId, paymentId);
 
       res.json(result);
     } catch (err) {
@@ -192,25 +187,16 @@ router.post(
   authorizeRoles("patient"),
   async (req, res) => {
     try {
-      const {
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature,
-        payment_id, // provided by frontend but not used
-      } = req.body;
+      const orderId = req.body.order_id || req.body.razorpay_order_id;
+      const paymentId = req.body.payment_id || req.body.razorpay_payment_id;
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      if (!orderId) {
         return res.status(400).json({
-          error:
-            "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
+          error: "order_id is required",
         });
       }
 
-      const result = await confirmOnlinePayment(
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature,
-      );
+      const result = await confirmOnlinePayment(orderId, paymentId);
 
       res.json(result);
     } catch (err) {
