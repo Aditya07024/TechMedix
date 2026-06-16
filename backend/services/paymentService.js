@@ -272,7 +272,11 @@ VALUES (
     // Extract meaningful error message from various error types
     let errorMessage = "Payment creation failed";
 
-    if (error instanceof Error) {
+    if (error?.error?.description) {
+      errorMessage = error.error.description;
+    } else if (error?.description) {
+      errorMessage = error.description;
+    } else if (error instanceof Error) {
       errorMessage = error.message;
     } else if (error?.message) {
       errorMessage = error.message;
@@ -281,6 +285,8 @@ VALUES (
     } else if (error?.sql) {
       // Postgres error
       errorMessage = error.detail || error.hint || "Database error occurred";
+    } else if (typeof error === "object" && error !== null) {
+      errorMessage = JSON.stringify(error);
     }
 
     console.error("Payment service error:", {
