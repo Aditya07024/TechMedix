@@ -330,6 +330,11 @@ export const adminAPI = {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
+  deleteFailedOrPendingPayments: () =>
+    axios.delete(`${API_BASE}/admin/payments/failed-or-pending`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
+
   getUsers: (role, limit, offset) =>
     axios.get(`${API_BASE}/admin/users`, {
       params: { role, limit, offset },

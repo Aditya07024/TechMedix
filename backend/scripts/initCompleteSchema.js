@@ -246,7 +246,17 @@ export async function initializeCompletSchema() {
 
     await sql`
       ALTER TABLE payments
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS gst_charges NUMERIC DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS platform_fees NUMERIC DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
+    `;
+
+    // For legacy payments, initialize total_amount to amount
+    await sql`
+      UPDATE payments
+      SET total_amount = amount
+      WHERE total_amount IS NULL OR total_amount = 0;
     `;
 
     // 5b️⃣ WALLETS

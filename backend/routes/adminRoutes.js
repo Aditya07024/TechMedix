@@ -154,15 +154,40 @@ router.get(
       const limit = parseInt(req.query.limit) || 50;
       const offset = parseInt(req.query.offset) || 0;
       const payments = await sql`
-        SELECT p.*, pt.name AS patient_name
+        SELECT p.*, pt.name AS patient_name, d.name AS doctor_name
         FROM payments p
         LEFT JOIN patients pt ON p.patient_id = pt.id
+        LEFT JOIN doctors d ON p.doctor_id = d.id
         ORDER BY p.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
       res.json({ success: true, data: payments });
     } catch (err) {
       console.error("Failed to fetch payments:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
+// DELETE all failed or pending payments
+router.delete(
+  "/payments/failed-or-pending",
+  authenticate,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const result = await sql`
+        DELETE FROM payments
+        WHERE status IN ('failed', 'pending')
+        RETURNING *
+      `;
+      res.json({
+        success: true,
+        message: `Successfully deleted ${result.length} failed or pending payments.`,
+        deleted_count: result.length,
+      });
+    } catch (err) {
+      console.error("Failed to delete payments:", err);
       res.status(500).json({ success: false, error: err.message });
     }
   }

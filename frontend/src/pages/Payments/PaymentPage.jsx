@@ -41,6 +41,12 @@ export default function PaymentPage() {
   const [checkoutProfile, setCheckoutProfile] = useState(null);
   const [lastOrderAmount, setLastOrderAmount] = useState(null);
   const [paymentSession, setPaymentSession] = useState(null);
+  const [customerPhone, setCustomerPhone] = useState("");
+
+  useEffect(() => {
+    const val = checkoutProfile?.phone || user?.phone || "";
+    setCustomerPhone(getNormalizedPhone(val));
+  }, [checkoutProfile, user]);
 
   const hasBookingIntent = Boolean(bookingIntent?.doctor_id);
 
@@ -151,6 +157,8 @@ export default function PaymentPage() {
   );
   const billingAmount =
     lastOrderAmount != null ? Number(lastOrderAmount) / 100 : consultationFee;
+  const onlineTotalAmount =
+    lastOrderAmount != null ? Number(lastOrderAmount) / 100 : (consultationFee * 1.025);
   const walletBalance = Number(wallet?.balance || 0);
   const walletInsufficient = walletBalance < consultationFee;
   const doctorName = appointment?.doctor_name
@@ -182,15 +190,21 @@ export default function PaymentPage() {
 
   const handleOnlinePayment = async () => {
     try {
+      if (!customerPhone || customerPhone.length !== 10) {
+        setError("Please enter a valid 10-digit mobile number in the Billing Contact Info section to proceed.");
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
       const paymentRes =
-        paymentSession?.order?.id && paymentSession?.payment_session_id
+        paymentSession?.order?.id && paymentSession?.payment_session_id && paymentSession?.customer_phone === customerPhone
           ? { data: paymentSession }
           : await paymentApi.createPayment({
               ...paymentPayload,
               payment_method: "online",
+              customer_phone: customerPhone,
             });
 
       const backendPaymentId = paymentRes.data.id;
@@ -199,7 +213,7 @@ export default function PaymentPage() {
       const cashfreeMode = paymentRes.data.cashfree_mode || import.meta.env.VITE_CASHFREE_MODE || "sandbox";
 
       setLastOrderAmount(paymentRes.data.amount ? Number(paymentRes.data.amount) * 100 : null);
-      setPaymentSession(paymentRes.data);
+      setPaymentSession({ ...paymentRes.data, customer_phone: customerPhone });
 
       if (!paymentSessionId) {
         setError("Failed to create payment session. Please try again.");
@@ -220,7 +234,7 @@ export default function PaymentPage() {
         // We will call the backend verification endpoint to check if the payment is successful
         try {
           setLoading(true);
-          setError("Verifying payment, please wait...");
+          // setError("Verifying payment, please wait...");
           await paymentApi.verifyCashfreePayment({
             order_id: paymentRes.data.razorpay_order_id || paymentRes.data.orderId || order?.id,
             payment_id: backendPaymentId,
@@ -373,9 +387,37 @@ export default function PaymentPage() {
                   <span>Billing this session</span>
                   <strong>{formatCurrency(billingAmount)}</strong>
                 </div>
+                <div className="summary-row" style={{ borderTop: "1px dashed rgba(255,255,255,0.15)", paddingTop: "8px", marginTop: "8px" }}>
+                  <span>Online Payment Total</span>
+                  <strong style={{ color: "#0ea5e9" }}>{formatCurrency(consultationFee * 1.025)}</strong>
+                </div>
                 <div className="summary-row">
                   <span>Wallet Balance</span>
                   <strong>{formatCurrency(walletBalance)}</strong>
+                </div>
+              </div>
+
+              <div className="payment-contact-card">
+                <span className="summary-kicker">Billing Contact Info</span>
+                <p>Cashfree requires a valid 10-digit mobile number to process secure payments.</p>
+                <div className="payment-phone-input-wrapper">
+                  <label htmlFor="customerPhone" className="payment-phone-label">
+                    Mobile Number
+                  </label>
+                  <div className="payment-phone-input-container">
+                    <span className="payment-phone-prefix">+91</span>
+                    <input
+                      id="customerPhone"
+                      type="tel"
+                      className="payment-phone-input"
+                      placeholder="Enter 10-digit mobile number"
+                      value={customerPhone}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setCustomerPhone(val);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -396,11 +438,13 @@ export default function PaymentPage() {
                 <div>
                   <strong>Pay Online (Cashfree)</strong>
                   <span>
-                    UPI, cards, net banking, and wallets with your saved contact
-                    prefilled.
+                    UPI, cards, net banking, and wallets with your saved contact prefilled.
+                  </span>
+                  <span style={{ display: "block", fontSize: "0.8rem", color: "#38bdf8", marginTop: "4px" }}>
+                    * 2.5% charges are included in it of GST, platform fees, and other charges.
                   </span>
                 </div>
-                <b>{loading ? "Processing..." : formatCurrency(billingAmount)}</b>
+                <b>{loading ? "Processing..." : formatCurrency(onlineTotalAmount)}</b>
               </button>
 
               <button

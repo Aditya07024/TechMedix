@@ -113,6 +113,31 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteFailedOrPendingPayments = async () => {
+    if (!window.confirm("Are you sure you want to delete all failed and pending payments? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      setPaymentsLoading(true);
+      setError(null);
+      const res = await adminAPI.deleteFailedOrPendingPayments();
+      if (res.data?.success) {
+        alert(res.data.message || "Successfully deleted failed or pending payments.");
+        // Refresh the payments list
+        const refreshed = await adminAPI.getPayments(50, 0);
+        setPayments(refreshed.data?.data || []);
+      } else {
+        setError(res.data?.error || "Failed to delete payments.");
+      }
+    } catch (err) {
+      console.error("Failed to delete failed or pending payments:", err);
+      setError(err.response?.data?.error || err.message || "Failed to delete payments.");
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
   const loadPayoutData = async () => {
     try {
       setPayoutLoading(true);
@@ -344,12 +369,21 @@ export default function AdminDashboard() {
           <div className="tab-content payments-tab">
             <div className="tab-header-row">
               <h2>Payment Transactions</h2>
-              <button
-                onClick={refreshPayments}
-                disabled={paymentsLoading}
-                className={`refresh-btn ${paymentsLoading ? "spinning" : ""}`}
-                title="Refresh payments"
-              >
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={handleDeleteFailedOrPendingPayments}
+                  disabled={paymentsLoading}
+                  className="delete-failed-btn"
+                  title="Delete all failed or pending payments"
+                >
+                  🗑️ Delete Failed/Pending
+                </button>
+                <button
+                  onClick={refreshPayments}
+                  disabled={paymentsLoading}
+                  className={`refresh-btn ${paymentsLoading ? "spinning" : ""}`}
+                  title="Refresh payments"
+                >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="16"
@@ -369,14 +403,18 @@ export default function AdminDashboard() {
                 </svg>
                 <span>{paymentsLoading ? "Refreshing..." : "Refresh"}</span>
               </button>
+              </div>
             </div>
             <div className="transactions-table">
               <table>
                 <thead>
                   <tr>
                     <th>Transaction ID</th>
-                    <th>Patient</th>
-                    <th>Amount</th>
+                    <th>Payer</th>
+                    <th>Base Amount</th>
+                    <th>GST (2%)</th>
+                    <th>Platform Fee (0.5%)</th>
+                    <th>Total Paid</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th>Method</th>
@@ -385,14 +423,17 @@ export default function AdminDashboard() {
                 <tbody>
                   {payments.length === 0 ? (
                     <tr>
-                      <td colSpan="6">No payments found</td>
+                      <td colSpan="9">No payments found</td>
                     </tr>
                   ) : (
                     payments.map((payment) => (
                       <tr key={payment.id}>
                         <td>{payment.id.substring(0, 8)}...</td>
-                        <td>{payment.patient_name || "Anonymous"}</td>
-                        <td>₹{payment.amount}</td>
+                        <td>{payment.patient_name || (payment.doctor_name ? `Dr. ${payment.doctor_name} (Promo)` : "Anonymous")}</td>
+                        <td>₹{Number(payment.amount).toFixed(2)}</td>
+                        <td>₹{Number(payment.gst_charges || 0).toFixed(2)}</td>
+                        <td>₹{Number(payment.platform_fees || 0).toFixed(2)}</td>
+                        <td>₹{Number(payment.total_amount || payment.amount).toFixed(2)}</td>
                         <td>
                           <span className={`status ${payment.status}`}>
                             {payment.status}

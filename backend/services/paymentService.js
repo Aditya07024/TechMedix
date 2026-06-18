@@ -34,6 +34,7 @@ export async function createPayment({
   paymentMethod,
   patientIdFromAuth,
   bookingDetails = null,
+  customerPhone = null,
 }) {
   let resolvedAppointmentId = appointmentId;
 
@@ -143,10 +144,13 @@ export async function createPayment({
       let cashfreeOrder = null;
 
       if (paymentMethod === "online") {
-        const fee = amount || Number(existingPayment[0]?.amount) || 500;
+        const baseFee = amount || Number(existingPayment[0]?.amount) || 500;
+        const fee = Number(existingPayment[0]?.total_amount) || Number((baseFee * 1.025).toFixed(2));
+        const gst = Number(existingPayment[0]?.gst_charges) || Number((baseFee * 0.02).toFixed(2));
+        const platform = Number(existingPayment[0]?.platform_fees) || Number((baseFee * 0.005).toFixed(2));
         const receiptSource =
           resolvedAppointmentId ||
-          `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
+          `${doctor_id || "doc"}` + (bookingPayload?.appointment_date || "") + (bookingPayload?.slot_time || "");
 
         const orderId = `cf_ord_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 12)}_${Date.now()}`;
         
@@ -154,8 +158,22 @@ export async function createPayment({
         const patient = await sql`
           SELECT name, email, phone FROM patients WHERE id = ${patient_id}
         `;
+        let phoneToUse = customerPhone || patient[0]?.phone;
+        if (customerPhone) {
+          const normalizedInput = getNormalizedPhoneForCashfree(customerPhone);
+          const normalizedDb = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : null;
+          if (normalizedInput && normalizedInput !== normalizedDb) {
+            await sql`
+              UPDATE patients
+              SET phone = ${customerPhone}
+              WHERE id = ${patient_id}
+            `;
+            console.log(`Updated phone number for patient ${patient_id} to ${customerPhone}`);
+          }
+          phoneToUse = customerPhone;
+        }
         const customerEmail = patient[0]?.email || "patient@techmedix.com";
-        const customerPhone = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : "9999999999";
+        const customerPhoneFinal = phoneToUse ? getNormalizedPhoneForCashfree(phoneToUse) : "9999999999";
         const customerName = patient[0]?.name || "Patient";
 
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -172,7 +190,7 @@ export async function createPayment({
               customer_id: String(patient_id),
               customer_name: customerName,
               customer_email: customerEmail,
-              customer_phone: customerPhone,
+              customer_phone: customerPhoneFinal,
             },
             order_meta: {
               return_url: returnUrl
@@ -191,7 +209,10 @@ export async function createPayment({
 
         await sql`
           UPDATE payments
-          SET razorpay_order_id = ${cashfreeOrder.order_id}
+          SET razorpay_order_id = ${cashfreeOrder.order_id},
+              gst_charges = ${gst},
+              platform_fees = ${platform},
+              total_amount = ${fee}
           WHERE id = ${existingPayment[0].id}
         `;
       }
@@ -251,6 +272,16 @@ export async function createPayment({
       throw new Error("Invalid payment identifiers");
     }
 
+    let gst_charges = 0;
+    let platform_fees = 0;
+    let total_amount = amount;
+
+    if (paymentMethod === "online") {
+      gst_charges = Number((amount * 0.02).toFixed(2));
+      platform_fees = Number((amount * 0.005).toFixed(2));
+      total_amount = Number((amount * 1.025).toFixed(2));
+    }
+
     const paymentResult = await sql`
       INSERT INTO payments (
         appointment_id,
@@ -260,7 +291,10 @@ export async function createPayment({
         currency,
         payment_method,
         status,
-        booking_payload
+        booking_payload,
+        gst_charges,
+        platform_fees,
+        total_amount
       )
       VALUES (
         ${resolvedAppointmentId},
@@ -270,7 +304,10 @@ export async function createPayment({
         'INR',
         ${paymentMethod},
         ${paymentMethod === 'cash' ? 'due' : 'pending'},
-        ${bookingPayload ? sql.json(bookingPayload) : null}
+        ${bookingPayload ? sql.json(bookingPayload) : null},
+        ${gst_charges},
+        ${platform_fees},
+        ${total_amount}
       )
       RETURNING *
     `;
@@ -281,15 +318,29 @@ export async function createPayment({
     if (paymentMethod === "online") {
       const receiptSource =
         resolvedAppointmentId ||
-        `${doctor_id || "doc"}${bookingPayload?.appointment_date || ""}${bookingPayload?.slot_time || ""}`;
+        `${doctor_id || "doc"}` + (bookingPayload?.appointment_date || "") + (bookingPayload?.slot_time || "");
 
       const orderId = `cf_ord_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 12)}_${Date.now()}`;
       
       const patient = await sql`
         SELECT name, email, phone FROM patients WHERE id = ${patient_id}
       `;
+      let phoneToUse = customerPhone || patient[0]?.phone;
+      if (customerPhone) {
+        const normalizedInput = getNormalizedPhoneForCashfree(customerPhone);
+        const normalizedDb = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : null;
+        if (normalizedInput && normalizedInput !== normalizedDb) {
+          await sql`
+            UPDATE patients
+            SET phone = ${customerPhone}
+            WHERE id = ${patient_id}
+          `;
+          console.log(`Updated phone number for patient ${patient_id} to ${customerPhone}`);
+        }
+        phoneToUse = customerPhone;
+      }
       const customerEmail = patient[0]?.email || "patient@techmedix.com";
-      const customerPhone = patient[0]?.phone ? getNormalizedPhoneForCashfree(patient[0].phone) : "9999999999";
+      const customerPhoneFinal = phoneToUse ? getNormalizedPhoneForCashfree(phoneToUse) : "9999999999";
       const customerName = patient[0]?.name || "Patient";
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -300,13 +351,13 @@ export async function createPayment({
         `${cashfreeBaseUrl}/orders`,
         {
           order_id: orderId,
-          order_amount: Number(amount),
+          order_amount: Number(total_amount),
           order_currency: "INR",
           customer_details: {
             customer_id: String(patient_id),
             customer_name: customerName,
             customer_email: customerEmail,
-            customer_phone: customerPhone,
+            customer_phone: customerPhoneFinal,
           },
           order_meta: {
             return_url: returnUrl
@@ -326,7 +377,10 @@ export async function createPayment({
       // Update payment with Cashfree order ID
       const updatedPayment = await sql`
         UPDATE payments
-        SET razorpay_order_id = ${cashfreeOrder.order_id}
+        SET razorpay_order_id = ${cashfreeOrder.order_id},
+            gst_charges = ${gst_charges},
+            platform_fees = ${platform_fees},
+            total_amount = ${total_amount}
         WHERE id = ${insertedPayment.id}
         RETURNING *
       `;

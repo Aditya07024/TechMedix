@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { doctorPosterApi } from "../../api";
+import { doctorPosterApi, doctorApi } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Upload, HelpCircle, CheckCircle, Clock, AlertTriangle, CreditCard, Sparkles } from "lucide-react";
 import "./DoctorPromotions.css";
@@ -23,6 +23,22 @@ export default function DoctorPromotions({ doctorId }) {
   
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [doctorPhone, setDoctorPhone] = useState("");
+
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const res = await doctorApi.getProfile();
+        if (res.data?.phone) {
+          const norm = String(res.data.phone).replace(/\D/g, "").slice(-10);
+          setDoctorPhone(norm);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch doctor profile", err);
+      }
+    }
+    fetchProfile();
+  }, []);
   const imageRef = useRef(null);
 
   const [copied, setCopied] = useState(false);
@@ -207,10 +223,17 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
 
   const handleCheckout = async (posterId) => {
     try {
+      if (!doctorPhone || doctorPhone.length !== 10) {
+        setError("Please enter a valid 10-digit mobile number in the Billing Contact Info section below to proceed.");
+        return;
+      }
       setPayingPosterId(posterId);
       setError("");
       
-      const paySessionRes = await doctorPosterApi.createPaySession({ poster_id: posterId });
+      const paySessionRes = await doctorPosterApi.createPaySession({
+        poster_id: posterId,
+        customer_phone: doctorPhone
+      });
       if (!paySessionRes.data?.success) {
         throw new Error(paySessionRes.data?.error || "Unable to initiate payment");
       }
@@ -235,7 +258,7 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
         // Auto-verify when checkout returns
         try {
           setLoading(true);
-          setError("Verifying payment, please wait...");
+          // setError("Verifying payment, please wait...");
           const verifyRes = await doctorPosterApi.verifyPaySignature({
             order_id: order.id,
             poster_id: posterId,
@@ -292,7 +315,7 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
     <div className="promotions-dashboard">
       <div className="promotions-card-header">
         <h2>Promotional Campaigns</h2>
-        <p>Advertise yourself on the homepage banner header for ₹30 per 30 days.</p>
+        <p>Advertise yourself on the homepage banner header for ₹30.75 per 30 days (includes 2.5% charges for GST, platform fees, and other charges).</p>
       </div>
 
       {error && <div className="promotions-alert error">{error}</div>}
@@ -441,6 +464,33 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
         </>
       )}
 
+      <div className="promotions-billing-card" style={{
+        marginTop: "24px",
+        marginBottom: "24px",
+        padding: "20px",
+        borderRadius: "16px",
+        background: "linear-gradient(180deg, rgba(14, 116, 144, 0.08), rgba(15, 76, 129, 0.03))",
+        border: "1px solid rgba(14, 116, 144, 0.12)",
+      }}>
+        <h4 style={{ margin: "0 0 6px 0", color: "#10283d", fontSize: "1.1rem" }}>Billing Contact Info</h4>
+        <p style={{ margin: "0 0 16px 0", color: "#5f7486", fontSize: "0.9rem", lineHeight: "1.5" }}>
+          Cashfree requires a valid 10-digit mobile number to process secure payments.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#10283d" }}>Mobile Number</label>
+          <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(21, 50, 75, 0.15)", borderRadius: "8px", overflow: "hidden", background: "#fff", maxWidth: "320px" }}>
+            <span style={{ padding: "10px 12px", background: "#f3f4f6", borderRight: "1px solid rgba(21, 50, 75, 0.15)", fontSize: "0.95rem", color: "#4b5563" }}>+91</span>
+            <input
+              type="tel"
+              placeholder="Enter 10-digit mobile number"
+              value={doctorPhone}
+              onChange={(e) => setDoctorPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              style={{ border: "none", outline: "none", padding: "10px 12px", width: "100%", fontSize: "0.95rem", background: "transparent" }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* CAMPAIGN LIST */}
       <div className="campaigns-list-section">
         <h3>Your Banners</h3>
@@ -488,7 +538,7 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
                     </div>
                     <div className="p-row">
                       <span>Amount:</span>
-                      <strong>₹30.00</strong>
+                      <strong>₹{(Number(poster.amount) === 30 ? 30.75 : Number(poster.amount || 30.75)).toFixed(2)}</strong>
                     </div>
 
                     {poster.start_date && (
@@ -508,7 +558,7 @@ Ensure there is NO generic or garbled placeholder text, keep it visually clean s
                         className="pay-now-btn"
                       >
                         <CreditCard size={14} />{" "}
-                        {payingPosterId === poster.id ? "Processing..." : "Pay ₹30 Now"}
+                        {payingPosterId === poster.id ? "Processing..." : `Pay ₹${(Number(poster.amount) === 30 ? 30.75 : Number(poster.amount || 30.75)).toFixed(2)} Now`}
                       </button>
                     )}
 

@@ -448,3 +448,30 @@
     transform: rotate(360deg);
   }
 }
+
+.delete-failed-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: rgba(229, 62, 62, 0.1);
+  border: 1px solid rgba(229, 62, 62, 0.25);
+  color: #e53e3e;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px var(--card-shadow);
+}
+
+.delete-failed-btn:hover:not(:disabled) {
+  background: #e53e3e;
+  color: #fff;
+  border-color: #e53e3e;
+  transform: translateY(-1px);
+}
+
+.delete-failed-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

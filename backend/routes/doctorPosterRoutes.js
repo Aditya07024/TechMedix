@@ -162,18 +162,72 @@ router.post(
         SELECT name, email, phone FROM doctors WHERE id = ${req.user.id}
       `;
       const customerEmail = doctor[0]?.email || "doctor@techmedix.com";
-      const customerPhone = doctor[0]?.phone ? String(doctor[0].phone).replace(/\D/g, "").slice(-10) : "9999999999";
+      const customerPhoneInput = req.body.customer_phone || doctor[0]?.phone;
+      const customerPhone = customerPhoneInput ? String(customerPhoneInput).replace(/\D/g, "").slice(-10) : "9999999999";
       const customerName = doctor[0]?.name || "Doctor";
+
+      const amount = Number(poster.amount || 30.00);
+      const gst_charges = Number((amount * 0.02).toFixed(2));
+      const platform_fees = Number((amount * 0.005).toFixed(2));
+      const total_amount = Number((amount * 1.025).toFixed(2));
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
       const cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
       const returnUrl = `${cleanFrontendUrl}/doctor/dashboard?payment_trigger=promotions&cf_order_id={order_id}&poster_id=${poster.id}`;
 
+      // Insert or update pending payment record in payments table
+      const existingPayment = await sql`
+        SELECT id FROM payments
+        WHERE doctor_id = ${req.user.id}
+          AND status = 'pending'
+          AND booking_payload->>'poster_id' = ${poster.id}
+      `;
+
+      if (existingPayment.length > 0) {
+        await sql`
+          UPDATE payments
+          SET razorpay_order_id = ${orderId},
+              amount = ${amount},
+              gst_charges = ${gst_charges},
+              platform_fees = ${platform_fees},
+              total_amount = ${total_amount},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${existingPayment[0].id}
+        `;
+      } else {
+        await sql`
+          INSERT INTO payments (
+            doctor_id,
+            amount,
+            currency,
+            payment_method,
+            status,
+            booking_payload,
+            gst_charges,
+            platform_fees,
+            total_amount,
+            razorpay_order_id
+          )
+          VALUES (
+            ${req.user.id},
+            ${amount},
+            'INR',
+            'online',
+            'pending',
+            ${sql.json({ poster_id: poster.id, type: 'poster_promotion' })},
+            ${gst_charges},
+            ${platform_fees},
+            ${total_amount},
+            ${orderId}
+          )
+        `;
+      }
+
       const response = await axios.post(
         `${cashfreeBaseUrl}/orders`,
         {
           order_id: orderId,
-          order_amount: Number(poster.amount),
+          order_amount: total_amount,
           order_currency: "INR",
           customer_details: {
             customer_id: String(req.user.id),
@@ -195,7 +249,9 @@ router.post(
       // Save Cashfree order ID to Db
       await sql`
         UPDATE doctor_posters
-        SET razorpay_order_id = ${cashfreeOrder.order_id}, updated_at = NOW()
+        SET razorpay_order_id = ${cashfreeOrder.order_id},
+            amount = ${total_amount},
+            updated_at = NOW()
         WHERE id = ${poster.id}
       `;
 
@@ -285,6 +341,19 @@ router.post(
 
       if (!updated.length) {
         return res.status(404).json({ success: false, error: "Poster record not found" });
+      }
+
+      // Sync ledger status in payments table
+      try {
+        await sql`
+          UPDATE payments
+          SET status = 'paid',
+              razorpay_payment_id = ${transactionId},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE razorpay_order_id = ${orderId}
+        `;
+      } catch (paymentErr) {
+        console.warn("Failed to update payment ledger status for poster:", paymentErr.message);
       }
 
       res.json({ success: true, data: updated[0] });

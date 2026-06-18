@@ -274,3 +274,57 @@
     text-align: left;
   }
 }
+
+.payment-phone-input-wrapper {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payment-phone-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--payment-ink);
+}
+
+.payment-phone-input-container {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--payment-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--payment-surface-strong);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.payment-phone-input-container:focus-within {
+  border-color: var(--payment-accent);
+  box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.15);
+}
+
+.payment-phone-prefix {
+  padding: 12px 14px;
+  background: rgba(21, 50, 75, 0.05);
+  border-right: 1px solid var(--payment-line);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--payment-muted);
+}
+
+.payment-phone-input {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 12px 16px !important;
+  width: 100% !important;
+  font-size: 1rem !important;
+  color: var(--payment-ink) !important;
+  font-family: inherit !important;
+  box-shadow: none !important;
+}
+
+.payment-phone-input::placeholder {
+  color: var(--payment-muted);
+  opacity: 0.6;
+}

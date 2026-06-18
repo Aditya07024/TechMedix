@@ -58,6 +58,7 @@ router.post(
         paymentMethod: payment_method,
         patientIdFromAuth: patient_id,
         bookingDetails: booking_details || null,
+        customerPhone: req.body.customer_phone || null,
       });
 
       res.json(payment);
