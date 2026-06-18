@@ -283,12 +283,12 @@ export const analyticsAPI = {
       }),
 
   getSystemStats: () =>
-    axios.get(`${API_BASE}/analytics/system`, {
+    apiClient.get(`${API_BASE}/analytics/system`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getRevenueReport: (startDate, endDate) =>
-    axios.get(`${API_BASE}/analytics/revenue`, {
+    apiClient.get(`${API_BASE}/analytics/revenue`, {
       params: { start_date: startDate, end_date: endDate },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
@@ -296,63 +296,63 @@ export const analyticsAPI = {
 
 export const scheduleAPI = {
   getAvailableDates: (doctorId, days = 30) =>
-    axios.get(`${API_BASE}/schedule/doctor/${doctorId}/available-dates`, {
+    apiClient.get(`${API_BASE}/schedule/doctor/${doctorId}/available-dates`, {
       params: { days },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getAvailableSlots: (doctorId, date, duration = 30) =>
-    axios.get(`${API_BASE}/schedule/doctor/${doctorId}/available-slots`, {
+    apiClient.get(`${API_BASE}/schedule/doctor/${doctorId}/available-slots`, {
       params: { date, duration },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getDoctorSchedule: (doctorId) =>
-    axios.get(`${API_BASE}/schedule/doctor/${doctorId}`, {
+    apiClient.get(`${API_BASE}/schedule/doctor/${doctorId}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   setSchedule: (doctorId, scheduleData) =>
-    axios.post(`${API_BASE}/schedule/doctor/${doctorId}`, scheduleData, {
+    apiClient.post(`${API_BASE}/schedule/doctor/${doctorId}`, scheduleData, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 };
 
 export const adminAPI = {
   getBranches: () =>
-    axios.get(`${API_BASE}/admin/branches`, {
+    apiClient.get(`${API_BASE}/admin/branches`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getPayments: (limit, offset) =>
-    axios.get(`${API_BASE}/admin/payments`, {
+    apiClient.get(`${API_BASE}/admin/payments`, {
       params: { limit, offset },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   deleteFailedOrPendingPayments: () =>
-    axios.delete(`${API_BASE}/admin/payments/failed-or-pending`, {
+    apiClient.delete(`${API_BASE}/admin/payments/failed-or-pending`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getUsers: (role, limit, offset) =>
-    axios.get(`${API_BASE}/admin/users`, {
+    apiClient.get(`${API_BASE}/admin/users`, {
       params: { role, limit, offset },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getPayoutSummary: () =>
-    axios.get(`${API_BASE}/admin/payouts/summary`, {
+    apiClient.get(`${API_BASE}/admin/payouts/summary`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   createPayout: (data) =>
-    axios.post(`${API_BASE}/admin/payouts`, data, {
+    apiClient.post(`${API_BASE}/admin/payouts`, data, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 
   getPayoutHistory: () =>
-    axios.get(`${API_BASE}/admin/payouts/history`, {
+    apiClient.get(`${API_BASE}/admin/payouts/history`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 };
