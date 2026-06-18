@@ -1699,6 +1699,7 @@ export default function PatientDashboard() {
     })),
   ];
   const bookedAppointments = appointments.filter((a) => a.status === "booked");
+  const todayIso = new Date().toISOString().split("T")[0];
   const activeQueueAppointment = appointments
     .filter((appointment) =>
       ["arrived", "in_progress", "in-progress"].includes(appointment.status),
@@ -1712,12 +1713,13 @@ export default function PatientDashboard() {
   const nextAppointment =
     bookedAppointments.length > 0
       ? bookedAppointments
+          .filter((a) => a.appointment_date === todayIso)
           .slice()
           .sort(
             (a, b) =>
               new Date(`${a.appointment_date} ${a.slot_time || "00:00"}`) -
               new Date(`${b.appointment_date} ${b.slot_time || "00:00"}`),
-          )[0]
+          )[0] || null
       : null;
   const healthScore = hasAnyMetricData ? computeHealthScore(latestMetrics) : 0;
   const healthScoreColor =
@@ -2992,7 +2994,7 @@ export default function PatientDashboard() {
                   </p>
                 </div>
 
-                <div className="prescription-side-card pharmacy-sync-card">
+                {/* <div className="prescription-side-card pharmacy-sync-card">
                   <div className="prescription-side-title">
                     <RefreshCcw size={18} strokeWidth={2} />
                     <h3>Pharmacy Sync</h3>
@@ -3008,9 +3010,9 @@ export default function PatientDashboard() {
                       <strong>Not linked</strong>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
-                <div className="prescription-side-card did-you-know-card">
+                {/* <div className="prescription-side-card did-you-know-card">
                   <div className="prescription-side-title">
                     <Bell size={18} strokeWidth={2} />
                     <h3>Did you know?</h3>
@@ -3019,7 +3021,7 @@ export default function PatientDashboard() {
                     Keeping your prescription list updated allows our system to automatically
                     check for drug-drug interactions in real time.
                   </p>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
@@ -3251,7 +3253,7 @@ export default function PatientDashboard() {
             ) : (
               <div className="empty-panel">
                 <h4>No active queue right now</h4>
-                <p>Your queue details appear here after clinic check-in marks the appointment as arrived.</p>
+                <p>Your queue details will appear here when you have an appointment scheduled for today. Book an appointment or check in at the clinic to see your live queue position.</p>
               </div>
             )}
           </div>
@@ -3479,7 +3481,7 @@ export default function PatientDashboard() {
                   )}
                 </div>
 
-                <div className="wallet-summary-grid">
+                {/* <div className="wallet-summary-grid">
                   <div className="wallet-summary-card">
                     <span>Current Balance</span>
                     <strong>₹{Number(walletBalance).toFixed(2)}</strong>
@@ -3495,7 +3497,7 @@ export default function PatientDashboard() {
                     <strong>₹0.00</strong>
                     <small>No active holds on your wallet balance</small>
                   </div>
-                </div>
+                </div> */}
 
                 <div className="wallet-transactions-card">
                   <div className="wallet-section-head">
@@ -3529,22 +3531,22 @@ export default function PatientDashboard() {
               </div>
 
               <div className="wallet-side-column">
-                <div className="wallet-side-card wallet-security-card">
+                {/* <div className="wallet-side-card wallet-security-card">
                   <div className="wallet-side-title">
                     <ShieldCheck size={18} strokeWidth={2} />
                     <h3>Protected Wallet</h3>
                   </div>
                   <p>Wallet access is protected. Additional billing details appear only when connected to your account.</p>
-                </div>
+                </div> */}
 
-                <div className="wallet-side-card wallet-upcoming-card">
+                {/* <div className="wallet-side-card wallet-upcoming-card">
                   <div className="wallet-side-title">
                     <CalendarDays size={18} strokeWidth={2} />
                     <h3>Upcoming Billing</h3>
                   </div>
                   <strong>None Scheduled</strong>
                   <p>No scheduled charge is currently attached to your wallet.</p>
-                </div>
+                </div> */}
 
                 <div className="wallet-side-card wallet-support-card">
                   <div className="wallet-side-title">

@@ -333,7 +333,7 @@ export async function getDoctorRevenueMetrics(doctorId, days = 30) {
 /**
  * Update appointment cancellation in analytics
  */
-export async function recordAppointmentCancellation(appointmentId, doctorId) {
+export async function recordAppointmentCancellation(appointmentId, doctorId, refundAmount = 0) {
   const appointment = await sql`
     SELECT appointment_date
     FROM appointments
@@ -351,15 +351,18 @@ export async function recordAppointmentCancellation(appointmentId, doctorId) {
     INSERT INTO doctor_analytics (
       doctor_id,
       date,
-      cancelled_appointments
+      cancelled_appointments,
+      revenue_estimated
     ) VALUES (
       ${doctorId},
       ${dateStr},
-      1
+      1,
+      0
     )
     ON CONFLICT (doctor_id, date)
     DO UPDATE SET
       cancelled_appointments = doctor_analytics.cancelled_appointments + 1,
+      revenue_estimated = doctor_analytics.revenue_estimated - ${refundAmount},
       updated_at = CURRENT_TIMESTAMP
   `;
 }

@@ -313,4 +313,152 @@ router.get(
   }
 );
 
+/**
+ * Get chart data for admin dashboard overview
+ */
+router.get(
+  "/charts",
+  authenticate,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const days = parseInt(req.query.days) || 30;
+
+      // 1. Daily appointments trend (last N days)
+      const dailyAppointments = await sql`
+        SELECT 
+          d.date::text,
+          COALESCE(booked.count, 0)::int AS booked,
+          COALESCE(completed.count, 0)::int AS completed,
+          COALESCE(cancelled.count, 0)::int AS cancelled
+        FROM generate_series(
+          CURRENT_DATE - ${days - 1}::int,
+          CURRENT_DATE,
+          '1 day'::interval
+        ) AS d(date)
+        LEFT JOIN (
+          SELECT appointment_date, COUNT(*) AS count
+          FROM appointments WHERE is_deleted = FALSE
+          GROUP BY appointment_date
+        ) booked ON booked.appointment_date = d.date
+        LEFT JOIN (
+          SELECT appointment_date, COUNT(*) AS count
+          FROM appointments WHERE is_deleted = FALSE AND status IN ('completed', 'visited')
+          GROUP BY appointment_date
+        ) completed ON completed.appointment_date = d.date
+        LEFT JOIN (
+          SELECT appointment_date, COUNT(*) AS count
+          FROM appointments WHERE is_deleted = FALSE AND status = 'cancelled'
+          GROUP BY appointment_date
+        ) cancelled ON cancelled.appointment_date = d.date
+        ORDER BY d.date ASC
+      `;
+
+      // 2. Daily revenue trend (last N days)
+      const dailyRevenue = await sql`
+        SELECT 
+          d.date::text,
+          COALESCE(SUM(CASE WHEN p.payment_method IN ('online', 'wallet') THEN p.amount ELSE 0 END), 0)::numeric AS online,
+          COALESCE(SUM(CASE WHEN p.payment_method = 'cash' THEN p.amount ELSE 0 END), 0)::numeric AS offline,
+          COALESCE(SUM(p.amount), 0)::numeric AS total
+        FROM generate_series(
+          CURRENT_DATE - ${days - 1}::int,
+          CURRENT_DATE,
+          '1 day'::interval
+        ) AS d(date)
+        LEFT JOIN payments p ON p.created_at::date = d.date 
+          AND p.status = 'paid' 
+          AND COALESCE(p.is_deleted, false) = FALSE
+        GROUP BY d.date
+        ORDER BY d.date ASC
+      `;
+
+      // 3. Payment method distribution
+      const paymentMethods = await sql`
+        SELECT 
+          COALESCE(payment_method, 'unknown') AS method,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(amount), 0)::numeric AS total_amount
+        FROM payments 
+        WHERE status = 'paid' AND COALESCE(is_deleted, false) = FALSE
+        GROUP BY payment_method
+        ORDER BY count DESC
+      `;
+
+      // 4. Appointment status distribution
+      const appointmentStatuses = await sql`
+        SELECT 
+          COALESCE(status, 'unknown') AS status,
+          COUNT(*)::int AS count
+        FROM appointments
+        WHERE is_deleted = FALSE
+        GROUP BY status
+        ORDER BY count DESC
+      `;
+
+      // 5. Top doctors by completed appointments
+      const topDoctors = await sql`
+        SELECT 
+          d.name AS doctor_name,
+          d.specialty,
+          COUNT(a.id)::int AS completed_count,
+          COALESCE(SUM(p.amount), 0)::numeric AS total_revenue
+        FROM doctors d
+        LEFT JOIN appointments a ON a.doctor_id = d.id 
+          AND a.status IN ('completed', 'visited') 
+          AND a.is_deleted = FALSE
+        LEFT JOIN payments p ON p.doctor_id = d.id 
+          AND p.status = 'paid' 
+          AND COALESCE(p.is_deleted, false) = FALSE
+        WHERE d.is_deleted = FALSE
+        GROUP BY d.id, d.name, d.specialty
+        ORDER BY completed_count DESC
+        LIMIT 10
+      `;
+
+      // 6. Monthly registration trend (patients)
+      const monthlyRegistrations = await sql`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+          COUNT(*)::int AS patients
+        FROM patients
+        WHERE is_deleted = FALSE
+          AND created_at >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', created_at)
+        ORDER BY month ASC
+      `;
+
+      res.json({
+        success: true,
+        data: {
+          daily_appointments: dailyAppointments,
+          daily_revenue: dailyRevenue.map(r => ({
+            date: r.date,
+            online: Number(r.online),
+            offline: Number(r.offline),
+            total: Number(r.total)
+          })),
+          payment_methods: paymentMethods.map(r => ({
+            method: r.method,
+            count: r.count,
+            total_amount: Number(r.total_amount)
+          })),
+          appointment_statuses: appointmentStatuses,
+          top_doctors: topDoctors.map(r => ({
+            doctor_name: r.doctor_name,
+            specialty: r.specialty,
+            completed_count: r.completed_count,
+            total_revenue: Number(r.total_revenue)
+          })),
+          monthly_registrations: monthlyRegistrations
+        }
+      });
+    } catch (err) {
+      console.error("Failed to fetch chart data:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
 export default router;
+

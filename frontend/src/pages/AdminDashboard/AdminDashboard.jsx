@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { adminAPI, analyticsAPI, supportAPI } from "../../api/techmedixAPI";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line
+} from "recharts";
 import "./AdminDashboard.css";
 
 /**
@@ -31,6 +36,10 @@ export default function AdminDashboard() {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
+
+  // Chart data state
+  const [chartData, setChartData] = useState(null);
+  const [chartsLoading, setChartsLoading] = useState(false);
 
   useEffect(() => {
     loadAdminData();
@@ -72,12 +81,14 @@ export default function AdminDashboard() {
   const loadAdminData = async () => {
     try {
       setLoading(true);
-      const [statsRes, paymentsRes, usersRes, branchesRes] =
+      setChartsLoading(true);
+      const [statsRes, paymentsRes, usersRes, branchesRes, chartsRes] =
         await Promise.allSettled([
           analyticsAPI.getSystemStats(),
           adminAPI.getPayments(50, 0),
           adminAPI.getUsers(null, 50, 0),
           adminAPI.getBranches(),
+          analyticsAPI.getChartData(30),
         ]);
 
       if (statsRes.status === "fulfilled") {
@@ -92,10 +103,14 @@ export default function AdminDashboard() {
       if (branchesRes.status === "fulfilled") {
         setBranches(branchesRes.value.data?.data || []);
       }
+      if (chartsRes.status === "fulfilled") {
+        setChartData(chartsRes.value.data?.data || null);
+      }
     } catch (err) {
       setError("Failed to load admin data: " + err.message);
     } finally {
       setLoading(false);
+      setChartsLoading(false);
     }
   };
 
@@ -361,6 +376,204 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
+
+            {/* ═══════ CHARTS SECTION ═══════ */}
+            {chartsLoading && !chartData && (
+              <p className="charts-loading">Loading analytics charts...</p>
+            )}
+
+            {chartData && (
+              <div className="charts-section">
+
+                {/* 1. Appointment Trends — Area Chart */}
+                <div className="chart-card chart-card--wide">
+                  <h3>📅 Appointment Trends <span className="chart-subtitle">Last 30 days</span></h3>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={(chartData.daily_appointments || []).map(d => ({
+                      date: new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                      Booked: d.booked,
+                      Completed: d.completed,
+                      Cancelled: d.cancelled
+                    }))} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradBooked" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gradCompleted" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00de94" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#00de94" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gradCancelled" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,150,150,0.15)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <Legend />
+                      <Area type="monotone" dataKey="Booked" stroke="#6366f1" fillOpacity={1} fill="url(#gradBooked)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="Completed" stroke="#00de94" fillOpacity={1} fill="url(#gradCompleted)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="Cancelled" stroke="#f43f5e" fillOpacity={1} fill="url(#gradCancelled)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 2. Revenue Trend — Area Chart */}
+                <div className="chart-card chart-card--wide">
+                  <h3>💰 Revenue Trend <span className="chart-subtitle">Last 30 days</span></h3>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <AreaChart data={(chartData.daily_revenue || []).map(d => ({
+                      date: new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                      Online: d.online,
+                      Offline: d.offline,
+                      Total: d.total
+                    }))} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradOnline" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gradOffline" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,150,150,0.15)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? (v/1000).toFixed(0) + 'k' : v}`} />
+                      <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <Legend />
+                      <Area type="monotone" dataKey="Online" stroke="#8b5cf6" fillOpacity={1} fill="url(#gradOnline)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="Offline" stroke="#f59e0b" fillOpacity={1} fill="url(#gradOffline)" strokeWidth={2} />
+                      <Line type="monotone" dataKey="Total" stroke="#00de94" strokeWidth={2.5} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Row: Pie charts side by side */}
+                <div className="charts-row">
+
+                  {/* 3. Payment Methods — Pie Chart */}
+                  <div className="chart-card">
+                    <h3>💳 Payment Methods</h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie
+                          data={(chartData.payment_methods || []).map(m => ({
+                            name: m.method === 'online' ? 'Online' : m.method === 'cash' ? 'Cash' : m.method === 'wallet' ? 'Wallet' : m.method,
+                            value: m.count
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={100}
+                          paddingAngle={4}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {(chartData.payment_methods || []).map((_, i) => (
+                            <Cell key={i} fill={['#8b5cf6', '#00de94', '#f59e0b', '#f43f5e', '#3b82f6'][i % 5]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => `${value} payments`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* 4. Appointment Status — Donut Chart */}
+                  <div className="chart-card">
+                    <h3>📊 Appointment Status</h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie
+                          data={(chartData.appointment_statuses || []).map(s => ({
+                            name: s.status.charAt(0).toUpperCase() + s.status.slice(1),
+                            value: s.count
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={100}
+                          paddingAngle={4}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {(chartData.appointment_statuses || []).map((_, i) => (
+                            <Cell key={i} fill={['#00de94', '#6366f1', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6'][i % 7]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => `${value} appointments`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 5. Top Doctors — Bar Chart */}
+                <div className="chart-card chart-card--wide">
+                  <h3>🏆 Top Doctors by Completed Appointments</h3>
+                  <ResponsiveContainer width="100%" height={Math.max(280, (chartData.top_doctors || []).length * 42)}>
+                    <BarChart
+                      data={(chartData.top_doctors || []).map(d => ({
+                        name: `Dr. ${d.doctor_name}`,
+                        Completed: d.completed_count,
+                        Revenue: d.total_revenue
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,150,150,0.15)" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={140} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <Legend />
+                      <Bar dataKey="Completed" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 6. Top Doctors Revenue — Bar Chart */}
+                <div className="chart-card chart-card--wide">
+                  <h3>💸 Doctor-wise Revenue</h3>
+                  <ResponsiveContainer width="100%" height={Math.max(280, (chartData.top_doctors || []).length * 42)}>
+                    <BarChart
+                      data={(chartData.top_doctors || []).map(d => ({
+                        name: `Dr. ${d.doctor_name}`,
+                        Revenue: d.total_revenue
+                      }))}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,150,150,0.15)" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v >= 1000 ? (v/1000).toFixed(0) + 'k' : v}`} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={140} />
+                      <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <Bar dataKey="Revenue" fill="#00de94" radius={[0, 6, 6, 0]} barSize={18} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 7. Monthly Patient Registrations — Line Chart */}
+                <div className="chart-card chart-card--wide">
+                  <h3>👥 Monthly Patient Registrations <span className="chart-subtitle">Last 12 months</span></h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={(chartData.monthly_registrations || []).map(d => ({
+                      month: new Date(d.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+                      Patients: d.patients
+                    }))} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,150,150,0.15)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }} />
+                      <Line type="monotone" dataKey="Patients" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 5, fill: '#6366f1' }} activeDot={{ r: 7, fill: '#00de94' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+              </div>
+            )}
           </div>
         )}
 
@@ -483,7 +696,7 @@ export default function AdminDashboard() {
                 <span>{payoutLoading ? "Refreshing..." : "Refresh"}</span>
               </button>
             </div>
-            <p>Distribute consultaion fees received online (Razorpay) back to the practitioners.</p>
+            {/* <p>Distribute consultaion fees received online back to the practitioners.</p> */}
             
             {payoutLoading && payoutSummary.length === 0 ? (
               <p>Loading payouts metrics...</p>

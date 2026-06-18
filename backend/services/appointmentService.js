@@ -1,5 +1,7 @@
 import sql from "../config/database.js";
 import { logAudit } from "../services/auditService.js";
+import { recordAppointmentCancellation } from "./doctorAnalyticsService.js";
+import { creditWallet } from "./walletService.js";
 export async function bookAppointment(data) {
   const {
     patient_id,
@@ -236,6 +238,8 @@ export async function cancelAppointment(appointmentId, userRole, reason) {
     metadata: { cancelled_by: cancelledBy, reason: cancellationReason },
   });
 
+  await handleAppointmentCancellationCleanup(appointmentId);
+
   return result[0];
 }
 
@@ -385,8 +389,87 @@ export async function updateAppointmentStatus(appointmentId, status) {
     metadata: { new_status: status, db_status: dbStatus },
   });
 
+  if (dbStatus === 'cancelled') {
+    await handleAppointmentCancellationCleanup(appointmentId);
+  }
+
   // return user-facing status
   const result = updated[0];
   result.status = status === "visited" ? "visited" : result.status;
   return result;
+}
+
+export async function handleAppointmentCancellationCleanup(appointmentId) {
+  try {
+    const appt = await sql`
+      SELECT patient_id, doctor_id, appointment_date::date as date
+      FROM appointments WHERE id = ${appointmentId}
+    `;
+    if (!appt.length) return;
+
+    const patientId = appt[0].patient_id;
+    const doctorId = appt[0].doctor_id;
+
+    // Fetch the latest payment for this appointment
+    const payments = await sql`
+      SELECT id, amount, payment_method, status
+      FROM payments
+      WHERE appointment_id = ${appointmentId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    let refundAmount = 0;
+
+    if (payments.length) {
+      const payment = payments[0];
+      if (payment.status === 'paid') {
+        refundAmount = Number(payment.amount) || 0;
+
+        // If paid online or via wallet, return to wallet
+        if (['online', 'wallet'].includes(payment.payment_method)) {
+          // Check if already refunded to prevent duplicate refund
+          const dup = await sql`
+            SELECT id FROM wallet_transactions
+            WHERE patient_id = ${patientId}
+              AND type = 'credit'
+              AND source = 'appointment_cancel'
+              AND reference_id = ${appointmentId}
+            LIMIT 1
+          `;
+          if (!dup.length) {
+            await creditWallet({
+              patientId,
+              amount: refundAmount,
+              source: 'appointment_cancel',
+              referenceId: appointmentId,
+              note: 'Refunded as wallet credit for cancelled appointment',
+            });
+          }
+        }
+
+        // Update payment status to refunded
+        await sql`
+          UPDATE payments
+          SET status = 'refunded',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${payment.id}
+        `;
+      } else {
+        // If pending/due, update to cancelled
+        await sql`
+          UPDATE payments
+          SET status = 'cancelled',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${payment.id}
+        `;
+      }
+    }
+
+    // Update doctor analytics
+    await recordAppointmentCancellation(appointmentId, doctorId, refundAmount);
+
+  } catch (err) {
+    console.error("Failed to run appointment cancellation cleanup:", err.message);
+  }
 }

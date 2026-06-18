@@ -292,6 +292,12 @@ export const analyticsAPI = {
       params: { start_date: startDate, end_date: endDate },
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
+
+  getChartData: (days = 30) =>
+    apiClient.get(`${API_BASE}/analytics/charts`, {
+      params: { days },
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    }),
 };
 
 export const scheduleAPI = {
