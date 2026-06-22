@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScreenScroll, SurfaceCard, TopBar } from "../../components/ui";
@@ -32,7 +33,7 @@ const DOCTOR_SIGNUP = {
   specialty: "",
 };
 
-export default function LoginRoleSelectionScreen() {
+export default function LoginRoleSelectionScreen({ route }) {
   const {
     signInPatient,
     signUpPatient,
@@ -40,7 +41,15 @@ export default function LoginRoleSelectionScreen() {
     signUpDoctor,
   } = useAuth();
 
-  const [role, setRole] = useState("patient");
+  const defaultRole = route?.params?.defaultRole || "patient";
+  const [role, setRole] = useState(defaultRole);
+
+  React.useEffect(() => {
+    if (route?.params?.defaultRole) {
+      setRole(route.params.defaultRole);
+    }
+  }, [route?.params?.defaultRole]);
+
   const [mode, setMode] = useState("login");
   const [patientLogin, setPatientLogin] = useState({ email: "", password: "" });
   const [doctorLogin, setDoctorLogin] = useState({ email: "", password: "" });
@@ -290,24 +299,39 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
     gap: spacing.md,
+    backgroundColor: colors.surfaceLow,
+    borderRadius: radii.pill,
+    padding: 4,
+    alignItems: "center",
   },
   rolePill: {
     flex: 1,
     borderRadius: radii.pill,
-    backgroundColor: colors.surfaceHighest,
-    paddingVertical: 14,
+    backgroundColor: "transparent",
+    paddingVertical: 12,
     alignItems: "center",
   },
   rolePillActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surfaceLowest,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
+      : {
+          shadowColor: "rgba(17,20,43,0.06)",
+          shadowOpacity: 0.6,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 2,
+        }),
   },
   rolePillText: {
-    color: colors.onSurface,
+    color: colors.onSurfaceVariant,
     fontWeight: "700",
     fontSize: typography.bodySmall,
   },
   rolePillTextActive: {
-    color: colors.onPrimary,
+    color: colors.primary,
   },
   formCard: {
     gap: spacing.lg,
@@ -328,19 +352,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fieldLabel: {
-    color: colors.outline,
+    color: colors.onSurfaceVariant,
     fontSize: typography.label,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   input: {
-    backgroundColor: colors.surfaceHigh,
+    backgroundColor: colors.surfaceLowest,
+    borderWidth: 1,
+    borderColor: colors.outline,
     borderRadius: radii.md,
     paddingHorizontal: 16,
     paddingVertical: 14,
     color: colors.onSurface,
     fontSize: typography.body,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
+      : {
+          shadowColor: "rgba(17,20,43,0.06)",
+          shadowOpacity: 0.6,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 1,
+        }),
   },
   textArea: {
     minHeight: 96,

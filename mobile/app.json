@@ -30,8 +30,15 @@
       ]
     },
     "plugins": [
-      "expo-barcode-scanner",
-      "@react-native-community/datetimepicker"
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow TechMedix Mobile to access your camera"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset",
+      "expo-font"
     ],
     "extra": {
       "eas": {

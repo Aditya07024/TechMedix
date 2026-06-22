@@ -5,6 +5,7 @@ import {
   markCashPayment,
   getDoctorEarningsSummary,
   getDoctorRevenueDetails,
+  initiateWalletTopup,
 } from "../services/paymentService.js";
 import { debitWallet, getWalletBalance } from "../services/walletService.js";
 import sql from "../config/database.js";
@@ -272,6 +273,26 @@ router.post(
       }
 
       res.json({ success: true, message: "Paid with wallet", payment_id: payment.id });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Wallet: Add Money / Top up
+router.post(
+  "/wallet/add-money",
+  authenticate,
+  authorizeRoles("patient"),
+  async (req, res) => {
+    try {
+      const { amount, customer_phone } = req.body;
+      const result = await initiateWalletTopup({
+        amount,
+        patientId: req.user.id,
+        customerPhone: customer_phone,
+      });
+      res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

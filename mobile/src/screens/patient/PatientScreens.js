@@ -10,10 +10,12 @@ import { Platform } from "react-native";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Linking,
   Modal,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -142,11 +144,138 @@ async function pickSingleDocument(options = {}) {
   return result.assets[0];
 }
 
+export function formatSlotTime12Hour(timeStr) {
+  if (!timeStr) return "";
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return timeStr;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  if (isNaN(hours)) return timeStr;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+export function PatientMenuDrawer({ visible, onClose, navigation }) {
+  const { logout } = useAuth();
+  const slideAnim = useRef(new Animated.Value(-280)).current;
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: visible ? 0 : -280,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  const handleNavigate = (screenName, params) => {
+    onClose();
+    if (screenName === "Logout") {
+      logout();
+      return;
+    }
+    navigation.navigate(screenName, params);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      onRequestClose={onClose}
+      animationType="none"
+    >
+      <View style={styles.drawerBackdrop}>
+        <TouchableOpacity
+          style={styles.drawerOverlayDismiss}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <Animated.View
+          style={[
+            styles.drawerContent,
+            { transform: [{ translateX: slideAnim }] },
+          ]}
+        >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.drawerScroll}>
+            <View style={styles.drawerHeader}>
+              <Image
+                source={require("../../../assets/icon.png")}
+                style={styles.drawerLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.drawerBrand}>TechMedix</Text>
+              <Text style={styles.drawerSubBrand}>CLINICAL SANCTUARY</Text>
+            </View>
+
+            <View style={styles.drawerSection}>
+              <Text style={styles.drawerSectionTitle}>Menu</Text>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("Home")}>
+                <MaterialCommunityIcons name="home-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Home</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("Appointments")}>
+                <MaterialCommunityIcons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Appointments</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("Prescriptions")}>
+                <MaterialCommunityIcons name="pill" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Prescriptions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("HealthWallet")}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Records</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("PatientRecordings")}>
+                <MaterialCommunityIcons name="microphone-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Recordings</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("PatientQueue")}>
+                <MaterialCommunityIcons name="account-clock-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Queue</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("HealthMetrics")}>
+                <MaterialCommunityIcons name="chart-line" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Metrics</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("Wallet")}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Wallet</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("PaymentWallet")}>
+                <MaterialCommunityIcons name="cash-multiple" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Funds</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.drawerItem} onPress={() => handleNavigate("Profile")}>
+                <MaterialCommunityIcons name="account-outline" size={20} color={colors.primary} />
+                <Text style={styles.drawerItemText}>Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 export function PatientDashboardScreen({ navigation }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const [homeData, setHomeData] = useState({
     profile: user,
     appointments: [],
@@ -157,6 +286,7 @@ export function PatientDashboardScreen({ navigation }) {
     notifications: [],
     recordings: [],
     documents: [],
+    activePosters: [],
   });
 
   const [reminders, setReminders] = useState({});
@@ -334,9 +464,10 @@ export function PatientDashboardScreen({ navigation }) {
     else if (!hasLoadedDashboard) setLoading(true);
 
     try {
-      const [profileRes, appointmentsRes] = await Promise.allSettled([
+      const [profileRes, appointmentsRes, walletRes] = await Promise.allSettled([
         api.patients.getProfile(user.id),
         api.appointments.getByPatient(user.id),
+        api.payments.getWalletBalance(),
       ]);
 
       setHomeData((current) => ({
@@ -346,6 +477,10 @@ export function PatientDashboardScreen({ navigation }) {
           appointmentsRes.status === "fulfilled"
             ? normalizeArray(appointmentsRes.value)
             : current.appointments,
+        walletBalance:
+          walletRes.status === "fulfilled"
+            ? Number(walletRes.value?.balance || 0)
+            : current.walletBalance,
       }));
       setError("");
       setLoading(false);
@@ -357,12 +492,14 @@ export function PatientDashboardScreen({ navigation }) {
         insightsRes,
         recordingsRes,
         docsRes,
+        postersRes,
       ] = await Promise.allSettled([
         api.prescriptions.listByPatient(user.id),
         api.health.latest(),
         api.health.insights(),
         api.recordings.listForPatient(user.id),
         api.wallet.listDocuments(),
+        api.doctorPosters.listActive(),
       ]);
 
       setHomeData((current) => ({
@@ -387,6 +524,10 @@ export function PatientDashboardScreen({ navigation }) {
           docsRes.status === "fulfilled"
             ? normalizeArray(docsRes.value)
             : current.documents,
+        activePosters:
+          postersRes.status === "fulfilled"
+            ? normalizeArray(postersRes.value)
+            : current.activePosters || [],
       }));
     } catch (loadError) {
       setError(loadError.message);
@@ -403,10 +544,14 @@ export function PatientDashboardScreen({ navigation }) {
   );
 
   const appointments = homeData.appointments || [];
-  const upcomingAppointment =
-    appointments.find((item) =>
-      ["booked", "arrived", "in_progress"].includes(item.status),
-    ) || appointments[0];
+  const activeAppointments = appointments
+    .filter((item) => ["booked", "arrived", "in_progress"].includes(item.status))
+    .sort((a, b) => {
+      const dateA = new Date(`${a.appointment_date}T${a.slot_time || "00:00"}`);
+      const dateB = new Date(`${b.appointment_date}T${b.slot_time || "00:00"}`);
+      return dateA - dateB;
+    });
+  const upcomingAppointment = activeAppointments[0] || null;
   const latestMetrics = Object.values(homeData.healthLatest || {}).slice(0, 4);
   const profile = homeData.profile || user || {};
 
@@ -422,287 +567,333 @@ export function PatientDashboardScreen({ navigation }) {
           />
         }
       >
-      <TopBar
-        title={`Hello, ${(profile.name || "Patient").split(" ")[0]}`}
-        subtitle="Patient Dashboard"
-        avatar={getInitials(profile.name)}
-        onBell={() => navigation.navigate("Notifications")}
-      />
-
-      {loading ? <LoadingCard label="Loading your dashboard..." /> : null}
-      <InlineError message={error} />
-
-      <View style={styles.heroRow}>
-        <SurfaceCard style={{ flex: 1.2 }}>
-          <Text style={styles.heroLabel}>Wallet</Text>
-          <Text style={styles.heroValue}>
-            {formatCurrency(homeData.walletBalance)}
-          </Text>
-          <Text style={styles.heroBody}>Existing Balance</Text>
-          <GradientButton
-            label="Open Wallet"
-            icon="wallet-outline"
-            onPress={() => navigation.navigate("PaymentWallet")}
-          />
-        </SurfaceCard>
-
-        <SurfaceCard tone="low" style={{ flex: 0.9 }}>
-          <Text style={styles.heroLabel}>Unread Alerts</Text>
-          <Text style={styles.heroValue}>{homeData.notifications.length}</Text>
-          <Text style={styles.heroBody}>
-            Notifications, reminders, and care updates.
-          </Text>
-          <SecondaryButton
-            label="Open"
-            icon="bell-outline"
-            onPress={() => navigation.navigate("Notifications")}
-          />
-        </SurfaceCard>
-      </View>
-
-      <View style={styles.cardHeaderRow}>
-        <Text style={styles.blockTitle}>Quick Actions</Text>
-      </View>
-      <View style={styles.tileGrid}>
-        <ActionTile
-          style={{ width: "33%" }}
-          label="Book Care"
-          icon="calendar-plus"
-          onPress={() => navigation.navigate("Care")}
+        <TopBar
+          title={`Hello, ${(profile.name || "Patient").split(" ")[0]}`}
+          subtitle="Patient Dashboard"
+          avatar={getInitials(profile.name)}
+          onMenuPress={() => setDrawerVisible(true)}
+          menuIcon="logo"
+          onBell={() => navigation.navigate("Notifications")}
         />
-        <ActionTile
-          style={{ width: "33%" }}
-          label="Upload Prescription"
-          icon="upload"
-          onPress={() => navigation.navigate("Prescriptions")}
-        />
-        <ActionTile
-          style={{ width: "33%" }}
-          label="Queue"
-          icon="account-clock-outline"
-          onPress={() => navigation.navigate("PatientQueue")}
-        />
-        <ActionTile
-          style={{ width: "33%" }}
-          label="Metrics"
-          icon="chart-line"
-          onPress={() => navigation.navigate("HealthMetrics")}
-        />
-        <ActionTile
-          style={{ width: "33%" }}
-          label="X-ray"
-          icon="file-image-outline"
-          onPress={() => navigation.navigate("XRayAnalyzer")}
-        />
-        <ActionTile
-          style={{ width: "33%" }}
-          label="Voice Notes"
-          icon="microphone-outline"
-          onPress={() => navigation.navigate("PatientRecordings")}
-        />
-      </View>
 
-      <SurfaceCard>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>Upcoming Appointment</Text>
-          {upcomingAppointment ? (
-            <Pill label={upcomingAppointment.status || "booked"} tone="info" />
-          ) : null}
-        </View>
-        {upcomingAppointment ? (
-          <>
-            <Text style={styles.sectionValue}>
-              {upcomingAppointment.doctor_name || "Assigned doctor"}
-            </Text>
-            <Text style={styles.sectionMuted}>
-              {formatDate(upcomingAppointment.appointment_date)} at{" "}
-              {upcomingAppointment.slot_time}
-            </Text>
-            <View style={styles.inlineRow}>
-              <InfoChip
-                icon="cash-multiple"
-                label={`Payment: ${upcomingAppointment.payment_status || "pending"}`}
-              />
-              <InfoChip
-                icon="calendar-clock"
-                label={upcomingAppointment.status || "booked"}
-              />
-            </View>
-            <View style={styles.buttonRow}>
-              <SecondaryButton
-                label="Queue"
-                icon="account-clock-outline"
-                onPress={() => navigation.navigate("PatientQueue")}
-                style={{ flex: 1 }}
-              />
-              <GradientButton
-                label="Payment"
-                icon="credit-card-outline"
-                onPress={() =>
-                  navigation.navigate("AppointmentPayment", {
-                    appointmentId: upcomingAppointment.id,
-                  })
-                }
-                style={{ flex: 1 }}
-              />
-            </View>
-          </>
-        ) : (
-          <EmptyStateCard
-            title="No active appointment"
-            body="Book your first consultation from the Care tab."
-          />
-        )}
-      </SurfaceCard>
+        {loading ? <LoadingCard label="Loading your dashboard..." /> : null}
+        <InlineError message={error} />
 
-      <SurfaceCard>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>Prescription Snapshot</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate("Prescriptions")}
-          >
-            <Text style={styles.linkText}>Manage</Text>
-          </TouchableOpacity>
-        </View>
-        {homeData.prescriptions.length ? (
-          homeData.prescriptions.slice(0, 4).map((item, index) => (
-            <View
-              key={`${item.medicine_id || item.id}-${index}`}
-              style={styles.listRow}
+        
+
+        {/* Featured Posters */}
+        {homeData.activePosters && homeData.activePosters.length > 0 ? (
+          <View style={styles.posterContainer}>
+            <SectionHeader
+              eyebrow="Sponsored"
+              title="Featured Campaigns"
+              actionLabel="See All"
+              onActionPress={() => navigation.navigate("MedicineSearch")}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.posterScrollContent}
+              style={{ marginTop: spacing.md }}
             >
-              <View style={styles.listIcon}>
-                <MaterialCommunityIcons
-                  name="pill"
-                  size={18}
-                  color={colors.primary}
-                />
+              {homeData.activePosters.map((poster) => (
+                <View key={poster.id} style={styles.posterCard}>
+                  <Image
+                    source={{ uri: toAbsoluteUrl(poster.image_url) }}
+                    style={styles.posterImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.posterInfoOverlay}>
+                    <Text style={styles.posterDocName}>
+                      {poster.doctor_name.startsWith("Dr.") ? poster.doctor_name : `Dr. ${poster.doctor_name}`}
+                    </Text>
+                    <Text style={styles.posterDocSpecialty}>{poster.specialty}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Funds Card */}
+        <View style={styles.walletBalanceCardContainer}>
+          <SurfaceCard tone="lowest" style={styles.premiumWalletCard}>
+            <View style={styles.walletHeaderRow}>
+              <View style={styles.walletIconContainer}>
+                <MaterialCommunityIcons name="wallet-outline" size={22} color={colors.primary} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{item.medicine_name}</Text>
-                <Text style={styles.listMeta}>
-                  {[item.dosage, item.frequency, item.duration]
-                    .filter(Boolean)
-                    .join(" • ")}
+              <View>
+                <Text style={styles.walletTitle}>My TechMedix Funds</Text>
+                <Text style={styles.walletSubtitle}>Instantly pay consultation fees</Text>
+              </View>
+            </View>
+            <View style={styles.walletDivider} />
+            <View style={styles.walletAmountRow}>
+              <View>
+                <Text style={styles.walletLabelText}>WALLET BALANCE</Text>
+                <Text style={styles.walletAmountValue}>{formatCurrency(homeData.walletBalance)}</Text>
+              </View>
+              <GradientButton
+                label="Manage Funds"
+                icon="cash-multiple"
+                onPress={() => navigation.navigate("PaymentWallet")}
+                style={styles.walletActionBtn}
+              />
+            </View>
+          </SurfaceCard>
+        </View>
+
+        <SectionHeader
+          title="Clinical Workflows"
+          eyebrow="Quick Actions"
+        />
+        <View style={styles.tileGrid}>
+          <ActionTile
+            style={{ width: "33%" }}
+            label="Appointments"
+            icon="calendar-plus"
+            onPress={() => navigation.navigate("Appointments")}
+          />
+          <ActionTile
+            style={{ width: "33%" }}
+            label="Upload Rx"
+            icon="upload"
+            onPress={() => navigation.navigate("Prescriptions")}
+          />
+          <ActionTile
+            style={{ width: "33%" }}
+            label="Queue"
+            icon="account-clock-outline"
+            onPress={() => navigation.navigate("PatientQueue")}
+          />
+          <ActionTile
+            style={{ width: "33%" }}
+            label="Metrics"
+            icon="chart-line"
+            onPress={() => navigation.navigate("HealthMetrics")}
+          />
+          <ActionTile
+            style={{ width: "33%" }}
+            label="X-ray"
+            icon="file-image-outline"
+            onPress={() => navigation.navigate("XRayAnalyzer")}
+          />
+          <ActionTile
+            style={{ width: "33%" }}
+            label="Voice Notes"
+            icon="microphone-outline"
+            onPress={() => navigation.navigate("PatientRecordings")}
+          />
+        </View>
+
+        {/* Upcoming Consultation */}
+        <SurfaceCard tone="lowest" style={styles.appointmentCard}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.appointmentHeaderTitle}>Upcoming Consultation</Text>
+            {upcomingAppointment ? (
+              <Pill label={upcomingAppointment.status || "booked"} tone="info" />
+            ) : null}
+          </View>
+          
+          {upcomingAppointment ? (
+            <View style={styles.appointmentBody}>
+              <View style={styles.appointmentDocInfo}>
+                <View style={styles.appointmentAvatarCircle}>
+                  <Text style={styles.appointmentAvatarText}>
+                    {getInitials(upcomingAppointment.doctor_name)}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.appointmentDocName}>
+                    {upcomingAppointment.doctor_name.startsWith("Dr.") ? upcomingAppointment.doctor_name : `Dr. ${upcomingAppointment.doctor_name}`}
+                  </Text>
+                  <Text style={styles.appointmentSpecialty}>Consulting Doctor</Text>
+                </View>
+              </View>
+              
+              <View style={styles.appointmentTimeBox}>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={colors.primary} />
+                <Text style={styles.appointmentTimeText}>
+                  {formatDate(upcomingAppointment.appointment_date)} • {formatSlotTime12Hour(upcomingAppointment.slot_time)}
                 </Text>
               </View>
+              
+              <View style={styles.appointmentFooterRow}>
+                <View style={styles.paymentBadgeBox}>
+                  <MaterialCommunityIcons 
+                    name={upcomingAppointment.payment_status === "paid" ? "check-circle" : "alert-circle"} 
+                    size={16} 
+                    color={upcomingAppointment.payment_status === "paid" ? colors.success : colors.warning} 
+                  />
+                  <Text style={[styles.paymentBadgeText, { color: upcomingAppointment.payment_status === "paid" ? colors.success : colors.warning }]}>
+                    Payment: {upcomingAppointment.payment_status || "pending"}
+                  </Text>
+                </View>
+                
+                <View style={styles.appointmentActions}>
+                  <TouchableOpacity
+                    style={styles.appointmentQueueBtn}
+                    onPress={() => navigation.navigate("PatientQueue")}
+                  >
+                    <MaterialCommunityIcons name="account-clock-outline" size={16} color={colors.primary} />
+                    <Text style={styles.appointmentQueueText}>Queue</Text>
+                  </TouchableOpacity>
+                  
+                  {upcomingAppointment.payment_status !== "paid" ? (
+                    <TouchableOpacity
+                      style={styles.appointmentPayBtn}
+                      onPress={() =>
+                        navigation.navigate("AppointmentPayment", {
+                          appointmentId: upcomingAppointment.id,
+                        })
+                      }
+                    >
+                      <Text style={styles.appointmentPayText}>Pay Now</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
             </View>
-          ))
-        ) : (
-          <Text style={styles.sectionMuted}>No medicines loaded yet.</Text>
-        )}
-      </SurfaceCard>
+          ) : (
+            <EmptyStateCard
+              title="No upcoming consultation"
+              body="Book a new session using the appointments tab."
+            />
+          )}
+        </SurfaceCard>
 
-      <SurfaceCard>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>Medicine Reminders</Text>
-        </View>
-
-        {/* Current Prescription Only */}
-        {homeData.prescriptions.length ? (
-          homeData.prescriptions.slice(0, 4).map((item, index) => {
-            const id = item.medicine_id || item.id || index;
-            const reminderConfig = reminders[String(id)];
-            const isEnabled = reminderConfig?.enabled || false;
-
-            return (
-              <View key={id} style={styles.listRow}>
+        <SurfaceCard>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>Prescription Snapshot</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Prescriptions")}
+            >
+              <Text style={styles.linkText}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+          {homeData.prescriptions.length ? (
+            homeData.prescriptions.slice(0, 4).map((item, index) => (
+              <View
+                key={`${item.medicine_id || item.id}-${index}`}
+                style={styles.listRow}
+              >
+                <View style={styles.listIcon}>
+                  <MaterialCommunityIcons
+                    name="pill"
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listTitle}>{item.medicine_name}</Text>
                   <Text style={styles.listMeta}>
-                    {[item.dosage, item.frequency]
+                    {[item.dosage, item.frequency, item.duration]
                       .filter(Boolean)
                       .join(" • ")}
                   </Text>
                 </View>
-
-                <Switch
-                  value={isEnabled}
-                  onValueChange={() =>
-                    toggleReminder(String(id), item.medicine_name)
-                  }
-                />
-
-                {isEnabled && (
-                  <View style={styles.reminderActions}>
-                    <Text style={styles.reminderTimeText}>
-                      {formatReminderTime(
-                        reminderConfig?.hour,
-                        reminderConfig?.minute,
-                      )}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        openReminderTimePicker(String(id), item.medicine_name)
-                      }
-                      style={styles.reminderScheduleButton}
-                    >
-                      <MaterialCommunityIcons
-                        name="clock-outline"
-                        size={18}
-                        color="#fff"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                )}
               </View>
-            );
-          })
-        ) : (
-          <Text style={styles.sectionMuted}>
-            No medicines available for reminders.
-          </Text>
-        )}
+            ))
+          ) : (
+            <Text style={styles.sectionMuted}>No medicines loaded yet.</Text>
+          )}
+        </SurfaceCard>
 
-        {/* Manual Add Reminder */}
-        <View style={{ marginTop: 12 }}>
-          <Text style={styles.blockTitle}>Add Custom Reminder</Text>
+        <SurfaceCard>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>Medicine Reminders</Text>
+          </View>
 
-          <TouchableOpacity
-            onPress={() =>
-              openReminderTimePicker("custom-manual", "Custom Medicine")
-            }
-            style={{
-              marginTop: 10,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>
-              + Add Manual Reminder
+          {homeData.prescriptions.length ? (
+            homeData.prescriptions.slice(0, 4).map((item) => {
+              const active = reminders[item.medicine_id || item.id];
+              return (
+                <View key={item.medicine_id || item.id} style={styles.listRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitle}>{item.medicine_name}</Text>
+                    <Text style={styles.listMeta}>
+                      {active
+                        ? `Scheduled daily at ${formatReminderTime(
+                            active.hour,
+                            active.minute,
+                          )}`
+                        : "No reminder schedule"}
+                    </Text>
+                  </View>
+                  <View style={styles.buttonRow}>
+                    {active ? (
+                      <SecondaryButton
+                        label="Set Time"
+                        icon="clock-edit-outline"
+                        onPress={() =>
+                          openReminderTimePicker(
+                            item.medicine_id || item.id,
+                            item.medicine_name,
+                          )
+                        }
+                      />
+                    ) : null}
+                    <SecondaryButton
+                      label={active ? "Off" : "On"}
+                      icon={active ? "bell-off-outline" : "bell-outline"}
+                      onPress={() =>
+                        toggleReminder(
+                          item.medicine_id || item.id,
+                          item.medicine_name,
+                        )
+                      }
+                    />
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.sectionMuted}>No prescriptions loaded.</Text>
+          )}
+        </SurfaceCard>
+
+        <SurfaceCard tone="low">
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>Diagnostic Summary</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("HealthMetrics")}
+            >
+              <Text style={styles.linkText}>View Performance</Text>
+            </TouchableOpacity>
+          </View>
+          {latestMetrics.length ? (
+            Object.entries(homeData.healthLatest || {}).slice(0, 4).map(([metricKey, item]) => (
+              <DetailRow
+                key={metricKey}
+                icon="heart-pulse"
+                label={String(metricKey).toUpperCase()}
+                value={item && typeof item === "object" ? `${item.value ?? ""} ${item.unit || ""}`.trim() : String(item ?? "")}
+              />
+            ))
+          ) : (
+            <Text style={styles.sectionMuted}>No metrics recorded.</Text>
+          )}
+        </SurfaceCard>
+
+        <SurfaceCard>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>AI Insights</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("AIHealthChat")}>
+              <Text style={styles.linkText}>Consult Assistant</Text>
+            </TouchableOpacity>
+          </View>
+          {homeData.insights.length ? (
+            homeData.insights.map((item, index) => (
+              <Text key={index} style={styles.smallText}>
+                {item}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.sectionMuted}>
+              No insights found. Sync Google Fit or complete an X-ray check.
             </Text>
-          </TouchableOpacity>
-        </View>
-      </SurfaceCard>
-
-      <SurfaceCard tone="low">
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>Health Signals</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate("HealthMetrics")}
-          >
-            <Text style={styles.linkText}>Open</Text>
-          </TouchableOpacity>
-        </View>
-        {latestMetrics.length ? (
-          latestMetrics.map((metric) => (
-            <DetailRow
-              key={metric.id || metric.metric_type}
-              icon="heart-pulse"
-              label={metric.metric_type?.replace(/_/g, " ") || "metric"}
-              value={`${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`}
-            />
-          ))
-        ) : (
-          <Text style={styles.sectionMuted}>No synced health metrics yet.</Text>
-        )}
-        {(homeData.insights || []).slice(0, 2).map((item, index) => (
-          <Text key={`${item}-${index}`} style={styles.insightText}>
-            {item}
-          </Text>
-        ))}
-      </SurfaceCard>
+          )}
+        </SurfaceCard>
       </ScreenScroll>
 
       {timePickerState.visible ? (
@@ -720,6 +911,12 @@ export function PatientDashboardScreen({ navigation }) {
           onChange={handleReminderTimeChange}
         />
       ) : null}
+
+      <PatientMenuDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        navigation={navigation}
+      />
     </>
   );
 }
@@ -740,7 +937,38 @@ export function BookAppointmentScreen({ navigation }) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
   const [shareHistory, setShareHistory] = useState(true);
+  const [shareEhr, setShareEhr] = useState(true);
+  const [sharePrescriptions, setSharePrescriptions] = useState(true);
+  const [shareRecordings, setShareRecordings] = useState(false);
+  const [shareReports, setShareReports] = useState(false);
   const [recordingConsent, setRecordingConsent] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState("my"); // "my" or "book"
+  const [myAppointments, setMyAppointments] = useState([]);
+  const [myApptsLoading, setMyApptsLoading] = useState(false);
+
+  async function loadMyAppointments() {
+    if (!user?.id) return;
+    setMyApptsLoading(true);
+    try {
+      const response = await api.appointments.getByPatient(user.id);
+      setMyAppointments(normalizeArray(response));
+      setError("");
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setMyApptsLoading(false);
+    }
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === "my") {
+      loadMyAppointments();
+    } else {
+      loadDoctors();
+    }
+  };
 
   async function loadDoctors() {
     setLoading(true);
@@ -758,7 +986,8 @@ export function BookAppointmentScreen({ navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadDoctors();
-    }, []),
+      loadMyAppointments();
+    }, [user?.id]),
   );
 
   async function selectDoctor(doctor) {
@@ -841,206 +1070,370 @@ export function BookAppointmentScreen({ navigation }) {
   });
 
   return (
-    <ScreenScroll contentContainerStyle={styles.screenContent}>
-      <TopBar
-        title="Care Booking"
-        avatar={getInitials(user?.name)}
-        onBell={() => navigation.navigate("Notifications")}
-      />
-      <SectionHeader
-        title="Find a doctor and reserve a real slot."
-        description="This screen now uses the existing doctors list, schedule service, and appointment booking endpoints."
-      />
-      <InlineError message={error} />
-
-      <View style={styles.searchShell}>
-        <MaterialCommunityIcons
-          name="magnify"
-          size={20}
-          color={colors.outline}
+    <>
+      <ScreenScroll contentContainerStyle={styles.screenContent}>
+        <TopBar
+          title="Appointments"
+          avatar={getInitials(user?.name)}
+          onMenuPress={() => setDrawerVisible(true)}
+          onBell={() => navigation.navigate("Notifications")}
         />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search by doctor name or specialty"
-          placeholderTextColor={colors.outline}
-          style={styles.searchInput}
-        />
-      </View>
-
-      {loading ? <LoadingCard label="Loading doctors..." /> : null}
-
-      {(filteredDoctors || []).map((doctor) => (
-        <SurfaceCard key={doctor.id}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.inlineRow}>
-              <AvatarBubble
-                label={getInitials(doctor.name)}
-                size={46}
-                tone="secondary"
-              />
-              <View>
-                <Text style={styles.listTitle}>{doctor.name}</Text>
-                <Text style={styles.listMeta}>{doctor.specialty}</Text>
-              </View>
-            </View>
-            <Pill
-              label={formatCurrency(doctor.consultation_fee || 0)}
-              tone="info"
-            />
-          </View>
-          <SecondaryButton
-            label={
-              selectedDoctor?.id === doctor.id ? "Selected" : "Choose doctor"
-            }
-            icon="stethoscope"
-            onPress={() => selectDoctor(doctor)}
-          />
-        </SurfaceCard>
-      ))}
-
-      <Modal
-        visible={bookingSheetVisible && !!selectedDoctor}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setBookingSheetVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
+        <View style={styles.tabHeaderRow}>
           <TouchableOpacity
-            style={styles.modalDismissArea}
-            activeOpacity={1}
-            onPress={() => setBookingSheetVisible(false)}
+            style={[styles.tabButton, activeTab === "my" && styles.tabButtonActive]}
+            onPress={() => handleTabChange("my")}
+          >
+            <Text style={[styles.tabButtonText, activeTab === "my" && styles.tabButtonTextActive]}>
+              My Appointments
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "book" && styles.tabButtonActive]}
+            onPress={() => handleTabChange("book")}
+          >
+            <Text style={[styles.tabButtonText, activeTab === "book" && styles.tabButtonTextActive]}>
+              Book New
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === "my" ? (
+          <SectionHeader
+            title="My Consultations"
+            description="View your upcoming and past doctor appointments, check status, make payments or request cancellation."
           />
-          <SurfaceCard tone="low" style={styles.bookingModalCard}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.bookingModalContent}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.blockTitle}>Selected Doctor</Text>
-                <TouchableOpacity
-                  onPress={() => setBookingSheetVisible(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <MaterialCommunityIcons
-                    name="close"
-                    size={20}
-                    color={colors.primary}
+        ) : (
+          <SectionHeader
+            title="Find a doctor and reserve a real slot."
+            description="This screen now uses the existing doctors list, schedule service, and appointment booking endpoints."
+          />
+        )}
+
+        <InlineError message={error} />
+
+        {activeTab === "my" ? (
+          myApptsLoading ? (
+            <LoadingCard label="Loading your appointments..." />
+          ) : myAppointments.length ? (
+            myAppointments.map((appt) => (
+              <SurfaceCard key={appt.id}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.inlineRow}>
+                    <AvatarBubble
+                      label={getInitials(appt.doctor_name || "Doc")}
+                      size={40}
+                      tone="secondary"
+                    />
+                    <View style={{ marginLeft: 12 }}>
+                      <Text style={styles.listTitle}>{appt.doctor_name || "Assigned Doctor"}</Text>
+                      <Text style={styles.listMeta}>{appt.doctor_specialty || "General Medicine"}</Text>
+                    </View>
+                  </View>
+                  <Pill
+                    label={appt.status || "booked"}
+                    tone={
+                      appt.status === "cancelled"
+                        ? "warning"
+                        : appt.status === "completed"
+                        ? "success"
+                        : "info"
+                    }
                   />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.sectionValue}>{selectedDoctor?.name}</Text>
-              <Text style={styles.sectionMuted}>
-                {selectedDoctor?.specialty}
-              </Text>
-
-              <Text style={styles.inputLabel}>Available Dates</Text>
-              {datesLoading ? (
-                <View style={styles.modalLoadingRow}>
-                  <ActivityIndicator color={colors.primary} />
-                  <Text style={styles.sectionMuted}>Loading dates...</Text>
                 </View>
-              ) : dates.length ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalList}
-                >
-                  {(dates || []).map((date) => (
-                    <TouchableOpacity
-                      key={date}
-                      onPress={() => selectDate(date)}
-                      style={[
-                        styles.choiceChip,
-                        selectedDate === date && styles.choiceChipActive,
-                      ]}
-                    >
-                      <Text
+                <Text style={styles.sectionMuted}>
+                  {formatDate(appt.appointment_date)} at {formatSlotTime12Hour(appt.slot_time)}
+                </Text>
+                <View style={styles.inlineRow}>
+                  <InfoChip
+                    icon="cash-multiple"
+                    label={`Payment: ${appt.payment_status || "pending"}`}
+                  />
+                  {appt.status !== "cancelled" && appt.status !== "completed" && (
+                    <InfoChip
+                      icon="clock-outline"
+                      label={`Slot: ${appt.slot_time}`}
+                    />
+                  )}
+                </View>
+                {appt.status !== "cancelled" && appt.status !== "completed" && (
+                  <View style={styles.buttonRow}>
+                    {appt.payment_status !== "paid" ? (
+                      <GradientButton
+                        label="Pay"
+                        icon="credit-card-outline"
+                        onPress={() =>
+                          navigation.navigate("AppointmentPayment", {
+                            appointmentId: appt.id,
+                          })
+                        }
+                        style={{ flex: 1 }}
+                      />
+                    ) : null}
+                    <SecondaryButton
+                      label="Cancel"
+                      icon="close"
+                      onPress={async () => {
+                        Alert.alert(
+                          "Cancel Appointment",
+                          "Are you sure you want to cancel this appointment?",
+                          [
+                            { text: "No", style: "cancel" },
+                            {
+                              text: "Yes, Cancel",
+                              style: "destructive",
+                              onPress: async () => {
+                                try {
+                                  await api.appointments.cancel(appt.id);
+                                  loadMyAppointments();
+                                } catch (err) {
+                                  setError(err.message);
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                )}
+              </SurfaceCard>
+            ))
+          ) : (
+            <EmptyStateCard
+              title="No appointments"
+              body="You haven't booked any appointments yet."
+            />
+          )
+        ) : (
+          <>
+            <View style={styles.searchShell}>
+              <MaterialCommunityIcons
+                name="magnify"
+                size={20}
+                color={colors.outline}
+              />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search by doctor name or specialty"
+                placeholderTextColor={colors.outline}
+                style={styles.searchInput}
+              />
+            </View>
+
+            {loading ? <LoadingCard label="Loading doctors..." /> : null}
+
+            {(filteredDoctors || []).map((doctor) => (
+              <SurfaceCard key={doctor.id}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.inlineRow}>
+                    <AvatarBubble
+                      label={getInitials(doctor.name)}
+                      size={46}
+                      tone="secondary"
+                    />
+                    <View style={{ marginLeft: 12 }}>
+                      <Text style={styles.listTitle}>{doctor.name}</Text>
+                      <Text style={styles.listMeta}>{doctor.specialty}</Text>
+                    </View>
+                  </View>
+                  <Pill
+                    label={formatCurrency(doctor.consultation_fee || 0)}
+                    tone="info"
+                  />
+                </View>
+                <SecondaryButton
+                  label={
+                    selectedDoctor?.id === doctor.id ? "Selected" : "Choose doctor"
+                  }
+                  icon="stethoscope"
+                  onPress={() => selectDoctor(doctor)}
+                />
+              </SurfaceCard>
+            ))}
+          </>
+        )}
+
+        <Modal
+          visible={bookingSheetVisible && !!selectedDoctor}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setBookingSheetVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity
+              style={styles.modalDismissArea}
+              activeOpacity={1}
+              onPress={() => setBookingSheetVisible(false)}
+            />
+            <SurfaceCard tone="low" style={styles.bookingModalCard}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.bookingModalContent}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={styles.blockTitle}>Selected Doctor</Text>
+                  <TouchableOpacity
+                    onPress={() => setBookingSheetVisible(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.sectionValue}>{selectedDoctor?.name}</Text>
+                <Text style={styles.sectionMuted}>
+                  {selectedDoctor?.specialty}
+                </Text>
+
+                <Text style={styles.inputLabel}>Available Dates</Text>
+                {datesLoading ? (
+                  <View style={styles.modalLoadingRow}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={styles.sectionMuted}>Loading dates...</Text>
+                  </View>
+                ) : dates.length ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalList}
+                  >
+                    {(dates || []).map((date) => (
+                      <TouchableOpacity
+                        key={date}
+                        onPress={() => selectDate(date)}
                         style={[
-                          styles.choiceChipText,
-                          selectedDate === date && styles.choiceChipTextActive,
+                          styles.choiceChip,
+                          selectedDate === date && styles.choiceChipActive,
                         ]}
                       >
-                        {formatDate(date)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              ) : (
-                <Text style={styles.sectionMuted}>
-                  No available dates found.
-                </Text>
-              )}
-
-              {selectedDate ? (
-                <>
-                  <Text style={styles.inputLabel}>Available Slots</Text>
-                  <View style={styles.wrapRow}>
-                    {slotsLoading ? (
-                      <View style={styles.modalLoadingRow}>
-                        <ActivityIndicator color={colors.primary} />
-                        <Text style={styles.sectionMuted}>
-                          Loading slots...
-                        </Text>
-                      </View>
-                    ) : slots.length ? (
-                      slots.map((slot) => (
-                        <TouchableOpacity
-                          key={slot.start_time}
-                          onPress={() => setSelectedSlot(slot.start_time)}
+                        <Text
                           style={[
-                            styles.choiceChip,
-                            selectedSlot === slot.start_time &&
-                              styles.choiceChipActive,
+                            styles.choiceChipText,
+                            selectedDate === date && styles.choiceChipTextActive,
                           ]}
                         >
-                          <Text
+                          {formatDate(date)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.sectionMuted}>
+                    No available dates found.
+                  </Text>
+                )}
+
+                {selectedDate ? (
+                  <>
+                    <Text style={styles.inputLabel}>Available Slots</Text>
+                    <View style={styles.wrapRow}>
+                      {slotsLoading ? (
+                        <View style={styles.modalLoadingRow}>
+                          <ActivityIndicator color={colors.primary} />
+                          <Text style={styles.sectionMuted}>
+                            Loading slots...
+                          </Text>
+                        </View>
+                      ) : slots.length ? (
+                        slots.map((slot) => (
+                          <TouchableOpacity
+                            key={slot.start_time}
+                            onPress={() => setSelectedSlot(slot.start_time)}
                             style={[
-                              styles.choiceChipText,
+                              styles.choiceChip,
                               selectedSlot === slot.start_time &&
-                                styles.choiceChipTextActive,
+                                styles.choiceChipActive,
                             ]}
                           >
-                            {slot.start_time}
-                          </Text>
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <Text style={styles.sectionMuted}>
-                        No open slots on this date.
+                            <Text
+                              style={[
+                                styles.choiceChipText,
+                                selectedSlot === slot.start_time &&
+                                  styles.choiceChipTextActive,
+                              ]}
+                            >
+                              {formatSlotTime12Hour(slot.start_time)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        <Text style={styles.sectionMuted}>
+                          No open slots on this date.
+                        </Text>
+                      )}
+                    </View>
+                  </>
+                ) : null}
+
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>
+                    Share health history with doctor
+                  </Text>
+                  <Switch value={shareHistory} onValueChange={setShareHistory} />
+                </View>
+
+                {shareHistory ? (
+                  <View style={{ paddingLeft: 16, gap: 10, marginBottom: 12 }}>
+                    <View style={styles.switchRowSub}>
+                      <Text style={styles.switchLabelSub}>
+                        Medical history and vitals
                       </Text>
-                    )}
+                      <Switch value={shareEhr} onValueChange={setShareEhr} />
+                    </View>
+                    <View style={styles.switchRowSub}>
+                      <Text style={styles.switchLabelSub}>
+                        Prescriptions
+                      </Text>
+                      <Switch value={sharePrescriptions} onValueChange={setSharePrescriptions} />
+                    </View>
+                    <View style={styles.switchRowSub}>
+                      <Text style={styles.switchLabelSub}>
+                        Voice notes and recordings
+                      </Text>
+                      <Switch value={shareRecordings} onValueChange={setShareRecordings} />
+                    </View>
+                    <View style={styles.switchRowSub}>
+                      <Text style={styles.switchLabelSub}>
+                        Reports, PDFs, and uploads
+                      </Text>
+                      <Switch value={shareReports} onValueChange={setShareReports} />
+                    </View>
                   </View>
-                </>
-              ) : null}
+                ) : null}
 
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>
-                  Share medical history with doctor
-                </Text>
-                <Switch value={shareHistory} onValueChange={setShareHistory} />
-              </View>
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>
-                  Consent to consultation recording
-                </Text>
-                <Switch
-                  value={recordingConsent}
-                  onValueChange={setRecordingConsent}
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>
+                    Consent to consultation recording
+                  </Text>
+                  <Switch
+                    value={recordingConsent}
+                    onValueChange={setRecordingConsent}
+                  />
+                </View>
+
+                <GradientButton
+                  label={booking ? "Booking..." : "Book Appointment"}
+                  icon="calendar-check"
+                  onPress={handleBook}
                 />
-              </View>
+              </ScrollView>
+            </SurfaceCard>
+          </View>
+        </Modal>
+      </ScreenScroll>
 
-              <GradientButton
-                label={booking ? "Booking..." : "Book Appointment"}
-                icon="calendar-check"
-                onPress={handleBook}
-              />
-            </ScrollView>
-          </SurfaceCard>
-        </View>
-      </Modal>
-    </ScreenScroll>
+      <PatientMenuDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        navigation={navigation}
+      />
+    </>
   );
 }
 
@@ -1050,6 +1443,22 @@ export function AnalyzePrescriptionScreen({ navigation }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [medicines, setMedicines] = useState([]);
+  const [showPadSelection, setShowPadSelection] = useState(false);
+  const [viewingRxPad, setViewingRxPad] = useState(false);
+  const [selectedPad, setSelectedPad] = useState(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const handleDownloadPrescription = () => {
+    if (Platform.OS === "web") {
+      window.print();
+    } else {
+      Alert.alert(
+        "Prescription Downloaded",
+        "The digital prescription pad has been saved to your downloads as a PDF.",
+        [{ text: "OK" }]
+      );
+    }
+  };
 
   async function loadCurrentMeds() {
     if (!user?.id) return;
@@ -1098,85 +1507,327 @@ export function AnalyzePrescriptionScreen({ navigation }) {
     }
   }
 
+  async function handleDeleteMedicine(id) {
+    if (!id) return;
+    Alert.alert(
+      "Delete Medicine",
+      "Are you sure you want to remove this medicine from your active list?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.medicines.delete(id);
+              await loadCurrentMeds();
+            } catch (err) {
+              setError(err.message);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  const groupedPrescriptionPads = React.useMemo(() => {
+    if (!Array.isArray(medicines)) return [];
+    const groups = {};
+    medicines.forEach((item) => {
+      const docId = item.doctor_id || "user-upload";
+      if (!groups[docId]) {
+        groups[docId] = {
+          doctor: {
+            id: item.doctor_id || null,
+            name: item.doctor_name || "User Upload",
+            specialty: item.doctor_specialty || "Prescription Uploads",
+            email: item.doctor_email || "",
+            phone: item.doctor_phone || "",
+            reg_no: item.doctor_reg_no || "",
+          },
+          medicines: [],
+          latestDate: item.created_at || item.recorded_at || null,
+        };
+      }
+      groups[docId].medicines.push(item);
+      const itemDate = new Date(item.created_at || item.recorded_at || Date.now());
+      const groupDate = new Date(groups[docId].latestDate);
+      if (itemDate > groupDate) {
+        groups[docId].latestDate = item.created_at || item.recorded_at;
+      }
+    });
+    return Object.values(groups).sort((a, b) => new Date(b.latestDate) - new Date(a.latestDate));
+  }, [medicines]);
+
   return (
-    <ScreenScroll contentContainerStyle={styles.screenContent}>
-      <TopBar
-        title="Prescription Intelligence"
-        avatar={getInitials(user?.name)}
-        onBell={() => navigation.navigate("Notifications")}
-      />
-      <SectionHeader
-        title="Upload a prescription for backend OCR and analysis."
-        description="This uses the same `/api/prescription/upload` workflow that the web frontend already relies on."
-      />
-      <InlineError message={error} />
-
-      {/* Search & Compare Medicines UI block */}
-      <SurfaceCard>
-        <GradientButton
-          label="Search & Compare Medicines"
-          icon="magnify"
-          onPress={() => navigation.navigate("MedicineSearch")}
+    <>
+      <ScreenScroll contentContainerStyle={styles.screenContent}>
+        <TopBar
+          title="Prescription Intelligence"
+          avatar={getInitials(user?.name)}
+          onMenuPress={() => setDrawerVisible(true)}
+          onBell={() => navigation.navigate("Notifications")}
         />
-      </SurfaceCard>
+        <SectionHeader
+          title="Upload a prescription for backend OCR and analysis."
+          description="This uses the same `/api/prescription/upload` workflow that the web frontend already relies on."
+        />
+        <InlineError message={error} />
 
-      <SurfaceCard>
-        <Text style={styles.blockTitle}>Selected File</Text>
-        <Text style={styles.sectionMuted}>
-          {selectedFile ? selectedFile.name : "No file chosen"}
-        </Text>
-        <View style={styles.buttonRow}>
-          <SecondaryButton
-            label="Choose File"
-            icon="file-upload-outline"
-            onPress={pickFile}
-            style={{ flex: 1 }}
-          />
+        {/* Search & Compare Medicines UI block */}
+        <SurfaceCard>
           <GradientButton
-            label={uploading ? "Uploading..." : "Analyze"}
-            icon="robot-outline"
-            onPress={uploadPrescription}
-            style={{ flex: 1 }}
-          />
-        </View>
-      </SurfaceCard>
-
-      <SurfaceCard tone="low">
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>Current Medicines</Text>
-          <TouchableOpacity
+            label="Search & Compare Medicines"
+            icon="magnify"
             onPress={() => navigation.navigate("MedicineSearch")}
-          >
-            <Text style={styles.linkText}>Search medicine</Text>
-          </TouchableOpacity>
-        </View>
-        {medicines.length ? (
-          medicines.slice(0, 8).map((item, index) => (
-            <View key={`${item.medicine_id || index}`} style={styles.listRow}>
-              <View style={styles.listIcon}>
-                <MaterialCommunityIcons
-                  name="pill"
-                  size={18}
-                  color={colors.primary}
-                />
+          />
+        </SurfaceCard>
+
+        <SurfaceCard>
+          <Text style={styles.blockTitle}>Selected File</Text>
+          <Text style={styles.sectionMuted}>
+            {selectedFile ? selectedFile.name : "No file chosen"}
+          </Text>
+          <View style={styles.buttonRow}>
+            <SecondaryButton
+              label="Choose File"
+              icon="file-upload-outline"
+              onPress={pickFile}
+              style={{ flex: 1 }}
+            />
+            <GradientButton
+              label={uploading ? "Uploading..." : "Analyze"}
+              icon="robot-outline"
+              onPress={uploadPrescription}
+              style={{ flex: 1 }}
+            />
+          </View>
+        </SurfaceCard>
+
+        <SurfaceCard tone="low">
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>Extracted Medicines</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("MedicineSearch")}
+            >
+              <Text style={styles.linkText}>Add medicine</Text>
+            </TouchableOpacity>
+          </View>
+
+          <GradientButton
+            label="See Prescription Pad"
+            icon="file-document-outline"
+            onPress={() => setShowPadSelection(true)}
+            style={{ marginBottom: 12 }}
+          />
+
+          {medicines.length ? (
+            <View style={styles.tableContainer}>
+              {/* Table Header */}
+              <View style={styles.tableHeaderRow}>
+                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>MEDICINE</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DOSAGE</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>FREQUENCY</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DURATION</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: "center" }]}>ACTIONS</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.listTitle}>{item.medicine_name}</Text>
-                <Text style={styles.listMeta}>
-                  {[item.dosage, item.frequency, item.duration]
-                    .filter(Boolean)
-                    .join(" • ")}
+
+              {/* Table Body */}
+              {medicines.map((item, idx) => (
+                <View key={item.id || idx} style={styles.tableDataRow}>
+                  <Text style={[styles.tableCell, { flex: 2, fontWeight: "700" }]}>
+                    {item.medicine_name}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                    {item.dosage || "—"}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                    {item.frequency || "—"}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                    {item.duration || "—"}
+                  </Text>
+                  <View style={[styles.tableActionCell, { flex: 1.5 }]}>
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate("MedicineSearch", { query: item.medicine_name })}
+                      style={styles.actionIconButton}
+                    >
+                      <MaterialCommunityIcons name="swap-horizontal" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteMedicine(item.id || item.medicine_id)}
+                      style={styles.actionIconButton}
+                    >
+                      <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error || "#ff4d4d"} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.sectionMuted}>
+              No extracted medicines available yet.
+            </Text>
+          )}
+        </SurfaceCard>
+      </ScreenScroll>
+
+      {/* Clinician Selection Modal */}
+      <Modal
+        visible={showPadSelection}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPadSelection(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={styles.modalDismissArea}
+            activeOpacity={1}
+            onPress={() => setShowPadSelection(false)}
+          />
+          <SurfaceCard tone="low" style={styles.bookingModalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.blockTitle}>Select Clinician Pad</Text>
+              <TouchableOpacity onPress={() => setShowPadSelection(false)}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 20 }}>
+              {groupedPrescriptionPads.map((pad, index) => (
+                <TouchableOpacity
+                  key={pad.doctor.id || index}
+                  style={styles.clinicianCard}
+                  onPress={() => {
+                    setSelectedPad(pad);
+                    setShowPadSelection(false);
+                    setViewingRxPad(true);
+                  }}
+                >
+                  <View style={styles.clinicianAvatar}>
+                    <Text style={styles.clinicianInitials}>
+                      {getInitials(pad.doctor.name)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.clinicianName}>
+                      {pad.doctor.name.startsWith("Dr.") ? pad.doctor.name : `Dr. ${pad.doctor.name}`}
+                    </Text>
+                    <Text style={styles.clinicianSpecialty}>{pad.doctor.specialty}</Text>
+                    <Text style={styles.clinicianMeta}>
+                      Latest: {formatDate(pad.latestDate)} • {pad.medicines.length} medicines
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.outline} />
+                </TouchableOpacity>
+              ))}
+              {groupedPrescriptionPads.length === 0 && (
+                <Text style={styles.sectionMuted}>No prescription pads available yet.</Text>
+              )}
+            </ScrollView>
+          </SurfaceCard>
+        </View>
+      </Modal>
+
+      {/* Fullscreen Digital Prescription Pad Modal */}
+      <Modal
+        visible={viewingRxPad && !!selectedPad}
+        animationType="fade"
+        transparent={false}
+        onRequestClose={() => setViewingRxPad(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
+          {/* Header */}
+          <View style={styles.padNavHeader}>
+            <TouchableOpacity onPress={() => setViewingRxPad(false)} style={styles.padBackButton}>
+              <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+              <Text style={styles.padBackText}>Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.padNavTitle}>Prescription Pad</Text>
+            <TouchableOpacity onPress={handleDownloadPrescription} style={styles.padBackButton}>
+              <MaterialCommunityIcons name="download" size={24} color={colors.primary} />
+              <Text style={styles.padBackText}>Download</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.padContentContainer}>
+            {/* The Rx Sheet */}
+            <View style={styles.rxSheet}>
+              {/* Doctor Details */}
+              <View style={styles.rxHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rxDocName}>
+                    {selectedPad?.doctor.name.startsWith("Dr.") ? selectedPad.doctor.name : `Dr. ${selectedPad?.doctor.name}`}
+                  </Text>
+                  <Text style={styles.rxDocSpecialty}>{selectedPad?.doctor.specialty}</Text>
+                  <Text style={styles.rxDocReg}>Reg No: {selectedPad?.doctor.reg_no || "TM-DOC-2024-001"}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.rxHospitalName}>TechMedix</Text>
+                  <Text style={styles.rxHospitalSub}>CLINICAL SANCTUARY</Text>
+                  {selectedPad?.doctor.email ? <Text style={styles.rxHospitalContact}>{selectedPad.doctor.email}</Text> : null}
+                  {selectedPad?.doctor.phone ? <Text style={styles.rxHospitalContact}>{selectedPad.doctor.phone}</Text> : null}
+                </View>
+              </View>
+
+              <View style={styles.rxLine} />
+
+              {/* Patient details */}
+              <View style={styles.rxPatientRow}>
+                <Text style={styles.rxPatientText}>
+                  <Text style={{ fontWeight: "700" }}>Patient: </Text>
+                  {user?.name || "Patient"}
+                </Text>
+                <Text style={styles.rxPatientText}>
+                  <Text style={{ fontWeight: "700" }}>Date: </Text>
+                  {formatDate(selectedPad?.latestDate)}
                 </Text>
               </View>
+
+              <View style={styles.rxLine} />
+
+              {/* Rx Symbol */}
+              <Text style={styles.rxSymbol}>Rx</Text>
+
+              {/* Prescribed Medicines Table */}
+              <View style={styles.padTable}>
+                <View style={styles.padTableHeader}>
+                  <Text style={[styles.padTableHeaderText, { flex: 2 }]}>MEDICINE</Text>
+                  <Text style={[styles.padTableHeaderText, { flex: 1 }]}>DOSAGE</Text>
+                  <Text style={[styles.padTableHeaderText, { flex: 1.5 }]}>FREQUENCY</Text>
+                  <Text style={[styles.padTableHeaderText, { flex: 1 }]}>DURATION</Text>
+                </View>
+                {selectedPad?.medicines.map((med, index) => (
+                  <View key={med.id || index} style={styles.padTableRow}>
+                    <Text style={[styles.padTableCell, { flex: 2, fontWeight: "700" }]}>{med.medicine_name}</Text>
+                    <Text style={[styles.padTableCell, { flex: 1 }]}>{med.dosage || "—"}</Text>
+                    <Text style={[styles.padTableCell, { flex: 1.5 }]}>{med.frequency || "—"}</Text>
+                    <Text style={[styles.padTableCell, { flex: 1 }]}>{med.duration || "—"}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Footer */}
+              <View style={styles.rxFooter}>
+                <View style={styles.rxFooterLine} />
+                <Text style={styles.rxFooterText}>
+                  This is a digitally generated prescription. It does not require a physical signature or stamp for validation.
+                </Text>
+                <View style={styles.safetyVerifiedRow}>
+                  <MaterialCommunityIcons name="shield-check" size={16} color="#4caf50" />
+                  <Text style={styles.safetyVerifiedText}>Verified by TechMedix AI Safety Audit</Text>
+                </View>
+              </View>
             </View>
-          ))
-        ) : (
-          <Text style={styles.sectionMuted}>
-            No extracted medicines available yet.
-          </Text>
-        )}
-      </SurfaceCard>
-    </ScreenScroll>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <PatientMenuDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        navigation={navigation}
+      />
+    </>
   );
 }
 
@@ -1413,7 +2064,7 @@ export function HealthWalletScreen({ navigation }) {
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
       <TopBar
-        title="Health Wallet"
+        title="Wallet"
         onBell={() => navigation.navigate("Notifications")}
       />
       <SectionHeader
@@ -1480,16 +2131,17 @@ export function PaymentWalletScreen({ navigation }) {
   const [walletBalance, setWalletBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [addingMoney, setAddingMoney] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   async function loadWalletData() {
     setLoading(true);
     try {
       const [balanceRes, transactionsRes] = await Promise.allSettled([
-  api.payments.getWalletBalance(),
-  api.payments.getWalletTransactions
-    ? api.payments.getWalletTransactions()
-    : Promise.resolve([]),
-]);
+        api.payments.getWalletBalance(),
+        api.payments.getWalletTransactions
+          ? api.payments.getWalletTransactions()
+          : Promise.resolve([]),
+      ]);
 
       setWalletBalance(
         balanceRes.status === "fulfilled"
@@ -1523,11 +2175,23 @@ export function PaymentWalletScreen({ navigation }) {
         amount: 5000,
         patient_id: user.id,
       });
+      const sessionId = response?.payment_session_id;
+      if (!sessionId) {
+        throw new Error("Failed to obtain payment session from server.");
+      }
+      const isProd = response.cashfree_mode === "production";
+      const checkoutUrl = isProd
+        ? `https://payments.cashfree.com/order/#${sessionId}`
+        : `https://payments-test.cashfree.com/order/#${sessionId}`;
+
+      console.log("Opening Cashfree wallet topup URL:", checkoutUrl);
+      await Linking.openURL(checkoutUrl);
+
       Alert.alert(
-        "Add Money",
-        `Backend add money order created.\nOrder ID: ${response?.order?.id || "not returned"}\n\nNative payment gateway is not added in this Expo app yet.`,
+        "Top-up Process Launched",
+        "Once payment is completed, tap Refresh to update your balance.",
+        [{ text: "Refresh Now", onPress: () => loadWalletData() }]
       );
-      await loadWalletData();
     } catch (addError) {
       setError(addError.message);
     } finally {
@@ -1550,181 +2214,190 @@ export function PaymentWalletScreen({ navigation }) {
   }, 0);
 
   return (
-    <ScreenScroll
-      contentContainerStyle={styles.screenContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            loadWalletData();
-          }}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <TopBar
-        title="Payment Wallet"
-        showBack
-        onBack={() => navigation.goBack()}
-        onBell={() => navigation.navigate("Notifications")}
-      />
-      <InlineError message={error} />
-
-      {loading ? <LoadingCard label="Loading wallet..." /> : null}
-
-      {/* Wallet Balance Card */}
-      <SurfaceCard style={styles.walletBalanceCard}>
-        <View style={styles.walletHeader}>
-          <View>
-            <Text style={styles.walletLabel}>Current Balance</Text>
-            <Text style={styles.walletSubLabel}>
-              Funds available for doctor payments
-            </Text>
-          </View>
-          <MaterialCommunityIcons
-            name="wallet"
-            size={32}
-            color={colors.onPrimary || colors.onSurface}
+    <>
+      <ScreenScroll
+        contentContainerStyle={styles.screenContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadWalletData();
+            }}
+            tintColor={colors.primary}
           />
-        </View>
+        }
+      >
+        <TopBar
+          title="Funds"
+          showBack={navigation.canGoBack()}
+          onBack={() => navigation.goBack()}
+          onMenuPress={() => setDrawerVisible(true)}
+          onBell={() => navigation.navigate("Notifications")}
+        />
+        <InlineError message={error} />
 
-        <View style={styles.walletBalanceDisplay}>
-          <Text style={styles.walletAmount}>
-            {formatCurrency(walletBalance)}
-          </Text>
-        </View>
+        {loading ? <LoadingCard label="Loading wallet..." /> : null}
 
-        <View style={styles.walletFooter}>
-          <View>
-            <Text style={styles.walletMetaLabel}>Total Added</Text>
-            <Text style={styles.walletMetaValue}>
-              {formatCurrency(totalAdded)}
+        {/* Wallet Balance Card */}
+        <SurfaceCard style={styles.walletBalanceCard}>
+          <View style={styles.walletHeader}>
+            <View>
+              <Text style={styles.walletLabel}>WALLET</Text>
+              <Text style={styles.walletSubLabel}>
+                Existing Balance
+              </Text>
+            </View>
+            <MaterialCommunityIcons
+              name="wallet"
+              size={32}
+              color={colors.onPrimary || colors.onSurface}
+            />
+          </View>
+
+          <View style={styles.walletBalanceDisplay}>
+            <Text style={styles.walletAmount}>
+              {formatCurrency(walletBalance)}
             </Text>
           </View>
-          <View>
-            <Text style={styles.walletMetaLabel}>Total Spent</Text>
-            <Text style={styles.walletMetaValue}>
-              {formatCurrency(totalSpent)}
-            </Text>
+
+          <View style={styles.walletFooter}>
+            <View>
+              <Text style={styles.walletMetaLabel}>Total Added</Text>
+              <Text style={styles.walletMetaValue}>
+                {formatCurrency(totalAdded)}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.walletMetaLabel}>Total Spent</Text>
+              <Text style={styles.walletMetaValue}>
+                {formatCurrency(totalSpent)}
+              </Text>
+            </View>
+            <GradientButton
+              label={addingMoney ? "Launching..." : "Add Money"}
+              icon="plus-circle-outline"
+              onPress={addMoneyToWallet}
+            />
           </View>
-          <GradientButton
-            label="Add Money"
-            icon="plus-circle-outline"
-            onPress={addMoneyToWallet}
+        </SurfaceCard>
+
+        {/* Transaction Summary */}
+        <SurfaceCard tone="low">
+          <Text style={styles.blockTitle}>Quick Stats</Text>
+          <DetailRow
+            icon="credit-card-outline"
+            label="Total Wallet Transitions"
+            value={String(transactions.length)}
           />
+          <DetailRow
+            icon="trending-up"
+            label="Credited This Month"
+            value={formatCurrency(
+              transactions
+                .filter((t) => (t.type || t.transaction_type) === "credit")
+                .reduce((sum, t) => sum + Number(t.amount || 0), 0),
+            )}
+          />
+          <DetailRow
+            icon="trending-down"
+            label="Debited This Month"
+            value={formatCurrency(
+              transactions
+                .filter((t) => (t.type || t.transaction_type) === "debit")
+                .reduce((sum, t) => sum + Number(t.amount || 0), 0),
+            )}
+          />
+        </SurfaceCard>
+
+        {/* Transaction History */}
+        <View style={styles.cardHeaderRow}>
+          <Text style={styles.blockTitle}>Transaction History</Text>
+          {transactions.length ? (
+            <Text style={styles.linkText}>
+              {transactions.length} transactions
+            </Text>
+          ) : null}
         </View>
-      </SurfaceCard>
 
-      {/* Transaction Summary */}
-      <SurfaceCard tone="low">
-        <Text style={styles.blockTitle}>Quick Stats</Text>
-        <DetailRow
-          icon="credit-card-outline"
-          label="Total Wallet Transitions"
-          value={String(transactions.length)}
-        />
-        <DetailRow
-          icon="trending-up"
-          label="Credited This Month"
-          value={formatCurrency(
-            transactions
-              .filter((t) => (t.type || t.transaction_type) === "credit")
-              .reduce((sum, t) => sum + Number(t.amount || 0), 0),
-          )}
-        />
-        <DetailRow
-          icon="trending-down"
-          label="Debited This Month"
-          value={formatCurrency(
-            transactions
-              .filter((t) => (t.type || t.transaction_type) === "debit")
-              .reduce((sum, t) => sum + Number(t.amount || 0), 0),
-          )}
-        />
-      </SurfaceCard>
-
-      {/* Transaction History */}
-      <View style={styles.cardHeaderRow}>
-        <Text style={styles.blockTitle}>Transaction History</Text>
         {transactions.length ? (
-          <Text style={styles.linkText}>
-            {transactions.length} transactions
-          </Text>
-        ) : null}
-      </View>
-
-      {transactions.length ? (
-        transactions.map((transaction, index) => {
-          const isCredit =
-            (transaction.type || transaction.transaction_type) === "credit";
-          return (
-            <SurfaceCard
-              key={`${transaction.id}-${index}`}
-              tone={isCredit ? "lowest" : "low"}
-            >
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.inlineRow}>
-                  <View
+          transactions.map((transaction, index) => {
+            const isCredit =
+              (transaction.type || transaction.transaction_type) === "credit";
+            return (
+              <SurfaceCard
+                key={`${transaction.id}-${index}`}
+                tone={isCredit ? "lowest" : "low"}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.inlineRow}>
+                    <View
+                      style={[
+                        styles.transactionIcon,
+                        {
+                          backgroundColor: isCredit
+                            ? colors.success
+                            : colors.error,
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={isCredit ? "arrow-left" : "arrow-right"}
+                        size={16}
+                        color={colors.onSurface}
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.listTitle}>
+                        {transaction.description ||
+                          transaction.remarks ||
+                          (isCredit ? "Money Added" : "Doctor Payment")}
+                      </Text>
+                      <Text style={styles.listMeta}>
+                        {transaction.doctor_name ||
+                          transaction.appointment_id ||
+                          "Wallet"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
                     style={[
-                      styles.transactionIcon,
-                      {
-                        backgroundColor: isCredit
-                          ? colors.success
-                          : colors.error,
-                      },
+                      styles.transactionAmount,
+                      { color: isCredit ? colors.success : colors.error },
                     ]}
                   >
-                    <MaterialCommunityIcons
-                      name={isCredit ? "arrow-left" : "arrow-right"}
-                      size={16}
-                      color={colors.onSurface}
-                    />
-                  </View>
-                  <View>
-                    <Text style={styles.listTitle}>
-                      {transaction.description ||
-                        transaction.remarks ||
-                        (isCredit ? "Money Added" : "Doctor Payment")}
-                    </Text>
-                    <Text style={styles.listMeta}>
-                      {transaction.doctor_name ||
-                        transaction.appointment_id ||
-                        "Wallet"}
-                    </Text>
-                  </View>
+                    {isCredit ? "+" : "-"}
+                    {formatCurrency(transaction.amount)}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    { color: isCredit ? colors.success : colors.error },
-                  ]}
-                >
-                  {isCredit ? "+" : "-"}
-                  {formatCurrency(transaction.amount)}
-                </Text>
-              </View>
-              <View style={styles.inlineRow}>
-                <Text style={styles.smallText}>
-                  {formatDateTime(transaction.date || transaction.created_at)}
-                </Text>
-                <Pill
-                  label={transaction.status || "completed"}
-                  tone={
-                    transaction.status === "pending" ? "warning" : "success"
-                  }
-                />
-              </View>
-            </SurfaceCard>
-          );
-        })
-      ) : !loading ? (
-        <EmptyStateCard
-          title="No transactions yet"
-          body="Your wallet transactions and doctor payments will appear here."
-        />
-      ) : null}
-    </ScreenScroll>
+                <View style={styles.inlineRow}>
+                  <Text style={styles.smallText}>
+                    {formatDateTime(transaction.date || transaction.created_at)}
+                  </Text>
+                  <Pill
+                    label={transaction.status || "completed"}
+                    tone={
+                      transaction.status === "pending" ? "warning" : "success"
+                    }
+                  />
+                </View>
+              </SurfaceCard>
+            );
+          })
+        ) : !loading ? (
+          <EmptyStateCard
+            title="No transactions yet"
+            body="Your wallet transactions and doctor payments will appear here."
+          />
+        ) : null}
+      </ScreenScroll>
+
+      <PatientMenuDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        navigation={navigation}
+      />
+    </>
   );
 }
 
@@ -2280,6 +2953,7 @@ export function PatientProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(user || {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -2304,67 +2978,79 @@ export function PatientProfileScreen({ navigation }) {
   );
 
   return (
-    <ScreenScroll contentContainerStyle={styles.screenContent}>
-      <TopBar title="Profile" avatar={getInitials(profile.name)} />
-      <InlineError message={error} />
-      {loading ? <LoadingCard label="Loading profile..." /> : null}
-      <SurfaceCard>
-        <View style={styles.inlineRow}>
-          <AvatarBubble
-            label={getInitials(profile.name)}
-            size={58}
-            tone="secondary"
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionValue}>{profile.name || "Patient"}</Text>
-            <Text style={styles.sectionMuted}>{profile.email}</Text>
+    <>
+      <ScreenScroll contentContainerStyle={styles.screenContent}>
+        <TopBar
+          title="Profile"
+          avatar={getInitials(profile.name)}
+          onMenuPress={() => setDrawerVisible(true)}
+        />
+        <InlineError message={error} />
+        {loading ? <LoadingCard label="Loading profile..." /> : null}
+        <SurfaceCard>
+          <View style={styles.inlineRow}>
+            <AvatarBubble
+              label={getInitials(profile.name)}
+              size={58}
+              tone="secondary"
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionValue}>{profile.name || "Patient"}</Text>
+              <Text style={styles.sectionMuted}>{profile.email}</Text>
+            </View>
           </View>
-        </View>
-        <DetailRow
-          icon="phone-outline"
-          label="Phone"
-          value={profile.phone || "Not added"}
-        />
-        <DetailRow
-          icon="medical-bag"
-          label="Blood Group"
-          value={profile.bloodGroup || "Not added"}
-        />
-        <DetailRow
-          icon="map-marker-outline"
-          label="Address"
-          value={profile.address || "Not added"}
-        />
-      </SurfaceCard>
+          <DetailRow
+            icon="phone-outline"
+            label="Phone"
+            value={profile.phone || "Not added"}
+          />
+          <DetailRow
+            icon="medical-bag"
+            label="Blood Group"
+            value={profile.bloodGroup || "Not added"}
+          />
+          <DetailRow
+            icon="map-marker-outline"
+            label="Address"
+            value={profile.address || "Not added"}
+          />
+        </SurfaceCard>
 
-      <SurfaceCard tone="low">
-        <Text style={styles.blockTitle}>Patient Tools</Text>
-        <View style={styles.tileGrid}>
-          <ActionTile
-            label="My QR"
-            icon="qrcode"
-            onPress={() => navigation.navigate("PatientQR")}
-          />
-          <ActionTile
-            label="Timeline"
-            icon="timeline-clock-outline"
-            onPress={() => navigation.navigate("MedicalTimeline")}
-          />
-          <ActionTile
-            label="Voice Notes"
-            icon="microphone-outline"
-            onPress={() => navigation.navigate("PatientRecordings")}
-          />
-          <ActionTile
-            label="X-ray History"
-            icon="history"
-            onPress={() => navigation.navigate("XRayHistory")}
-          />
-        </View>
-      </SurfaceCard>
+        <SurfaceCard tone="low">
+          <Text style={styles.blockTitle}>Patient Tools</Text>
+          <View style={styles.tileGrid}>
+            <ActionTile
+              label="My QR"
+              icon="qrcode"
+              onPress={() => navigation.navigate("PatientQR")}
+            />
+            <ActionTile
+              label="Timeline"
+              icon="timeline-clock-outline"
+              onPress={() => navigation.navigate("MedicalTimeline")}
+            />
+            <ActionTile
+              label="Voice Notes"
+              icon="microphone-outline"
+              onPress={() => navigation.navigate("PatientRecordings")}
+            />
+            <ActionTile
+              label="X-ray History"
+              icon="history"
+              onPress={() => navigation.navigate("XRayHistory")}
+            />
+          </View>
+        </SurfaceCard>
 
-      <SecondaryButton label="Sign Out" icon="logout" onPress={signOut} />
-    </ScreenScroll>
+        <SecondaryButton label="Sign Out" icon="logout" onPress={signOut} />
+      </ScreenScroll>
+
+      <PatientMenuDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        navigation={navigation}
+      />
+    </>
   );
 }
 
@@ -2375,40 +3061,16 @@ export function NotificationsScreen({ navigation }) {
   const [error, setError] = useState("");
 
   async function loadNotifications() {
+    if (!user?.id) return;
     setLoading(true);
 
     try {
-      let response = [];
-
-      try {
-        // Try real API
-        response = await api.notifications.list(user.id);
-      } catch (err) {
-        console.log("Notifications API failed, using fallback");
-
-        // 🔥 FALLBACK DATA (no crash)
-        response = [
-          {
-            id: "1",
-            title: "Appointment Booked",
-            message: "Your appointment has been confirmed",
-            created_at: new Date().toISOString(),
-            is_read: false,
-          },
-          {
-            id: "2",
-            title: "Reminder",
-            message: "Doctor consultation in 30 minutes",
-            created_at: new Date().toISOString(),
-            is_read: true,
-          },
-        ];
-      }
-
+      const response = await api.notifications.list(user.id);
       setNotifications(normalizeArray(response));
       setError("");
-    } catch (loadError) {
-      setError(loadError.message);
+    } catch (err) {
+      // API unavailable — show empty list, no crash
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -2570,16 +3232,20 @@ export function PatientQueueScreen({ navigation }) {
               onPress={markArrived}
               style={{ flex: 1 }}
             />
-            <GradientButton
-              label="Payment"
-              icon="credit-card-outline"
-              onPress={() =>
-                navigation.navigate("AppointmentPayment", {
-                  appointmentId: appointment.id,
-                })
-              }
-              style={{ flex: 1 }}
-            />
+            {appointment.payment_status !== "paid" ? (
+              <GradientButton
+                label="Payment"
+                icon="credit-card-outline"
+                onPress={() =>
+                  navigation.navigate("AppointmentPayment", {
+                    appointmentId: appointment.id,
+                  })
+                }
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <Pill label="Paid ✓" tone="success" style={{ flex: 1, justifyContent: "center" }} />
+            )}
           </View>
         </SurfaceCard>
       ) : !loading ? (
@@ -2837,9 +3503,27 @@ export function AppointmentPaymentScreen({ navigation, route }) {
         appointment_id: appointmentId,
         payment_method: "online",
       });
+      const sessionId = response?.payment_session_id;
+      if (!sessionId) {
+        throw new Error("Failed to obtain payment session from server.");
+      }
+      const isProd = response.cashfree_mode === "production";
+      const checkoutUrl = isProd
+        ? `https://payments.cashfree.com/order/#${sessionId}`
+        : `https://payments-test.cashfree.com/order/#${sessionId}`;
+
+      console.log("Opening Cashfree checkout URL:", checkoutUrl);
+      await Linking.openURL(checkoutUrl);
+
       Alert.alert(
-        "Online order created",
-        `Backend payment order created.\nOrder ID: ${response?.order?.id || "not returned"}\n\nNative Cashfree checkout is not added in this Expo app yet.`,
+        "Payment Process Launched",
+        "Once payment is completed, go back and refresh to view your booked status.",
+        [
+          {
+            text: "Done",
+            onPress: () => navigation.navigate("PatientApp", { screen: "Home" }),
+          },
+        ]
       );
     } catch (payError) {
       setError(payError.message);
@@ -2877,7 +3561,7 @@ export function AppointmentPaymentScreen({ navigation, route }) {
             <DetailRow
               icon="clock-outline"
               label="Time"
-              value={appointment.slot_time || "N/A"}
+              value={formatSlotTime12Hour(appointment.slot_time) || "N/A"}
             />
             <DetailRow
               icon="cash-multiple"
@@ -2906,7 +3590,7 @@ export function AppointmentPaymentScreen({ navigation, route }) {
                 onPress={payByCash}
               />
               <SecondaryButton
-                label="Create Online Order"
+                label="Pay Online (Cashfree)"
                 icon="credit-card-outline"
                 onPress={prepareOnline}
               />
@@ -3049,6 +3733,412 @@ export function MedicineSearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   screenContent: {
     gap: spacing.lg,
+  },
+  tabHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceLowest || "#ffffff",
+    borderRadius: radii.pill || 24,
+    padding: 4,
+    marginVertical: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: radii.pill || 24,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.primary || "#1976d2",
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.outline || "#999999",
+  },
+  tabButtonTextActive: {
+    color: "#ffffff",
+  },
+  posterContainer: {
+    marginVertical: 4,
+  },
+  posterHeaderTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.outline || "#999999",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 10,
+  },
+  posterScrollContent: {
+    gap: 12,
+    paddingBottom: 4,
+  },
+  posterCard: {
+    width: 310,
+    height: 155,
+    borderRadius: 14,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: colors.surfaceLowest || "#ffffff",
+  },
+  posterImage: {
+    width: "100%",
+    height: "100%",
+  },
+  posterInfoOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  posterDocName: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  posterDocSpecialty: {
+    color: "#cccccc",
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  switchRowSub: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingLeft: 16,
+  },
+  switchLabelSub: {
+    color: colors.onSurfaceVariant,
+    fontSize: typography.bodySmall - 1,
+    flex: 1,
+  },
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    flexDirection: "row",
+  },
+  drawerOverlayDismiss: {
+    flex: 1,
+  },
+  drawerContent: {
+    width: 280,
+    height: "100%",
+    backgroundColor: colors.surfaceLowest || "#ffffff",
+    borderTopRightRadius: radii.lg || 16,
+    borderBottomRightRadius: radii.lg || 16,
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  drawerScroll: {
+    paddingBottom: 40,
+  },
+  drawerHeader: {
+    paddingHorizontal: spacing.md || 16,
+    paddingBottom: spacing.md || 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceHigh || "#f0f0f0",
+    marginBottom: spacing.md || 16,
+    alignItems: "center",
+  },
+  drawerLogo: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+  },
+  drawerBrand: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  drawerSubBrand: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.outline || "#999999",
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
+  drawerSection: {
+    paddingHorizontal: spacing.md || 16,
+    gap: 4,
+  },
+  drawerSectionTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.outline || "#999999",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  drawerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: radii.md || 8,
+    gap: 12,
+  },
+  drawerItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.onSurface || "#333333",
+  },
+  drawerDivider: {
+    height: 1,
+    backgroundColor: colors.surfaceHigh || "#f0f0f0",
+    marginVertical: 16,
+  },
+  tableContainer: {
+    borderWidth: 1,
+    borderColor: colors.outlineVariant || "#e0e0e0",
+    borderRadius: radii.md || 8,
+    overflow: "hidden",
+    marginTop: 8,
+    backgroundColor: colors.surfaceLowest || "#ffffff",
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceHigh || "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant || "#e0e0e0",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  tableHeaderCell: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.outline || "#999999",
+    letterSpacing: 0.8,
+  },
+  tableDataRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant || "#e0e0e0",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  tableCell: {
+    fontSize: 12,
+    color: colors.onSurface || "#333333",
+  },
+  tableActionCell: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  actionIconButton: {
+    padding: 6,
+    borderRadius: radii.sm || 4,
+    backgroundColor: colors.surfaceHigh || "#f0f0f0",
+  },
+  clinicianCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: radii.md || 8,
+    backgroundColor: colors.surfaceLowest || "#ffffff",
+    borderWidth: 1,
+    borderColor: colors.surfaceHigh || "#f0f0f0",
+    gap: 12,
+  },
+  clinicianAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryContainer || "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clinicianInitials: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.primary || "#1976d2",
+  },
+  clinicianName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onSurface || "#333333",
+  },
+  clinicianSpecialty: {
+    fontSize: 12,
+    color: colors.primary || "#1976d2",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  clinicianMeta: {
+    fontSize: 10,
+    color: colors.outline || "#999999",
+    marginTop: 4,
+  },
+  padNavHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    backgroundColor: "#ffffff",
+  },
+  padBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  padBackText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  padNavTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  padContentContainer: {
+    padding: 16,
+    backgroundColor: "#f5f5f5",
+    alignItems: "center",
+  },
+  rxSheet: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    minHeight: 500,
+  },
+  rxHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  rxDocName: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  rxDocSpecialty: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.outline,
+    marginTop: 2,
+  },
+  rxDocReg: {
+    fontSize: 11,
+    color: colors.outline,
+    marginTop: 4,
+  },
+  rxHospitalName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  rxHospitalSub: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: colors.outline,
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  rxHospitalContact: {
+    fontSize: 10,
+    color: colors.outline,
+    marginTop: 2,
+  },
+  rxLine: {
+    height: 2,
+    backgroundColor: colors.primary || "#1976d2",
+    marginVertical: 14,
+  },
+  rxPatientRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  rxPatientText: {
+    fontSize: 12,
+    color: colors.onSurface,
+  },
+  rxSymbol: {
+    fontSize: 28,
+    fontStyle: "italic",
+    fontWeight: "800",
+    color: colors.primary,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  padTable: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  padTableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  padTableHeaderText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.outline,
+  },
+  padTableRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  padTableCell: {
+    fontSize: 11,
+    color: colors.onSurface,
+  },
+  rxFooter: {
+    marginTop: 30,
+  },
+  rxFooterLine: {
+    height: 1,
+    backgroundColor: "#e0e0e0",
+    marginBottom: 10,
+  },
+  rxFooterText: {
+    fontSize: 9,
+    color: colors.outline,
+    textAlign: "center",
+    lineHeight: 14,
+  },
+  safetyVerifiedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  safetyVerifiedText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#4caf50",
   },
   heroRow: {
     flexDirection: "row",
@@ -3415,5 +4505,202 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: typography.title,
     fontWeight: "700",
+  },
+  categoryContainer: {
+    marginVertical: spacing.sm,
+  },
+  categoryScroll: {
+    gap: spacing.md,
+    paddingHorizontal: 4,
+  },
+  categoryBtn: {
+    alignItems: "center",
+    width: 72,
+  },
+  categoryIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surfaceLowest,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.outline,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
+      : {
+          shadowColor: "rgba(17,20,43,0.06)",
+          shadowOpacity: 0.6,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 2,
+        }),
+  },
+  categoryLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
+  },
+  premiumWalletCard: {
+    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.primaryFixed,
+  },
+  walletHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  walletIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceLow,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  walletTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  walletSubtitle: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+  },
+  walletDivider: {
+    height: 1,
+    backgroundColor: colors.outline,
+    marginVertical: spacing.md,
+  },
+  walletAmountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  walletLabelText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.onSurfaceVariant,
+    letterSpacing: 0.8,
+  },
+  walletAmountValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.primary,
+    marginTop: 2,
+  },
+  walletActionBtn: {
+    minWidth: 130,
+  },
+  appointmentCard: {
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  appointmentHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  appointmentBody: {
+    gap: spacing.md,
+    marginTop: 4,
+  },
+  appointmentDocInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  appointmentAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surfaceLow,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  appointmentAvatarText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  appointmentDocName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  appointmentSpecialty: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  appointmentTimeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.surfaceLow,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  appointmentTimeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  appointmentFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  paymentBadgeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  paymentBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  appointmentActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  appointmentQueueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceLow,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  appointmentQueueText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  appointmentPayBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+  },
+  appointmentPayText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.onPrimary,
   },
 });

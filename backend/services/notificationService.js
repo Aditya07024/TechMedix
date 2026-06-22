@@ -96,12 +96,23 @@ export async function getUserNotifications(userType, userId) {
 
 // Mark notification as read
 export async function markNotificationAsRead(notificationId) {
+  // Try patient_notifications first (UUID ids from patients)
+  const patientUpdated = await sql`
+    UPDATE patient_notifications
+    SET is_read = true
+    WHERE id = ${notificationId}
+    RETURNING *
+  `.catch(() => []);
+
+  if (patientUpdated.length > 0) return patientUpdated[0];
+
+  // Fall back to legacy notifications table (integer ids)
   const updated = await sql`
     UPDATE notifications
     SET is_read = true
     WHERE id = ${notificationId}
     RETURNING *
-  `;
+  `.catch(() => []);
 
   if (updated.length === 0) {
     throw new Error("Notification not found");
@@ -140,29 +151,47 @@ export async function getNotificationsByUser(
   is_read = null,
   limit = 50,
 ) {
-  let query = sql`
-    SELECT id, message, is_read, created_at, NULL::text AS type
-    FROM notifications
-    WHERE user_id = ${userId}
-  `;
-
-  if (is_read !== null) {
-    query += sql` AND is_read = ${is_read === "true" || is_read === true}`;
-  }
-
-  query += sql` ORDER BY created_at DESC LIMIT ${limit}`;
-
-  const notifications = await sql`
-    SELECT id, message, is_read, created_at, NULL::text AS type
-    FROM notifications
-    WHERE user_id = ${userId}
+  // patient_notifications uses a UUID patient_id; the legacy notifications
+  // table uses an integer user_id. Query both and merge.
+  const patientRows = await sql`
+    SELECT
+      id::text,
+      COALESCE(title, 'Notification') AS message,
+      is_read,
+      created_at,
+      'patient' AS type
+    FROM patient_notifications
+    WHERE patient_id = ${userId}
     ${is_read !== null ? sql`AND is_read = ${is_read === "true" || is_read === true}` : sql``}
     ORDER BY created_at DESC
     LIMIT ${limit}
-  `;
+  `.catch(() => []);
 
-  return notifications;
+  // Only query legacy table when userId looks like an integer
+  const isNumericId = /^\d+$/.test(String(userId));
+  const legacyRows = isNumericId
+    ? await sql`
+        SELECT
+          id::text,
+          message,
+          is_read,
+          created_at,
+          NULL::text AS type
+        FROM notifications
+        WHERE user_id = ${userId}
+        ${is_read !== null ? sql`AND is_read = ${is_read === "true" || is_read === true}` : sql``}
+        ORDER BY created_at DESC
+        LIMIT ${limit}
+      `.catch(() => [])
+    : [];
+
+  const merged = [...patientRows, ...legacyRows].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at),
+  );
+
+  return merged.slice(0, Number(limit));
 }
+
 
 // Mark notification as read (alias)
 export async function markAsRead(notificationId) {
@@ -171,18 +200,34 @@ export async function markAsRead(notificationId) {
 
 // Mark all notifications as read
 export async function markAllAsRead(userId) {
-  const updated = await sql`
-    UPDATE notifications
+  const isNumericId = /^\d+$/.test(String(userId));
+
+  // Always update patient_notifications (UUID patient_id)
+  const patientUpdated = await sql`
+    UPDATE patient_notifications
     SET is_read = true
-    WHERE user_id = ${userId}
+    WHERE patient_id = ${userId}
       AND is_read = false
     RETURNING *
-  `;
+  `.catch(() => []);
+
+  // Also update legacy table for numeric user ids
+  const legacyUpdated = isNumericId
+    ? await sql`
+        UPDATE notifications
+        SET is_read = true
+        WHERE user_id = ${userId}
+          AND is_read = false
+        RETURNING *
+      `.catch(() => [])
+    : [];
+
+  const allUpdated = [...patientUpdated, ...legacyUpdated];
 
   return {
     success: true,
-    count: updated.length,
-    notifications: updated,
+    count: allUpdated.length,
+    notifications: allUpdated,
   };
 }
 

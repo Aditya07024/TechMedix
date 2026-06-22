@@ -93,6 +93,7 @@ export const paymentApi = {
     api.get(`/api/payments/doctor/${doctorId}/details`),
   payWithWallet: (data) => api.post("/api/payments/pay-with-wallet", data),
   getWalletBalance: () => api.get("/api/payments/wallet/balance"),
+  initiateAddMoney: (data) => api.post("/api/payments/wallet/add-money", data),
 };
 
 export const aiApi = {

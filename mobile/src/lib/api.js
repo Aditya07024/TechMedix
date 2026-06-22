@@ -186,6 +186,12 @@ export const api = {
     doctorProfile: () => apiRequest("/auth/doctor/profile"),
     updateDoctorProfile: (payload) =>
       apiRequest("/auth/doctor/profile", { method: "PATCH", body: payload }),
+    staffLogin: (payload) =>
+      apiRequest("/auth/staff/login", {
+        method: "POST",
+        body: payload,
+        auth: false,
+      }),
     logout: () => apiRequest("/auth/logout"),
   },
 
@@ -261,6 +267,13 @@ export const api = {
       }),
     getDoctorSummary: (doctorId) =>
       apiRequest(`/api/payments/doctor/${doctorId}/summary`),
+    initiateAddMoney: (payload) =>
+      apiRequest("/api/payments/wallet/add-money", {
+        method: "POST",
+        body: payload,
+      }),
+    getWalletTransactions: () =>
+      apiRequest("/api/payments/wallet/transactions"),
   },
 
   prescriptions: {
@@ -330,6 +343,10 @@ export const api = {
           return null;
         }
         throw error;
+      }),
+    delete: (id) =>
+      apiRequest(`/api/medicines/${id}`, {
+        method: "DELETE",
       }),
   },
 
@@ -467,5 +484,41 @@ export const api = {
     },
     uploadDoctor: ({ audio, appointmentId, patientId }) =>
       api.recordings.upload({ audio, appointmentId, patientId }),
+  },
+
+  staff: {
+    getOverview: () => apiRequest("/api/staff/overview"),
+    getDoctors: () => apiRequest("/api/staff/doctors"),
+    getTodayAppointments: (status) =>
+      apiRequest("/api/staff/appointments/today", { query: status ? { status } : undefined }),
+    markArrived: (appointmentId) =>
+      apiRequest(`/api/staff/appointments/${appointmentId}/arrive`, { method: "POST" }),
+    generateQueueToken: (appointmentId) =>
+      apiRequest("/api/staff/queue/token", { method: "POST", body: { appointment_id: appointmentId } }),
+    getLiveQueue: (date) =>
+      apiRequest("/api/staff/queue/live", { query: date ? { date } : undefined }),
+    updateQueueStatus: (queueId, status) =>
+      apiRequest(`/api/staff/queue/${queueId}/status`, { method: "PATCH", body: { status } }),
+    notifyDoctor: (payload) =>
+      apiRequest("/api/staff/notify-doctor", { method: "POST", body: payload }),
+    switchDoctor: (doctorId) =>
+      apiRequest("/api/staff/switch-doctor", { method: "POST", body: { doctor_id: doctorId } }),
+    getActivity: (limit = 25) =>
+      apiRequest("/api/staff/activity", { query: { limit } }),
+  },
+
+  admin: {
+    getOverview: () => apiRequest("/api/v2/analytics/system"),
+    getPayments: (limit = 50, offset = 0) => apiRequest("/api/v2/admin/payments", { query: { limit, offset } }),
+    deleteFailedOrPendingPayments: () => apiRequest("/api/v2/admin/payments/failed-or-pending", { method: "DELETE" }),
+    getUsers: (role, limit = 50, offset = 0) => apiRequest("/api/v2/admin/users", { query: { role: role || undefined, limit, offset } }),
+    getPayoutSummary: () => apiRequest("/api/v2/admin/payouts/summary"),
+    createPayout: (payload) => apiRequest("/api/v2/admin/payouts", { method: "POST", body: payload }),
+    getPayoutHistory: () => apiRequest("/api/v2/admin/payouts/history"),
+    getTickets: () => apiRequest("/api/support/tickets"),
+    updateTicketStatus: (ticketId, status) => apiRequest(`/api/support/tickets/${ticketId}/status`, { method: "PUT", body: { status } }),
+  },
+  doctorPosters: {
+    listActive: () => apiRequest("/api/doctor-posters/active", { auth: false, unwrap: true }),
   },
 };

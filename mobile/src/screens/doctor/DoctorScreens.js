@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { BarCodeScanner } from "expo-barcode-scanner";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import { useFocusEffect } from "@react-navigation/native";
@@ -152,71 +152,83 @@ export function DoctorDashboardScreen({ navigation }) {
         />
       </View>
 
+      {/* 3-up Stat row */}
       <View style={styles.statRow}>
-        <Stat label="Total" value={appointments.length || 0} />
-
+        <Stat label="Total" value={appointments.length || 0} icon="calendar-multiselect" />
         <Stat
           label="Waiting"
           value={appointments.filter((a) => a.status === "waiting").length || 0}
+          icon="account-clock"
         />
-
         <Stat
           label="Completed"
-          value={
-            appointments.filter((a) => a.status === "completed").length || 0
-          }
+          value={appointments.filter((a) => a.status === "completed").length || 0}
+          icon="check-decagram"
         />
       </View>
 
-      <SurfaceCard>
-        <Text style={styles.blockTitle}>Clinic Snapshot</Text>
-        <DetailRow
-          icon="chart-line"
-          label="Average Risk Score"
-          value={String(dashboard.average_risk_score || 0)}
-        />
-        <DetailRow
-          icon="cash-multiple"
-          label="Revenue Today"
-          value={formatCurrency(analytics.total_revenue_today || 0)}
-        />
-        <DetailRow
-          icon="clock-outline"
-          label="Avg Consultation"
-          value={`${analytics.avg_consultation_time_minutes || 0} mins`}
-        />
-        <DetailRow
-          icon="wallet-outline"
-          label="Doctor Earnings"
-          value={formatCurrency(summary.total_earnings || 0)}
-        />
-      </SurfaceCard>
+      <SectionHeader title="Clinic Snapshot" />
+      {/* 2-column info grid */}
+      <View style={styles.infoGrid}>
+        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+          <View style={styles.infoCardIconCircle}>
+            <MaterialCommunityIcons name="chart-line" size={18} color={colors.primary} />
+          </View>
+          <Text style={styles.infoCardLabel}>Avg Risk Score</Text>
+          <Text style={styles.infoCardValue}>{String(dashboard.average_risk_score || 0)}</Text>
+        </SurfaceCard>
+        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+          <View style={styles.infoCardIconCircle}>
+            <MaterialCommunityIcons name="cash-multiple" size={18} color={colors.success} />
+          </View>
+          <Text style={styles.infoCardLabel}>Revenue Today</Text>
+          <Text style={styles.infoCardValue}>{formatCurrency(analytics.total_revenue_today || 0)}</Text>
+        </SurfaceCard>
+        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+          <View style={styles.infoCardIconCircle}>
+            <MaterialCommunityIcons name="clock-outline" size={18} color={colors.primary} />
+          </View>
+          <Text style={styles.infoCardLabel}>Avg Consultation</Text>
+          <Text style={styles.infoCardValue}>{`${analytics.avg_consultation_time_minutes || 0} mins`}</Text>
+        </SurfaceCard>
+        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+          <View style={styles.infoCardIconCircle}>
+            <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.primary} />
+          </View>
+          <Text style={styles.infoCardLabel}>Doctor Earnings</Text>
+          <Text style={styles.infoCardValue}>{formatCurrency(summary.total_earnings || 0)}</Text>
+        </SurfaceCard>
+      </View>
 
-      <SurfaceCard tone="low">
+      <SurfaceCard tone="lowest" style={styles.dashboardListCard}>
         <View style={styles.cardHeaderRow}>
           <Text style={styles.blockTitle}>Today’s Appointments</Text>
           <TouchableOpacity onPress={() => navigation.navigate("Appointments")}>
             <Text style={styles.linkText}>Open list</Text>
           </TouchableOpacity>
         </View>
-        {(appointments || []).slice(0, 4).map((appointment) => (
-          <View key={appointment.id} style={styles.listRow}>
-            <View style={styles.listIcon}>
-              <AvatarBubble
-                label={getInitials(appointment.patient_name)}
-                size={32}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.listTitle}>{appointment.patient_name}</Text>
-              <Text style={styles.listMeta}>
-                {formatDate(appointment.appointment_date)} •{" "}
-                {appointment.slot_time}
-              </Text>
-            </View>
-            <Pill label={appointment.status || "booked"} tone="info" />
-          </View>
-        ))}
+        <View style={{ gap: spacing.sm }}>
+          {appointments.length === 0 ? (
+            <Text style={styles.smallText}>No appointments today</Text>
+          ) : (
+            (appointments || []).slice(0, 4).map((appointment) => (
+              <View key={appointment.id} style={styles.dashboardApptRow}>
+                <AvatarBubble
+                  label={getInitials(appointment.patient_name)}
+                  size={36}
+                  tone="secondary"
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.apptPatientName}>{appointment.patient_name}</Text>
+                  <Text style={styles.apptTimeMeta}>
+                    {formatDate(appointment.appointment_date)} • {appointment.slot_time}
+                  </Text>
+                </View>
+                <Pill label={appointment.status || "booked"} tone="info" />
+              </View>
+            ))
+          )}
+        </View>
       </SurfaceCard>
     </ScreenScroll>
   );
@@ -656,15 +668,22 @@ export function DoctorPatientLookupScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === "granted");
-    })();
-  }, []);
+  const startScanning = async () => {
+    if (!permission || !permission.granted) {
+      const res = await requestPermission();
+      if (res && res.granted) {
+        setScanning(true);
+      } else {
+        Alert.alert("Permission Denied", "Camera permission is required to scan QR codes.");
+      }
+    } else {
+      setScanning(true);
+    }
+  };
+
   async function lookupWithCode(scannedCode) {
     setLoading(true);
     try {
@@ -719,7 +738,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
         <SecondaryButton
           label="Scan QR"
           icon="qrcode-scan"
-          onPress={() => setScanning(true)}
+          onPress={startScanning}
         />
         <TextInput
           value={code}
@@ -739,8 +758,11 @@ export function DoctorPatientLookupScreen({ navigation }) {
       {scanning && Platform.OS !== "web" ? (
         <SurfaceCard>
           <Text style={styles.blockTitle}>Scan Patient QR</Text>
-          <BarCodeScanner
-            onBarCodeScanned={handleScan}
+          <CameraView
+            onBarcodeScanned={handleScan}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr"],
+            }}
             style={{ height: 250, borderRadius: 12 }}
           />
         </SurfaceCard>
@@ -1150,11 +1172,14 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, icon = "calendar-check" }) {
   return (
-    <SurfaceCard tone="low" style={{ flex: 1 }}>
-      <Text style={styles.statLabel}>{label}</Text>
+    <SurfaceCard tone="lowest" style={styles.premiumStatCard}>
+      <View style={styles.statIconCircle}>
+        <MaterialCommunityIcons name={icon} size={20} color={colors.primary} />
+      </View>
       <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </SurfaceCard>
   );
 }
@@ -1311,5 +1336,75 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontSize: typography.bodySmall,
     fontWeight: "500",
+  },
+  premiumStatCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    gap: 8,
+  },
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceLow,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  infoGridCard: {
+    width: "47%",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    gap: 8,
+  },
+  infoCardIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceLow,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  infoCardLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.onSurfaceVariant,
+  },
+  infoCardValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  dashboardListCard: {
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  dashboardApptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  apptPatientName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onSurface,
+  },
+  apptTimeMeta: {
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
   },
 });

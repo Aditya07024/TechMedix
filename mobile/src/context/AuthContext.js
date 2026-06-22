@@ -112,6 +112,25 @@ export function AuthProvider({ children }) {
     return signInDoctor({ email: payload.email, password: payload.password });
   }
 
+  async function signInStaff(credentials) {
+    const response = await api.auth.staffLogin(credentials);
+    return commitSession({
+      token: response.token,
+      role: response.role || "staff",
+      user: response.user,
+    });
+  }
+
+  async function signInAdmin(credentials) {
+    // Admin uses the same core /auth/login endpoint as patients
+    const response = await api.auth.patientLogin(credentials);
+    return commitSession({
+      token: response.token,
+      role: response.role || "admin",
+      user: response.user,
+    });
+  }
+
   async function refreshDoctorProfile() {
     if (session?.role !== "doctor") return session?.user || null;
     const response = await api.auth.doctorProfile();
@@ -145,6 +164,8 @@ export function AuthProvider({ children }) {
       signUpPatient,
       signInDoctor,
       signUpDoctor,
+      signInStaff,
+      signInAdmin,
       refreshDoctorProfile,
       signOut,
     }),

@@ -136,7 +136,7 @@ const LoginPop = ({ setShowLogin }) => {
   const handleDemoPatientLogin = async () => {
     setCurrState("Login");
     setEmail("demo@gmail.com");
-    setPassword("1234589");
+    setPassword("123456789");
     setError(null);
     setSubmitting(true);
 
@@ -145,7 +145,7 @@ const LoginPop = ({ setShowLogin }) => {
       try {
         res = await authApi.login({
           email: "demo@gmail.com",
-          password: "1234589",
+          password: "123456789",
         });
       } catch (loginError) {
         if (loginError?.response?.status !== 401) {
@@ -155,7 +155,7 @@ const LoginPop = ({ setShowLogin }) => {
         await authApi.signup({
           name: "Demo Patient",
           email: "demo@gmail.com",
-          password: "1234589",
+          password: "123456789",
           age: "28",
           gender: "Male",
           phone: "9999999999",
@@ -165,7 +165,7 @@ const LoginPop = ({ setShowLogin }) => {
 
         res = await authApi.login({
           email: "demo@gmail.com",
-          password: "1234589",
+          password: "123456789",
         });
       }
 

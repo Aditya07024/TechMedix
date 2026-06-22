@@ -246,6 +246,11 @@ export async function initializeCompletSchema() {
 
     await sql`
       ALTER TABLE payments
+      ALTER COLUMN doctor_id DROP NOT NULL;
+    `;
+
+    await sql`
+      ALTER TABLE payments
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS gst_charges NUMERIC DEFAULT 0,
       ADD COLUMN IF NOT EXISTS platform_fees NUMERIC DEFAULT 0,

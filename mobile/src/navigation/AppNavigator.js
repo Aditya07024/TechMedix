@@ -1,9 +1,15 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, Platform, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import LoginRoleSelectionScreen from "../screens/auth/LoginRoleSelectionScreen";
+import PatientLoginScreen from "../screens/auth/PatientLoginScreen";
+import DoctorLoginScreen from "../screens/auth/DoctorLoginScreen";
+import StaffLoginScreen from "../screens/auth/StaffLoginScreen";
+import AdminLoginScreen from "../screens/auth/AdminLoginScreen";
+import MobileLandingScreen from "../screens/auth/MobileLandingScreen";
+import StaffDashboardScreen from "../screens/staff/StaffDashboardScreen";
+import AdminDashboardScreen from "../screens/admin/AdminDashboardScreen";
 import {
   AIHealthChatScreen,
   AnalyzePrescriptionScreen,
@@ -35,64 +41,94 @@ import {
   QueueManagerScreen,
 } from "../screens/doctor/DoctorScreens";
 import { useAuth } from "../context/AuthContext";
-import { colors, typography } from "../theme/tokens";
+import { colors, radii, spacing, typography } from "../theme/tokens";
 import MedicineDetailScreen from "../screens/patient/MedicineDetailScreen";
 
 const RootStack = createNativeStackNavigator();
 const PatientTab = createBottomTabNavigator();
 const DoctorTab = createBottomTabNavigator();
 
-function tabOptions() {
-  return {
-    headerShown: false,
-    tabBarStyle: {
-      height: 76,
-      paddingTop: 10,
-      paddingBottom: 12,
-      borderTopWidth: 0,
-      backgroundColor: colors.surfaceLowest,
-    },
-    tabBarActiveTintColor: colors.primary,
-    tabBarInactiveTintColor: colors.outline,
-    tabBarLabelStyle: {
-      fontSize: 11,
-      fontWeight: "700",
-      marginTop: 4,
-    },
-  };
-}
-
-function patientTabIcon(name, focused) {
-  const icons = {
-    Home: "home-variant",
-    Care: "calendar-heart",
-    Prescriptions: "pill",
-    Wallet: "wallet-outline",
-    Profile: "account-outline",
-  };
+function CustomTabBar({ state, descriptors, navigation, isDoctor = false }) {
   return (
-    <MaterialCommunityIcons
-      name={icons[name]}
-      size={22}
-      color={focused ? colors.primary : colors.outline}
-    />
-  );
-}
+    <View style={navStyles.tabContainer}>
+      <View style={navStyles.tabBar}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const label =
+            options.title !== undefined
+              ? options.title
+              : route.name === "DoctorProfileTab"
+              ? "Profile"
+              : route.name === "DoctorHome"
+              ? "Home"
+              : route.name;
 
-function doctorTabIcon(name, focused) {
-  const icons = {
-    DoctorHome: "view-dashboard-outline",
-    Queue: "clipboard-list-outline",
-    Appointments: "calendar-month-outline",
-    Schedule: "calendar-outline",
-    DoctorProfileTab: "account-circle-outline",
-  };
-  return (
-    <MaterialCommunityIcons
-      name={icons[name]}
-      size={22}
-      color={focused ? colors.primary : colors.outline}
-    />
+          const isFocused = state.index === index;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: "tabLongPress",
+              target: route.key,
+            });
+          };
+
+          const iconName = isDoctor
+            ? {
+                DoctorHome: "view-dashboard-outline",
+                Queue: "clipboard-list-outline",
+                Appointments: "calendar-month-outline",
+                Schedule: "calendar-outline",
+                DoctorProfileTab: "account-circle-outline",
+              }[route.name]
+            : {
+                Home: "home-variant",
+                Appointments: "calendar-heart",
+                Prescriptions: "pill",
+                Wallet: "file-document-outline",
+                Profile: "account-outline",
+              }[route.name];
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={isFocused ? { selected: true } : {}}
+              accessibilityLabel={options.tabBarAccessibilityLabel}
+              testID={options.tabBarTestID}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              style={[
+                navStyles.tabItem,
+                isFocused && navStyles.tabItemActive
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={iconName}
+                size={20}
+                color={isFocused ? colors.onPrimary : colors.outline}
+              />
+              {isFocused && (
+                <Text style={navStyles.tabLabel}>
+                  {label}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -107,87 +143,30 @@ function AppLoadingScreen() {
 
 function PatientTabs() {
   return (
-    <PatientTab.Navigator screenOptions={tabOptions()}>
-      <PatientTab.Screen
-        name="Home"
-        component={PatientDashboardScreen}
-        options={{
-          tabBarIcon: ({ focused }) => patientTabIcon("Home", focused),
-        }}
-      />
-      <PatientTab.Screen
-        name="Care"
-        component={BookAppointmentScreen}
-        options={{
-          tabBarIcon: ({ focused }) => patientTabIcon("Care", focused),
-        }}
-      />
-      <PatientTab.Screen
-        name="Prescriptions"
-        component={AnalyzePrescriptionScreen}
-        options={{
-          tabBarIcon: ({ focused }) => patientTabIcon("Prescriptions", focused),
-        }}
-      />
-      <PatientTab.Screen
-        name="Wallet"
-        component={HealthWalletScreen}
-        options={{
-          tabBarIcon: ({ focused }) => patientTabIcon("Wallet", focused),
-        }}
-      />
-      <PatientTab.Screen
-        name="Profile"
-        component={PatientProfileScreen}
-        options={{
-          tabBarIcon: ({ focused }) => patientTabIcon("Profile", focused),
-        }}
-      />
+    <PatientTab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <PatientTab.Screen name="Home" component={PatientDashboardScreen} />
+      <PatientTab.Screen name="Appointments" component={BookAppointmentScreen} />
+      <PatientTab.Screen name="Prescriptions" component={AnalyzePrescriptionScreen} />
+      <PatientTab.Screen name="Wallet" component={HealthWalletScreen} />
+      <PatientTab.Screen name="Profile" component={PatientProfileScreen} />
     </PatientTab.Navigator>
   );
 }
 
 function DoctorTabs() {
   return (
-    <DoctorTab.Navigator screenOptions={tabOptions()}>
-      <DoctorTab.Screen
-        name="DoctorHome"
-        component={DoctorDashboardScreen}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ focused }) => doctorTabIcon("DoctorHome", focused),
-        }}
-      />
-      <DoctorTab.Screen
-        name="Queue"
-        component={QueueManagerScreen}
-        options={{
-          tabBarIcon: ({ focused }) => doctorTabIcon("Queue", focused),
-        }}
-      />
-      <DoctorTab.Screen
-        name="Appointments"
-        component={DoctorAppointmentsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => doctorTabIcon("Appointments", focused),
-        }}
-      />
-      <DoctorTab.Screen
-        name="Schedule"
-        component={DoctorScheduleScreen}
-        options={{
-          tabBarIcon: ({ focused }) => doctorTabIcon("Schedule", focused),
-        }}
-      />
-      <DoctorTab.Screen
-        name="DoctorProfileTab"
-        component={DoctorProfileScreen}
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ focused }) =>
-            doctorTabIcon("DoctorProfileTab", focused),
-        }}
-      />
+    <DoctorTab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} isDoctor />}
+      screenOptions={{ headerShown: false }}
+    >
+      <DoctorTab.Screen name="DoctorHome" component={DoctorDashboardScreen} options={{ title: "Home" }} />
+      <DoctorTab.Screen name="Queue" component={QueueManagerScreen} />
+      <DoctorTab.Screen name="Appointments" component={DoctorAppointmentsScreen} />
+      <DoctorTab.Screen name="Schedule" component={DoctorScheduleScreen} />
+      <DoctorTab.Screen name="DoctorProfileTab" component={DoctorProfileScreen} options={{ title: "Profile" }} />
     </DoctorTab.Navigator>
   );
 }
@@ -201,6 +180,7 @@ function PatientRootNavigator() {
         component={AppointmentPaymentScreen}
       />
       <RootStack.Screen name="PaymentWallet" component={PaymentWalletScreen} />
+      <RootStack.Screen name="HealthWallet" component={HealthWalletScreen} />
       <RootStack.Screen
         name="PrescriptionResults"
         component={PrescriptionResultsScreen}
@@ -257,8 +237,46 @@ function AuthNavigator() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       <RootStack.Screen
-        name="RoleSelection"
-        component={LoginRoleSelectionScreen}
+        name="MobileLanding"
+        component={MobileLandingScreen}
+      />
+      <RootStack.Screen
+        name="PatientLogin"
+        component={PatientLoginScreen}
+      />
+      <RootStack.Screen
+        name="DoctorLogin"
+        component={DoctorLoginScreen}
+      />
+      <RootStack.Screen
+        name="StaffLogin"
+        component={StaffLoginScreen}
+      />
+      <RootStack.Screen
+        name="AdminLogin"
+        component={AdminLoginScreen}
+      />
+    </RootStack.Navigator>
+  );
+}
+
+function StaffRootNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen
+        name="StaffDashboard"
+        component={StaffDashboardScreen}
+      />
+    </RootStack.Navigator>
+  );
+}
+
+function AdminRootNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen
+        name="AdminDashboard"
+        component={AdminDashboardScreen}
       />
     </RootStack.Navigator>
   );
@@ -279,6 +297,14 @@ export default function AppNavigator() {
     return <DoctorRootNavigator />;
   }
 
+  if (role === "staff") {
+    return <StaffRootNavigator />;
+  }
+
+  if (role === "admin") {
+    return <AdminRootNavigator />;
+  }
+
   return <PatientRootNavigator />;
 }
 
@@ -294,4 +320,56 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     fontSize: typography.body,
   },
+});
+
+const navStyles = StyleSheet.create({
+  tabContainer: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceLowest, // White
+    borderRadius: radii.pill, // fully rounded
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    justifyContent: "space-around",
+    alignItems: "center",
+    width: "100%",
+    // Web shadow
+    ...(Platform.OS === "web"
+      ? {
+          boxShadow: "0px 8px 24px rgba(18, 20, 43, 0.08)",
+        }
+      : {
+          shadowColor: "rgba(18, 20, 43, 0.08)",
+          shadowOpacity: 1,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 5,
+        }),
+  },
+  tabItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  tabItemActive: {
+    backgroundColor: colors.primary, // Brand Primary
+  },
+  tabLabel: {
+    color: colors.onPrimary,
+    fontWeight: "700",
+    fontSize: 12,
+  }
 });

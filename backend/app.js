@@ -582,7 +582,7 @@ app.options("/{*splat}", cors(corsOptions));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    max: process.env.NODE_ENV === "production" ? 200 : 10000,
   }),
 );
 app.use(express.json()); // for parsing application/json
@@ -626,6 +626,14 @@ async function testConnection() {
   try {
     const result = await sql`SELECT NOW()`;
     console.log("✓ Connected to PostgreSQL:", result[0]);
+
+    // Ensure doctor_id is nullable in payments table for top-ups
+    try {
+      await sql`ALTER TABLE payments ALTER COLUMN doctor_id DROP NOT NULL`;
+      console.log("✓ Ensured doctor_id is nullable in payments table");
+    } catch (e) {
+      console.warn("Could not alter payments doctor_id:", e.message);
+    }
 
     if (shouldRunStartupMigrations()) {
       await runStartupMigrations();

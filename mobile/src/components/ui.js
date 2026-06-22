@@ -14,18 +14,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radii, spacing, typography } from "../theme/tokens";
 
-const cardShadowStyle =
-  Platform.OS === "web"
+export const getCardShadow = (tone) => {
+  const isWhite = tone === "lowest";
+  const shadowColor = isWhite ? "rgba(17, 20, 43, 0.06)" : "rgba(91, 130, 224, 0.18)";
+  const shadowRadius = isWhite ? 16 : 24;
+  const shadowHeight = isWhite ? 4 : 8;
+  const opacity = isWhite ? 0.6 : 1;
+  return Platform.OS === "web"
     ? {
-        boxShadow: `0px 16px 24px ${colors.shadow}`,
+        boxShadow: `0px ${shadowHeight}px ${shadowRadius}px ${shadowColor}`,
       }
     : {
-        shadowColor: colors.shadow,
-        shadowOpacity: 1,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 16 },
-        elevation: 2,
+        shadowColor,
+        shadowOpacity: opacity,
+        shadowRadius,
+        shadowOffset: { width: 0, height: shadowHeight },
+        elevation: isWhite ? 2 : 4,
       };
+};
 
 export function ScreenScroll({
   children,
@@ -53,8 +59,10 @@ export function TopBar({
   subtitle,
   showBack = false,
   onBack,
+  onMenuPress,
   onBell,
   brandOnly = false,
+  menuIcon,
 }) {
   return (
     <View style={styles.topBar}>
@@ -66,6 +74,26 @@ export function TopBar({
               size={22}
               color={colors.primary}
             />
+          </TouchableOpacity>
+        ) : onMenuPress ? (
+          <TouchableOpacity onPress={onMenuPress} style={styles.iconButton}>
+            {menuIcon === "logo" ? (
+              <Image
+                source={require("../../assets/icon.png")}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name="menu"
+                size={22}
+                color={colors.primary}
+              />
+            )}
           </TouchableOpacity>
         ) : (
           <Image
@@ -85,11 +113,26 @@ export function TopBar({
       </View>
       {brandOnly ? null : (
         <TouchableOpacity onPress={onBell} style={styles.iconButton}>
-          <MaterialCommunityIcons
-            name="bell-outline"
-            size={22}
-            color={colors.primary}
-          />
+          <View style={{ position: "relative" }}>
+            <MaterialCommunityIcons
+              name="bell-outline"
+              size={22}
+              color={colors.primary}
+            />
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: 7,
+                height: 7,
+                borderRadius: 3.5,
+                backgroundColor: colors.primary,
+                borderWidth: 1.5,
+                borderColor: colors.surfaceLowest,
+              }}
+            />
+          </View>
         </TouchableOpacity>
       )}
     </View>
@@ -135,7 +178,17 @@ export function SurfaceCard({ children, style, tone = "lowest" }) {
   const backgroundColor =
     tone === "low" ? colors.surfaceLow : tone === "high" ? colors.surfaceHigh : colors.surfaceLowest;
 
-  return <View style={[styles.card, { backgroundColor }, style]}>{children}</View>;
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor, ...getCardShadow(tone) },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function Pill({ label, tone = "default" }) {
@@ -244,7 +297,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: spacing.xxl * 3.5,
     gap: spacing.xl,
   },
   topBar: {
@@ -253,8 +306,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: "rgba(244,250,255,0.92)",
-    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceLowest,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    ...getCardShadow("lowest"),
   },
   topLeft: {
     flexDirection: "row",
@@ -275,12 +331,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surfaceLowest,
+    backgroundColor: colors.surfaceLow,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   avatar: {
     alignItems: "center",
@@ -323,8 +381,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: radii.md,
     padding: spacing.lg,
-    ...cardShadowStyle,
     gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.outline,
   },
   pill: {
     alignSelf: "flex-start",

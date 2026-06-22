@@ -528,6 +528,29 @@ export async function confirmOnlinePayment(
           WHERE id = ${appointmentId}
         `;
       }
+
+      if (payment[0].payment_method === 'wallet_topup') {
+        const wallets = await tx`
+          INSERT INTO wallets (patient_id, balance)
+          VALUES (${payment[0].patient_id}, 0)
+          ON CONFLICT (patient_id)
+          DO UPDATE SET updated_at = NOW()
+          RETURNING id, balance
+        `;
+        const walletId = wallets[0].id;
+        const amount = Number(payment[0].amount);
+        
+        await tx`
+          UPDATE wallets
+          SET balance = balance + ${amount}, updated_at = NOW()
+          WHERE id = ${walletId}
+        `;
+        
+        await tx`
+          INSERT INTO wallet_transactions (wallet_id, patient_id, type, amount, source, reference_id, note)
+          VALUES (${walletId}, ${payment[0].patient_id}, 'credit', ${amount}, 'wallet_topup', ${payment[0].id}, 'Wallet top-up via Cashfree')
+        `;
+      }
     });
     console.log("Payment status updated successfully");
   } catch (updateError) {
@@ -779,5 +802,105 @@ export async function getDoctorRevenueDetails(doctorId) {
       ...row,
       amount: Number(row.amount || 0),
     })),
+  };
+}
+
+export async function initiateWalletTopup({ amount, patientId, customerPhone = null }) {
+  const topupAmount = Number(amount);
+  if (!topupAmount || topupAmount <= 0) {
+    throw new Error("Invalid amount to add");
+  }
+
+  // 1. Create a payment record of type 'wallet_topup'
+  const paymentResult = await sql`
+    INSERT INTO payments (
+      appointment_id,
+      patient_id,
+      doctor_id,
+      amount,
+      currency,
+      payment_method,
+      status,
+      booking_payload,
+      gst_charges,
+      platform_fees,
+      total_amount
+    )
+    VALUES (
+      null,
+      ${patientId},
+      null,
+      ${topupAmount},
+      'INR',
+      'wallet_topup',
+      'pending',
+      null,
+      0,
+      0,
+      ${topupAmount}
+    )
+    RETURNING *
+  `;
+  const insertedPayment = paymentResult[0];
+
+  // 2. Generate a Cashfree order for it
+  const receiptSource = `wallet_${patientId.substring(0, 8)}_${Date.now()}`;
+  const orderId = `cf_ord_${String(receiptSource).replace(/[^a-zA-Z0-9]/g, "").substring(0, 12)}_${Date.now()}`;
+
+  const patient = await sql`
+    SELECT name, email, phone FROM patients WHERE id = ${patientId}
+  `;
+  const phoneToUse = customerPhone || patient[0]?.phone;
+  const customerEmail = patient[0]?.email || "patient@techmedix.com";
+  const customerPhoneFinal = phoneToUse ? getNormalizedPhoneForCashfree(phoneToUse) : "9999999999";
+  const customerName = patient[0]?.name || "Patient";
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.slice(0, -1) : frontendUrl;
+  const returnUrl = `${cleanFrontendUrl}/payment?payment_trigger=cashfree&cf_order_id={order_id}&payment_id=${insertedPayment.id}`;
+
+  const response = await axios.post(
+    `${cashfreeBaseUrl}/orders`,
+    {
+      order_id: orderId,
+      order_amount: Number(topupAmount),
+      order_currency: "INR",
+      customer_details: {
+        customer_id: String(patientId),
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhoneFinal,
+      },
+      order_meta: {
+        return_url: returnUrl
+      }
+    },
+    {
+      headers: getCashfreeHeaders()
+    }
+  );
+
+  const cashfreeOrder = response.data;
+  console.log("Cashfree order created for wallet topup", {
+    orderId: cashfreeOrder.order_id,
+    amount: cashfreeOrder.order_amount,
+  });
+
+  const updatedPayment = await sql`
+    UPDATE payments
+    SET razorpay_order_id = ${cashfreeOrder.order_id}
+    WHERE id = ${insertedPayment.id}
+    RETURNING *
+  `;
+
+  return {
+    success: true,
+    orderId: cashfreeOrder.order_id,
+    payment_session_id: cashfreeOrder.payment_session_id,
+    amount: cashfreeOrder.order_amount,
+    currency: cashfreeOrder.order_currency,
+    cashfree_mode: CASHFREE_ENV,
+    ...updatedPayment[0],
+    order: cashfreeOrder,
   };
 }

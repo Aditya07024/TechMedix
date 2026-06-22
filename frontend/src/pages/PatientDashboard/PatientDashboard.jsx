@@ -2329,7 +2329,7 @@ export default function PatientDashboard() {
                   </div>
                 </div>
 
-                <div className="home-card wallet-hero-card">
+                {/* <div className="home-card wallet-hero-card">
                   <div className="home-card-title">
                     <Wallet size={16} strokeWidth={2} />
                     <span>Available funds</span>
@@ -2339,7 +2339,7 @@ export default function PatientDashboard() {
                     Go to Wallet
                     <ChevronRight size={14} strokeWidth={2} />
                   </button>
-                </div>
+                </div> */}
 
                 <div className="home-card quick-action-card-rx" onClick={() => setShowDownloadPadModal(true)}>
                   <div className="home-card-title">
