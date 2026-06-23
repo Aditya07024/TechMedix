@@ -3194,7 +3194,7 @@ export function PatientProfileScreen({ navigation }) {
                   width: idx < 3 ? "31.3%" : "48.5%",
                   aspectRatio: idx < 3 ? 1.1 : 1.6,
                   backgroundColor: colors.surfaceLowest,
-                  // borderRadius: radii.md,
+                  borderRadius: radii.sm,
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
