@@ -34,6 +34,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
       .setContentText(body)
       .setStyle(NotificationCompat.BigTextStyle().bigText(body))
       .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setAutoCancel(true)
       .setContentIntent(contentIntent)
       .build()
@@ -67,6 +68,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
       NotificationManager.IMPORTANCE_HIGH,
     ).apply {
       description = "Daily medicine reminder alerts"
+      lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
     }
     manager.createNotificationChannel(channel)
   }

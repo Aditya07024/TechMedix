@@ -199,6 +199,12 @@ export const api = {
     getProfile: (patientId) => apiRequest(`/api/patient/${patientId}`),
     getQr: (patientId) => apiRequest(`/api/patient/${patientId}/generate-qr`),
     getEhrHistory: (patientId) => apiRequest(`/api/patientdata/${patientId}`),
+    updateProfile: (payload) =>
+      apiRequest("/auth/profile", { method: "PATCH", body: payload }),
+    deleteProfile: () =>
+      apiRequest("/auth/profile", { method: "DELETE" }),
+    resetQrCode: () =>
+      apiRequest("/auth/profile/reset-qr", { method: "POST" }),
   },
 
   doctors: {
@@ -429,6 +435,8 @@ export const api = {
     latest: () => apiRequest("/api/health/latest"),
     summary: (days = 7) => apiRequest("/api/health/summary", { query: { days } }),
     insights: () => apiRequest("/api/health/insights"),
+    sync: (payload) =>
+      apiRequest("/api/health/sync", { method: "POST", body: payload }),
     chat: (messages) =>
       apiRequest("/api/health-chat", {
         method: "POST",

@@ -141,6 +141,19 @@ export function AuthProvider({ children }) {
     return updatedUser;
   }
 
+  async function updateSessionUser(updatedUser) {
+    if (!session) return;
+    const nextSession = {
+      ...session,
+      user: {
+        ...session.user,
+        ...updatedUser,
+      },
+    };
+    setSession(nextSession);
+    await persistSession(nextSession);
+  }
+
   async function signOut() {
     try {
       await api.auth.logout();
@@ -167,6 +180,7 @@ export function AuthProvider({ children }) {
       signInStaff,
       signInAdmin,
       refreshDoctorProfile,
+      updateSessionUser,
       signOut,
     }),
     [session, isLoading],

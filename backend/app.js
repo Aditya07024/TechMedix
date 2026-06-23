@@ -556,6 +556,11 @@ function getAllowedOrigins() {
 const allowedOrigins = getAllowedOrigins();
 const corsOptions = {
   origin(origin, callback) {
+    // In development mode, dynamically allow any origin
+    if (process.env.NODE_ENV !== "production") {
+      return callback(null, true);
+    }
+
     if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true);
     }
@@ -578,7 +583,7 @@ app.use(
 app.use(
   cors(corsOptions),
 );
-app.options("/{*splat}", cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,

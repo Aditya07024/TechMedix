@@ -239,7 +239,7 @@ export default function AdminDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TopBar title="Admin Workspace" avatar="AD" onBell={signOut} />
+      <TopBar title="Admin Workspace" avatar="AD" rightIcon="logout" onRightPress={signOut} />
       
       {/* Tab bar header */}
       <View style={styles.tabScrollContainer}>

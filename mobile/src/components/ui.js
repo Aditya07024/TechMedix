@@ -63,6 +63,8 @@ export function TopBar({
   onBell,
   brandOnly = false,
   menuIcon,
+  rightIcon,
+  onRightPress,
 }) {
   return (
     <View style={styles.topBar}>
@@ -88,10 +90,14 @@ export function TopBar({
                 resizeMode="cover"
               />
             ) : (
-              <MaterialCommunityIcons
-                name="menu"
-                size={22}
-                color={colors.primary}
+              <Image
+                source={require("../../assets/icon.png")}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                }}
+                resizeMode="cover"
               />
             )}
           </TouchableOpacity>
@@ -111,7 +117,15 @@ export function TopBar({
           <Text style={styles.topTitle}>{title}</Text>
         </View>
       </View>
-      {brandOnly ? null : (
+      {brandOnly ? null : rightIcon ? (
+        <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
+          <MaterialCommunityIcons
+            name={rightIcon}
+            size={22}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+      ) : onBell ? (
         <TouchableOpacity onPress={onBell} style={styles.iconButton}>
           <View style={{ position: "relative" }}>
             <MaterialCommunityIcons
@@ -134,7 +148,7 @@ export function TopBar({
             />
           </View>
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -308,8 +322,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.surfaceLowest,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.outline,
     ...getCardShadow("lowest"),
   },
   topLeft: {

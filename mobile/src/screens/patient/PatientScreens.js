@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   ActivityIndicator,
@@ -319,22 +320,38 @@ export function PatientDashboardScreen({ navigation }) {
       await Notifications.setNotificationChannelAsync("medicine-reminders", {
         name: "Medicine Reminders",
         importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     } catch (_error) {
       // Channel creation is Android-only and can fail silently on unsupported platforms.
     }
 
-    const current = await Notifications.getPermissionsAsync();
-    if (current.granted) return true;
+    try {
+      const current = await Notifications.getPermissionsAsync();
+      if (current.granted) return true;
 
-    const requested = await Notifications.requestPermissionsAsync();
-    if (requested.granted) return true;
+      const requested = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowCriticalAlert: true,
+        },
+      });
+      if (requested.granted) return true;
+    } catch (err) {
+      console.warn("Notifications request permissions failed", err);
+    }
 
+    // Do not block reminders if notification permissions are denied/blocked in simulator
     Alert.alert(
-      "Permission needed",
-      "Please allow notifications so TechMedix can send medicine reminders.",
+      "Permission Needed",
+      "Notifications permission was not granted. Alarms will not trigger externally, but the schedule has been saved in-app.",
+      [{ text: "OK" }]
     );
-    return false;
+    return true;
   }
 
   async function loadNativeReminders() {
@@ -364,26 +381,30 @@ export function PatientDashboardScreen({ navigation }) {
     const hasPermission = await ensureReminderPermissions();
     if (!hasPermission) return false;
 
-    if (Platform.OS === "android") {
-      await scheduleNativeReminder({
-        id: buildReminderId(medicineId),
-        title: "Medicine Reminder",
-        body: `Time to take ${medicineName}`,
-        hour,
-        minute,
-      });
-    } else {
-      await Notifications.scheduleNotificationAsync({
-        content: {
+    try {
+      if (Platform.OS === "android") {
+        await scheduleNativeReminder({
+          id: buildReminderId(medicineId),
           title: "Medicine Reminder",
           body: `Time to take ${medicineName}`,
-        },
-        trigger: {
           hour,
           minute,
-          repeats: true,
-        },
-      });
+        });
+      } else {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Medicine Reminder",
+            body: `Time to take ${medicineName}`,
+          },
+          trigger: {
+            hour,
+            minute,
+            repeats: true,
+          },
+        });
+      }
+    } catch (schedError) {
+      console.warn("Failed to schedule notification/reminder natively", schedError);
     }
 
     setReminders((prev) => ({
@@ -649,41 +670,42 @@ export function PatientDashboardScreen({ navigation }) {
         />
         <View style={styles.tileGrid}>
           <ActionTile
-            style={{ width: "33%" }}
-            label="Appointments"
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            label="All Appointments"
             icon="calendar-plus"
             onPress={() => navigation.navigate("Appointments")}
           />
           <ActionTile
-            style={{ width: "33%" }}
-            label="Upload Rx"
-            icon="upload"
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            label="Prescription pad"
+            icon="file"
             onPress={() => navigation.navigate("Prescriptions")}
           />
+          
           <ActionTile
-            style={{ width: "33%" }}
-            label="Queue"
-            icon="account-clock-outline"
-            onPress={() => navigation.navigate("PatientQueue")}
-          />
-          <ActionTile
-            style={{ width: "33%" }}
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
             label="Metrics"
             icon="chart-line"
             onPress={() => navigation.navigate("HealthMetrics")}
           />
           <ActionTile
-            style={{ width: "33%" }}
-            label="X-ray"
-            icon="file-image-outline"
-            onPress={() => navigation.navigate("XRayAnalyzer")}
-          />
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
+              label="My QR"
+              icon="qrcode"
+              onPress={() => navigation.navigate("PatientQR")}
+            />
           <ActionTile
-            style={{ width: "33%" }}
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
             label="Voice Notes"
             icon="microphone-outline"
             onPress={() => navigation.navigate("PatientRecordings")}
           />
+          <ActionTile
+            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            label="Consult Assistant"
+            icon="chat"  
+onPress={() => navigation.navigate("AIHealthChat")}          />
+
         </View>
 
         {/* Upcoming Consultation */}
@@ -878,9 +900,7 @@ export function PatientDashboardScreen({ navigation }) {
         <SurfaceCard>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.blockTitle}>AI Insights</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("AIHealthChat")}>
-              <Text style={styles.linkText}>Consult Assistant</Text>
-            </TouchableOpacity>
+           
           </View>
           {homeData.insights.length ? (
             homeData.insights.map((item, index) => (
@@ -1568,12 +1588,7 @@ export function AnalyzePrescriptionScreen({ navigation }) {
           onMenuPress={() => setDrawerVisible(true)}
           onBell={() => navigation.navigate("Notifications")}
         />
-        <SectionHeader
-          title="Upload a prescription for backend OCR and analysis."
-          description="This uses the same `/api/prescription/upload` workflow that the web frontend already relies on."
-        />
-        <InlineError message={error} />
-
+       
         {/* Search & Compare Medicines UI block */}
         <SurfaceCard>
           <GradientButton
@@ -1582,6 +1597,10 @@ export function AnalyzePrescriptionScreen({ navigation }) {
             onPress={() => navigation.navigate("MedicineSearch")}
           />
         </SurfaceCard>
+ <SectionHeader
+          title="Upload Prescription"
+        />
+        <InlineError message={error} />
 
         <SurfaceCard>
           <Text style={styles.blockTitle}>Selected File</Text>
@@ -2949,11 +2968,88 @@ export function PatientQRScreen({ navigation }) {
 }
 
 export function PatientProfileScreen({ navigation }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateSessionUser } = useAuth();
   const [profile, setProfile] = useState(user || {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [savingMessage, setSavingMessage] = useState("");
   const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // Form Fields
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
+  const [medicalHistory, setMedicalHistory] = useState("");
+  const [qrShareEhr, setQrShareEhr] = useState(true);
+  const [qrSharePrescriptions, setQrSharePrescriptions] = useState(true);
+  const [qrShareRecordings, setQrShareRecordings] = useState(true);
+  const [qrShareReports, setQrShareReports] = useState(true);
+
+  // Modals & States
+  const [darkMode, setDarkMode] = useState(false);
+  const [showTipsModal, setShowTipsModal] = useState(false);
+  const [showRemindersModal, setShowRemindersModal] = useState(false);
+  const [showWishlistModal, setShowWishlistModal] = useState(false);
+
+  const [modalReminders, setModalReminders] = useState({});
+  const [wishlist, setWishlist] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [resettingQr, setResettingQr] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadWishlist = async () => {
+    try {
+      const raw = await AsyncStorage.getItem("techmedix.mobile.wishlist");
+      setWishlist(raw ? JSON.parse(raw) : []);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (showWishlistModal) {
+      loadWishlist();
+    }
+  }, [showWishlistModal]);
+
+  const handleRemoveWishlistItem = async (item) => {
+    try {
+      const updated = wishlist.filter((x) => x.id !== item.id && x.name !== item.name);
+      await AsyncStorage.setItem("techmedix.mobile.wishlist", JSON.stringify(updated));
+      setWishlist(updated);
+    } catch {}
+  };
+
+  const loadReminders = async () => {
+    try {
+      const items = await getNativeReminders();
+      const nextState = {};
+      if (Array.isArray(items)) {
+        items.forEach((x) => {
+          if (x?.id) nextState[x.id] = x;
+        });
+      }
+      setModalReminders(nextState);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (showRemindersModal) {
+      loadReminders();
+    }
+  }, [showRemindersModal]);
+
+  const handleRemoveReminder = async (id) => {
+    try {
+      await removeNativeReminder(id);
+      setModalReminders((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    } catch {}
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -2963,7 +3059,20 @@ export function PatientProfileScreen({ navigation }) {
         try {
           const response = await api.patients.getProfile(user.id);
           if (!active) return;
-          setProfile(response);
+          const nextProfile = response?.data || response || {};
+          setProfile(nextProfile);
+
+          setName(nextProfile.name || "");
+          setEmail(nextProfile.email || "");
+          setPhone(nextProfile.phone || "");
+          setAge(nextProfile.age ? String(nextProfile.age) : "");
+          setGender(nextProfile.gender || "");
+          setBloodGroup(nextProfile.bloodGroup || "");
+          setMedicalHistory(nextProfile.medicalHistory || "");
+          setQrShareEhr(nextProfile.qrShareEhr ?? true);
+          setQrSharePrescriptions(nextProfile.qrSharePrescriptions ?? true);
+          setQrShareRecordings(nextProfile.qrShareRecordings ?? true);
+          setQrShareReports(nextProfile.qrShareReports ?? true);
           setError("");
         } catch (loadError) {
           if (active) setError(loadError.message);
@@ -2977,6 +3086,78 @@ export function PatientProfileScreen({ navigation }) {
     }, [user?.id]),
   );
 
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    setError("");
+    setSavingMessage("");
+    try {
+      const payload = {
+        name,
+        email,
+        phone,
+        age: age === "" ? null : Number(age),
+        gender,
+        bloodGroup,
+        medicalHistory,
+        qrShareEhr,
+        qrSharePrescriptions,
+        qrShareRecordings,
+        qrShareReports,
+      };
+      const response = await api.patients.updateProfile(payload);
+      const updatedProfile = response?.data || response;
+      setProfile(updatedProfile);
+      await updateSessionUser(updatedProfile);
+      setSavingMessage("Profile updated successfully.");
+    } catch (saveError) {
+      setError(saveError.message || "Failed to update profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetQr = async () => {
+    setResettingQr(true);
+    setError("");
+    setSavingMessage("");
+    try {
+      const response = await api.patients.resetQrCode();
+      const updatedProfile = response?.data || response;
+      setProfile(updatedProfile);
+      await updateSessionUser(updatedProfile);
+      setSavingMessage("Patient QR code has been reset.");
+    } catch (resetError) {
+      setError(resetError.message || "Failed to reset QR code.");
+    } finally {
+      setResettingQr(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to permanently delete your account? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            setError("");
+            try {
+              await api.patients.deleteProfile();
+              await signOut();
+            } catch (deleteError) {
+              setError(deleteError.message || "Failed to delete account.");
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <>
       <ScreenScroll contentContainerStyle={styles.screenContent}>
@@ -2986,64 +3167,261 @@ export function PatientProfileScreen({ navigation }) {
           onMenuPress={() => setDrawerVisible(true)}
         />
         <InlineError message={error} />
+        {savingMessage ? (
+          <Text style={{ color: colors.success, fontSize: 14, fontWeight: "600", marginHorizontal: spacing.md }}>
+            {savingMessage}
+          </Text>
+        ) : null}
         {loading ? <LoadingCard label="Loading profile..." /> : null}
+
+        {/* Quick Options Grid */}
+        <SurfaceCard tone="low">
+          <Text style={styles.blockTitle}>Quick Portal Options</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+            {[
+
+              { label: "Search Medicine", icon: "magnify", onPress: () => navigation.navigate("MedicineSearch") },
+              { label: "Reminders", icon: "alarm", onPress: () => setShowRemindersModal(true) },
+              { label: "Health Tips", icon: "lightbulb-outline", onPress: () => setShowTipsModal(true) },
+              { label: "Wishlist", icon: "heart-outline", onPress: () => setShowWishlistModal(true) },
+              { label: "Logout", icon: "logout", onPress: signOut },
+            ].map((item, idx) => (
+              <TouchableOpacity
+                key={idx}
+                activeOpacity={0.8}
+                onPress={item.onPress}
+                style={{
+                  width: "31%",
+                  aspectRatio: 1.15,
+                  backgroundColor: colors.surfaceLowest,
+                  borderRadius: radii.md,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  borderWidth: 1,
+                  borderColor: colors.outline,
+                }}
+              >
+                <MaterialCommunityIcons name={item.icon} size={22} color={colors.primary} />
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.onSurface, textAlign: "center" }}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </SurfaceCard>
+
+        
+
+        {/* Edit Profile Form */}
         <SurfaceCard>
-          <View style={styles.inlineRow}>
-            <AvatarBubble
-              label={getInitials(profile.name)}
-              size={58}
-              tone="secondary"
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionValue}>{profile.name || "Patient"}</Text>
-              <Text style={styles.sectionMuted}>{profile.email}</Text>
+          <Text style={styles.blockTitle}>Manage Your Account</Text>
+          <Text style={styles.sectionMuted}>
+            Edit your patient details, delete your account, or reset your QR code.
+          </Text>
+
+          <View style={{ marginTop: 12, gap: 4 }}>
+            <LocalField label="Name" value={name} onChangeText={setName} placeholder="Your name" />
+            <LocalField label="Email" value={email} onChangeText={setEmail} placeholder="email@example.com" keyboardType="email-address" />
+            <LocalField label="Phone" value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
+            
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <LocalField label="Age" value={age} onChangeText={setAge} placeholder="Age" keyboardType="number-pad" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <LocalField label="Gender" value={gender} onChangeText={setGender} placeholder="Gender" />
+              </View>
+            </View>
+
+            <LocalField label="Blood Group" value={bloodGroup} onChangeText={setBloodGroup} placeholder="e.g. O+" />
+            <LocalField label="Medical History" value={medicalHistory} onChangeText={setMedicalHistory} placeholder="Allergies, chronic conditions..." multiline />
+            <LocalField label="Current QR Code" value={profile.uniqueCode || ""} editable={false} />
+
+            {/* Sharing Preferences */}
+            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.outline, paddingTop: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: colors.primary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
+                QR / Manual Code Access Sharing Preferences
+              </Text>
+              <Text style={[styles.sectionMuted, { marginBottom: 10 }]}>
+                Choose what health information is shared when a medical provider scans your QR code or enters your manual access code.
+              </Text>
+
+              <LocalCheckboxRow label="EHR History" checked={qrShareEhr} onChange={setQrShareEhr} />
+              <LocalCheckboxRow label="Prescriptions" checked={qrSharePrescriptions} onChange={setQrSharePrescriptions} />
+              <LocalCheckboxRow label="Recordings" checked={qrShareRecordings} onChange={setQrShareRecordings} />
+              <LocalCheckboxRow label="Reports & Files" checked={qrShareReports} onChange={setQrShareReports} />
+            </View>
+
+            {/* Actions */}
+            <View style={{ gap: 10, marginTop: 16 }}>
+              <GradientButton
+                label={saving ? "Saving..." : "Save Profile"}
+                onPress={handleSaveProfile}
+                disabled={saving}
+              />
+              <SecondaryButton
+                label={resettingQr ? "Resetting..." : "Reset QR Code"}
+                icon="qrcode-scan"
+                onPress={handleResetQr}
+                disabled={resettingQr}
+              />
+              <SecondaryButton
+                label={deleting ? "Deleting..." : "Delete Account"}
+                icon="delete-outline"
+                onPress={handleDeleteAccount}
+                disabled={deleting}
+                style={{ borderColor: colors.error }}
+              />
             </View>
           </View>
-          <DetailRow
-            icon="phone-outline"
-            label="Phone"
-            value={profile.phone || "Not added"}
-          />
-          <DetailRow
-            icon="medical-bag"
-            label="Blood Group"
-            value={profile.bloodGroup || "Not added"}
-          />
-          <DetailRow
-            icon="map-marker-outline"
-            label="Address"
-            value={profile.address || "Not added"}
-          />
         </SurfaceCard>
 
-        <SurfaceCard tone="low">
-          <Text style={styles.blockTitle}>Patient Tools</Text>
-          <View style={styles.tileGrid}>
-            <ActionTile
-              label="My QR"
-              icon="qrcode"
-              onPress={() => navigation.navigate("PatientQR")}
-            />
-            <ActionTile
-              label="Timeline"
-              icon="timeline-clock-outline"
-              onPress={() => navigation.navigate("MedicalTimeline")}
-            />
-            <ActionTile
-              label="Voice Notes"
-              icon="microphone-outline"
-              onPress={() => navigation.navigate("PatientRecordings")}
-            />
-            <ActionTile
-              label="X-ray History"
-              icon="history"
-              onPress={() => navigation.navigate("XRayHistory")}
-            />
-          </View>
+        {/* Support Help Card */}
+        <SurfaceCard style={{ gap: 10, borderColor: colors.primaryContainer, borderWidth: 1 }}>
+          <Text style={[styles.blockTitle, { color: colors.primary }]}>Need billing help?</Text>
+          <Text style={styles.sectionMuted}>
+            Our care support team can help with refunds, invoice clarifications, and wallet issues.
+          </Text>
+          <SecondaryButton
+            label="Contact Support"
+            icon="email-outline"
+            onPress={() => Linking.openURL("mailto:techmedixcare@gmail.com")}
+          />
         </SurfaceCard>
-
-        <SecondaryButton label="Sign Out" icon="logout" onPress={signOut} />
       </ScreenScroll>
+
+      {/* Modals */}
+      <Modal transparent visible={showTipsModal} onRequestClose={() => setShowTipsModal(false)} animationType="fade">
+        <View style={modalStyles.backdrop}>
+          <SurfaceCard style={modalStyles.card}>
+            <View style={modalStyles.header}>
+              <Text style={modalStyles.title}>Clinical Health Tips</Text>
+              <TouchableOpacity onPress={() => setShowTipsModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={modalStyles.scroll}>
+              {[
+                { title: "Stay Hydrated", desc: "Drink at least 8-10 glasses of water daily to maintain proper body hydration and kidney function." },
+                { title: "Prioritize Sleep", desc: "Aim for 7-9 hours of quality sleep each night to help your body repair and boost immunity." },
+                { title: "Daily Movement", desc: "Get at least 30 minutes of moderate exercise, such as brisk walking, to improve cardiovascular health." },
+                { title: "Balanced Nutrition", desc: "Incorporate fresh vegetables, fruits, whole grains, and lean proteins into your meals." },
+                { title: "Manage Stress", desc: "Practice deep breathing, meditation, or take short outdoor breaks to keep stress levels low." },
+              ].map((tip, idx) => (
+                <View key={idx} style={{ marginBottom: 14 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: colors.primary, marginBottom: 2 }}>
+                    {idx + 1}. {tip.title}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 18 }}>
+                    {tip.desc}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </SurfaceCard>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={showRemindersModal} onRequestClose={() => setShowRemindersModal(false)} animationType="fade">
+        <View style={modalStyles.backdrop}>
+          <SurfaceCard style={modalStyles.card}>
+            <View style={modalStyles.header}>
+              <Text style={modalStyles.title}>Medicine Reminders</Text>
+              <TouchableOpacity onPress={() => setShowRemindersModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={modalStyles.scroll}>
+              {Object.keys(modalReminders).length > 0 ? (
+                Object.values(modalReminders).map((rem, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 10,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.surfaceLow,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.onSurface }}>
+                        {rem.medicineName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>
+                        Daily at {String(rem.hour).padStart(2, "0")}:{String(rem.minute).padStart(2, "0")}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleRemoveReminder(rem.id)}>
+                      <MaterialCommunityIcons name="delete-outline" size={22} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: colors.outline, fontSize: 13, textAlign: "center", marginVertical: 20 }}>
+                  No active medicine reminders set. Configure them in the Prescriptions tab.
+                </Text>
+              )}
+            </ScrollView>
+          </SurfaceCard>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={showWishlistModal} onRequestClose={() => setShowWishlistModal(false)} animationType="fade">
+        <View style={modalStyles.backdrop}>
+          <SurfaceCard style={modalStyles.card}>
+            <View style={modalStyles.header}>
+              <Text style={modalStyles.title}>Saved Medicine Wishlist</Text>
+              <TouchableOpacity onPress={() => setShowWishlistModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.outline} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={modalStyles.scroll}>
+              {wishlist.length > 0 ? (
+                wishlist.map((item, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.surfaceLow,
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      onPress={() => {
+                        setShowWishlistModal(false);
+                        navigation.navigate("MedicineDetail", { medicine: item });
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.onSurface }}>
+                        {item.name}
+                      </Text>
+                      {item.price ? (
+                        <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>
+                          ₹{item.price}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleRemoveWishlistItem(item)}>
+                      <MaterialCommunityIcons name="heart" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: colors.outline, fontSize: 13, textAlign: "center", marginVertical: 20 }}>
+                  Your wishlist is empty. Tap the heart on medicine details to save items.
+                </Text>
+              )}
+            </ScrollView>
+          </SurfaceCard>
+        </View>
+      </Modal>
 
       <PatientMenuDrawer
         visible={drawerVisible}
@@ -3267,6 +3645,49 @@ export function HealthMetricsScreen({ navigation }) {
   const [googleFitStatus, setGoogleFitStatus] = useState({ connected: false });
   const [googleFitSummary, setGoogleFitSummary] = useState(null);
 
+  const [manualType, setManualType] = useState("steps");
+  const [manualValue, setManualValue] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualMessage, setManualMessage] = useState("");
+
+  async function handleAddManualMetric() {
+    if (!manualValue || isNaN(Number(manualValue))) {
+      Alert.alert("Invalid Input", "Please enter a valid numeric value.");
+      return;
+    }
+    setManualSaving(true);
+    setManualMessage("");
+    setError("");
+    try {
+      let unit = "count";
+      if (manualType === "heart_rate") unit = "bpm";
+      else if (manualType === "sleep_duration") unit = "hours";
+      else if (manualType === "calories_burned") unit = "kcal";
+
+      const payload = {
+        metrics: [
+          {
+            metric_type: manualType,
+            value: Number(manualValue),
+            unit: unit,
+            recorded_at: new Date().toISOString(),
+            source: "manual",
+            metadata: { entry: "Manual Mobile Entry" },
+          },
+        ],
+      };
+
+      await api.health.sync(payload);
+      setManualValue("");
+      setManualMessage("Metric added successfully!");
+      await loadMetrics();
+    } catch (err) {
+      setError(err.message || "Failed to add manual metric.");
+    } finally {
+      setManualSaving(false);
+    }
+  }
+
   async function loadMetrics() {
     setLoading(true);
     try {
@@ -3383,6 +3804,92 @@ export function HealthMetricsScreen({ navigation }) {
             style={{ flex: 1 }}
           />
         </View>
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={styles.blockTitle}>Add Metric Manually</Text>
+        {manualMessage ? (
+          <Text style={{ color: colors.success, fontSize: 13, marginBottom: 8, fontWeight: "600" }}>
+            {manualMessage}
+          </Text>
+        ) : null}
+        <Text style={styles.sectionMuted}>Select Metric Type:</Text>
+        <View style={{ flexDirection: "row", gap: 6, marginVertical: 8, flexWrap: "wrap" }}>
+          {[
+            { key: "steps", label: "Steps" },
+            { key: "heart_rate", label: "Heart Rate" },
+            { key: "sleep_duration", label: "Sleep" },
+            { key: "calories_burned", label: "Calories" },
+          ].map((type) => {
+            const active = manualType === type.key;
+            return (
+              <TouchableOpacity
+                key={type.key}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setManualType(type.key);
+                  setManualMessage("");
+                }}
+                style={{
+                  backgroundColor: active ? colors.primary : colors.surfaceLow,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: active ? colors.primary : colors.outline,
+                }}
+              >
+                <Text style={{ color: active ? colors.onPrimary : colors.onSurface, fontWeight: "600", fontSize: 12 }}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ gap: 6, marginTop: 8 }}>
+          <Text style={styles.fieldLabel}>Value</Text>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <TextInput
+              value={manualValue}
+              onChangeText={(text) => {
+                setManualValue(text);
+                setManualMessage("");
+              }}
+              placeholder="e.g. 5000"
+              placeholderTextColor={colors.outline}
+              keyboardType="numeric"
+              style={{
+                flex: 1,
+                backgroundColor: colors.surfaceLowest,
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                color: colors.onSurface,
+                fontSize: 14,
+              }}
+            />
+            <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, width: 60, fontWeight: "600" }}>
+              {manualType === "steps"
+                ? "steps"
+                : manualType === "heart_rate"
+                ? "bpm"
+                : manualType === "sleep_duration"
+                ? "hours"
+                : "kcal"}
+            </Text>
+          </View>
+        </View>
+
+        <SecondaryButton
+          label={manualSaving ? "Adding..." : "Add Metric"}
+          icon="plus"
+          onPress={handleAddManualMetric}
+          disabled={manualSaving}
+          style={{ marginTop: 12 }}
+        />
       </SurfaceCard>
 
       <SurfaceCard tone="low">
@@ -4181,7 +4688,7 @@ const styles = StyleSheet.create({
   tileGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.md,
+    gap: 2,
     justifyContent: "space-between",
   },
   listRow: {
@@ -4703,4 +5210,96 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.onPrimary,
   },
+});
+
+function LocalField({ label, value, onChangeText, placeholder, keyboardType = "default", multiline = false, editable = true }) {
+  return (
+    <View style={{ gap: 6, marginBottom: 12 }}>
+      <Text style={{
+        color: colors.onSurfaceVariant,
+        fontSize: typography.label,
+        fontWeight: "800",
+        textTransform: "uppercase",
+        letterSpacing: 0.8,
+      }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.outline}
+        keyboardType={keyboardType}
+        multiline={multiline}
+        editable={editable}
+        autoCapitalize="none"
+        style={{
+          backgroundColor: editable ? colors.surfaceLowest : colors.surfaceLow,
+          borderWidth: 1,
+          borderColor: colors.outline,
+          borderRadius: radii.md,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          color: editable ? colors.onSurface : colors.outline,
+          fontSize: 14,
+          minHeight: multiline ? 80 : undefined,
+          textAlignVertical: multiline ? "top" : "center",
+        }}
+      />
+    </View>
+  );
+}
+
+function LocalCheckboxRow({ label, checked, onChange }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => onChange(!checked)}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 8,
+      }}
+    >
+      <MaterialCommunityIcons
+        name={checked ? "checkbox-marked" : "checkbox-blank-outline"}
+        size={22}
+        color={colors.primary}
+      />
+      <Text style={{ fontSize: 14, color: colors.onSurface }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(18, 20, 43, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  card: {
+    width: "100%",
+    maxHeight: "80%",
+    backgroundColor: colors.surfaceLowest,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+    paddingBottom: spacing.sm,
+  },
+  title: {
+    fontSize: typography.title,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  scroll: {
+    maxHeight: 400,
+  }
 });
