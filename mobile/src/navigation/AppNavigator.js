@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View, Platform, TouchableOpacity } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, Platform, TouchableOpacity, PanResponder } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -50,8 +50,39 @@ const PatientTab = createBottomTabNavigator();
 const DoctorTab = createBottomTabNavigator();
 
 function CustomTabBar({ state, descriptors, navigation, isDoctor = false }) {
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 10;
+      },
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState;
+        if (dx < -50) {
+          // Swipe Left -> Next Tab
+          const nextIndex = state.index + 1;
+          if (nextIndex < state.routes.length) {
+            const nextRoute = state.routes[nextIndex];
+            navigation.navigate(nextRoute.name, nextRoute.params);
+          }
+        } else if (dx > 50) {
+          // Swipe Right -> Previous Tab
+          const prevIndex = state.index - 1;
+          if (prevIndex >= 0) {
+            const prevRoute = state.routes[prevIndex];
+            navigation.navigate(prevRoute.name, prevRoute.params);
+          }
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={navStyles.tabContainer}>
+    <View style={navStyles.tabContainer} {...panResponder.panHandlers}>
       <View style={navStyles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
