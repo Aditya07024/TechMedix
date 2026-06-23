@@ -1561,10 +1561,59 @@ export function AnalyzePrescriptionScreen({ navigation }) {
   );
 
   async function pickFile() {
-    const asset = await pickSingleDocument({
-      type: ["image/*", "application/pdf"],
-    });
-    if (asset) setSelectedFile(asset);
+    Alert.alert(
+      "Choose Prescription Source",
+      "Select where you want to choose your prescription file from:",
+      [
+        {
+          text: "Choose from Album",
+          onPress: async () => {
+            try {
+              const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!permission.granted) {
+                Alert.alert(
+                  "Permission Needed",
+                  "Allow photo library access to choose a prescription image."
+                );
+                return;
+              }
+
+              const response = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+              });
+
+              if (response.canceled || !response.assets?.length) return;
+              const selected = response.assets[0];
+              setSelectedFile({
+                uri: selected.uri,
+                name: selected.fileName || `prescription-${Date.now()}.jpg`,
+                mimeType: selected.mimeType || "image/jpeg",
+              });
+            } catch (err) {
+              setError(err.message || "Failed to pick image from library.");
+            }
+          },
+        },
+        {
+          text: "Choose from Files",
+          onPress: async () => {
+            try {
+              const asset = await pickSingleDocument({
+                type: ["image/*", "application/pdf"],
+              });
+              if (asset) setSelectedFile(asset);
+            } catch (err) {
+              setError(err.message || "Failed to pick document.");
+            }
+          },
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
   }
 
   async function uploadPrescription() {
@@ -4931,7 +4980,7 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant || "#e0e0e0",
     borderRadius: radii.md || 8,
     overflow: "hidden",
-    marginTop: 8,
+    // marginTop: 8,
     backgroundColor: colors.surfaceLowest || "#ffffff",
   },
   tableHeaderRow: {
