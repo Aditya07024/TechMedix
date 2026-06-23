@@ -22,6 +22,7 @@ import {
   NotificationsScreen,
   PatientDashboardScreen,
   PatientProfileScreen,
+  PatientAddMedicineScreen,
   PatientQRScreen,
   PatientQueueScreen,
   PatientRecordingsScreen,
@@ -207,6 +208,10 @@ function PatientRootNavigator() {
       <RootStack.Screen
         name="MedicineDetail"
         component={MedicineDetailScreen}
+      />
+      <RootStack.Screen
+        name="PatientAddMedicine"
+        component={PatientAddMedicineScreen}
       />
     </RootStack.Navigator>
   );

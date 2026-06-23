@@ -296,6 +296,7 @@ export function PatientDashboardScreen({ navigation }) {
     reminderId: "",
     medicineName: "",
   });
+  const [tempReminderDate, setTempReminderDate] = useState(null);
 
   const hasLoadedDashboard =
     homeData.appointments.length > 0 ||
@@ -444,10 +445,30 @@ export function PatientDashboardScreen({ navigation }) {
   }
 
   function openReminderTimePicker(medicineId, medicineName) {
+    const current = reminders[medicineId];
+    const initialDate = new Date();
+    initialDate.setHours(current?.hour ?? 9, current?.minute ?? 0, 0, 0);
+    setTempReminderDate(initialDate);
     setTimePickerState({
       visible: true,
       reminderId: String(medicineId),
       medicineName,
+    });
+  }
+
+  async function handleSaveTime(selectedDate) {
+    const { reminderId, medicineName } = timePickerState;
+    if (!reminderId || !selectedDate) return;
+    await saveReminderSchedule(
+      reminderId,
+      medicineName,
+      selectedDate.getHours(),
+      selectedDate.getMinutes(),
+    );
+    setTimePickerState({
+      visible: false,
+      reminderId: "",
+      medicineName: "",
     });
   }
 
@@ -917,19 +938,64 @@ onPress={() => navigation.navigate("AIHealthChat")}          />
       </ScreenScroll>
 
       {timePickerState.visible ? (
-        <DateTimePicker
-          value={new Date(
-            0,
-            0,
-            0,
-            reminders[timePickerState.reminderId]?.hour ?? 9,
-            reminders[timePickerState.reminderId]?.minute ?? 0,
-          )}
-          mode="time"
-          is24Hour={false}
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={handleReminderTimeChange}
-        />
+        Platform.OS === "ios" ? (
+          <Modal transparent visible={timePickerState.visible} animationType="fade">
+            <View style={styles.timePickerModalBackdrop}>
+              <SurfaceCard style={styles.timePickerCard}>
+                <Text style={styles.timePickerTitle}>Set Reminder Time</Text>
+                <DateTimePicker
+                  value={tempReminderDate || new Date()}
+                  mode="time"
+                  is24Hour={false}
+                  display="spinner"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setTempReminderDate(selectedDate);
+                    }
+                  }}
+                />
+                <View style={styles.timePickerActionRow}>
+                  <TouchableOpacity
+                    style={styles.timePickerCancelBtn}
+                    onPress={() => {
+                      setTimePickerState((prev) => ({ ...prev, visible: false }));
+                    }}
+                  >
+                    <Text style={styles.timePickerCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.timePickerDoneBtn}
+                    onPress={async () => {
+                      if (tempReminderDate) {
+                        await handleSaveTime(tempReminderDate);
+                      } else {
+                        setTimePickerState((prev) => ({ ...prev, visible: false }));
+                      }
+                    }}
+                  >
+                    <Text style={styles.timePickerDoneBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </SurfaceCard>
+            </View>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={
+              new Date(
+                0,
+                0,
+                0,
+                reminders[timePickerState.reminderId]?.hour ?? 9,
+                reminders[timePickerState.reminderId]?.minute ?? 0,
+              )
+            }
+            mode="time"
+            is24Hour={false}
+            display="default"
+            onChange={handleReminderTimeChange}
+          />
+        )
       ) : null}
 
       <PatientMenuDrawer
@@ -1627,7 +1693,7 @@ export function AnalyzePrescriptionScreen({ navigation }) {
           <View style={styles.cardHeaderRow}>
             <Text style={styles.blockTitle}>Extracted Medicines</Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate("MedicineSearch")}
+              onPress={() => navigation.navigate("PatientAddMedicine")}
             >
               <Text style={styles.linkText}>Add medicine</Text>
             </TouchableOpacity>
@@ -2995,6 +3061,14 @@ export function PatientProfileScreen({ navigation }) {
   const [showWishlistModal, setShowWishlistModal] = useState(false);
 
   const [modalReminders, setModalReminders] = useState({});
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [timePickerState, setTimePickerState] = useState({
+    visible: false,
+    reminderId: "",
+    medicineName: "",
+  });
+  const [tempReminderDate, setTempReminderDate] = useState(null);
+
   const [wishlist, setWishlist] = useState([]);
   const [saving, setSaving] = useState(false);
   const [resettingQr, setResettingQr] = useState(false);
@@ -3021,16 +3095,71 @@ export function PatientProfileScreen({ navigation }) {
     } catch {}
   };
 
+  async function ensureReminderPermissions() {
+    if (Platform.OS === "web") {
+      Alert.alert("Not Supported", "Reminders only work on mobile devices");
+      return false;
+    }
+
+    try {
+      await Notifications.setNotificationChannelAsync("medicine-reminders", {
+        name: "Medicine Reminders",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    } catch (_error) {}
+
+    try {
+      const current = await Notifications.getPermissionsAsync();
+      if (current.granted) return true;
+
+      const requested = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowCriticalAlert: true,
+        },
+      });
+      if (requested.granted) return true;
+    } catch (err) {
+      console.warn("Notifications request permissions failed", err);
+    }
+
+    Alert.alert(
+      "Permission Needed",
+      "Notifications permission was not granted. Alarms will not trigger externally, but the schedule has been saved in-app.",
+      [{ text: "OK" }]
+    );
+    return true;
+  }
+
+  function buildReminderId(medicineId) {
+    return `medicine-${medicineId}`;
+  }
+
   const loadReminders = async () => {
     try {
       const items = await getNativeReminders();
       const nextState = {};
       if (Array.isArray(items)) {
         items.forEach((x) => {
-          if (x?.id) nextState[x.id] = x;
+          if (x?.id) {
+            const localId = String(x.id).replace(/^medicine-/, "");
+            nextState[localId] = {
+              enabled: x.enabled !== false,
+              hour: x.hour ?? 9,
+              minute: x.minute ?? 0,
+            };
+          }
         });
       }
       setModalReminders(nextState);
+
+      const rx = await api.prescriptions.listByPatient(user.id);
+      setPrescriptions(normalizeArray(rx));
     } catch {}
   };
 
@@ -3040,16 +3169,127 @@ export function PatientProfileScreen({ navigation }) {
     }
   }, [showRemindersModal]);
 
-  const handleRemoveReminder = async (id) => {
+  async function saveReminderSchedule(medicineId, medicineName, hour, minute) {
+    const hasPermission = await ensureReminderPermissions();
+    if (!hasPermission) return false;
+
     try {
-      await removeNativeReminder(id);
+      if (Platform.OS === "android") {
+        await scheduleNativeReminder({
+          id: buildReminderId(medicineId),
+          title: "Medicine Reminder",
+          body: `Time to take ${medicineName}`,
+          hour,
+          minute,
+        });
+      } else {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Medicine Reminder",
+            body: `Time to take ${medicineName}`,
+          },
+          trigger: {
+            hour,
+            minute,
+            repeats: true,
+          },
+        });
+      }
+    } catch (schedError) {
+      console.warn("Failed to schedule notification/reminder natively", schedError);
+    }
+
+    setModalReminders((prev) => ({
+      ...prev,
+      [medicineId]: {
+        enabled: true,
+        hour,
+        minute,
+      },
+    }));
+
+    return true;
+  }
+
+  async function toggleReminder(medicineId, medicineName) {
+    const current = modalReminders[medicineId];
+
+    if (current?.enabled) {
+      if (Platform.OS === "android") {
+        await removeNativeReminder(buildReminderId(medicineId));
+      }
+
       setModalReminders((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
+        const nextState = { ...prev };
+        delete nextState[medicineId];
+        return nextState;
       });
-    } catch {}
-  };
+      return;
+    }
+
+    await saveReminderSchedule(
+      medicineId,
+      medicineName,
+      current?.hour ?? 9,
+      current?.minute ?? 0,
+    );
+  }
+
+  function openReminderTimePicker(medicineId, medicineName) {
+    const current = modalReminders[medicineId];
+    const initialDate = new Date();
+    initialDate.setHours(current?.hour ?? 9, current?.minute ?? 0, 0, 0);
+    setTempReminderDate(initialDate);
+    setTimePickerState({
+      visible: true,
+      reminderId: String(medicineId),
+      medicineName,
+    });
+  }
+
+  async function handleSaveTime(selectedDate) {
+    const { reminderId, medicineName } = timePickerState;
+    if (!reminderId || !selectedDate) return;
+    await saveReminderSchedule(
+      reminderId,
+      medicineName,
+      selectedDate.getHours(),
+      selectedDate.getMinutes(),
+    );
+    setTimePickerState({
+      visible: false,
+      reminderId: "",
+      medicineName: "",
+    });
+  }
+
+  async function handleReminderTimeChange(event, selectedDate) {
+    const { reminderId, medicineName } = timePickerState;
+
+    if (Platform.OS === "android") {
+      setTimePickerState((prev) => ({
+        ...prev,
+        visible: false,
+      }));
+    }
+
+    if (event?.type === "dismissed" || !selectedDate || !reminderId) return;
+
+    await saveReminderSchedule(
+      reminderId,
+      medicineName,
+      selectedDate.getHours(),
+      selectedDate.getMinutes(),
+    );
+
+    if (Platform.OS === "ios") {
+      setTimePickerState({
+        visible: false,
+        reminderId: "",
+        medicineName: "",
+      });
+    }
+  }
 
   useFocusEffect(
     React.useCallback(() => {
@@ -3194,7 +3434,7 @@ export function PatientProfileScreen({ navigation }) {
                   width: idx < 3 ? "31.3%" : "48.5%",
                   aspectRatio: idx < 3 ? 1.1 : 1.6,
                   backgroundColor: colors.surfaceLowest,
-                  borderRadius: radii.sm,
+                  borderRadius: 8,
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
@@ -3334,41 +3574,155 @@ export function PatientProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <ScrollView style={modalStyles.scroll}>
-              {Object.keys(modalReminders).length > 0 ? (
-                Object.values(modalReminders).map((rem, idx) => (
-                  <View
-                    key={idx}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      paddingVertical: 10,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.surfaceLow,
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.onSurface }}>
-                        {rem.medicineName}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>
-                        Daily at {String(rem.hour).padStart(2, "0")}:{String(rem.minute).padStart(2, "0")}
-                      </Text>
+              {prescriptions.length > 0 ? (
+                prescriptions.map((item, idx) => {
+                  const active = modalReminders[item.medicine_id || item.id];
+                  return (
+                    <View
+                      key={`${item.medicine_id || item.id}-${idx}`}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingVertical: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.surfaceLow,
+                      }}
+                    >
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.onSurface }}>
+                          {item.medicine_name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 }}>
+                          {active
+                            ? `Scheduled daily at ${formatReminderTime(
+                                active.hour,
+                                active.minute,
+                              )}`
+                            : "No reminder schedule"}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                        {active ? (
+                          <TouchableOpacity
+                            onPress={() =>
+                              openReminderTimePicker(
+                                item.medicine_id || item.id,
+                                item.medicine_name,
+                              )
+                            }
+                            style={{
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: colors.outline,
+                              backgroundColor: colors.surfaceLowest,
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.outline }}>
+                              Set Time
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        <TouchableOpacity
+                          onPress={() =>
+                            toggleReminder(
+                              item.medicine_id || item.id,
+                              item.medicine_name,
+                            )
+                          }
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            backgroundColor: active ? colors.surfaceLow : colors.primary,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "700",
+                              color: active ? colors.onSurface : "#ffffff",
+                            }}
+                          >
+                            {active ? "Off" : "On"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <TouchableOpacity onPress={() => handleRemoveReminder(rem.id)}>
-                      <MaterialCommunityIcons name="delete-outline" size={22} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))
+                  );
+                })
               ) : (
                 <Text style={{ color: colors.outline, fontSize: 13, textAlign: "center", marginVertical: 20 }}>
-                  No active medicine reminders set. Configure them in the Prescriptions tab.
+                  No active medicines loaded.
                 </Text>
               )}
             </ScrollView>
           </SurfaceCard>
         </View>
       </Modal>
+
+      {timePickerState.visible ? (
+        Platform.OS === "ios" ? (
+          <Modal transparent visible={timePickerState.visible} animationType="fade">
+            <View style={styles.timePickerModalBackdrop}>
+              <SurfaceCard style={styles.timePickerCard}>
+                <Text style={styles.timePickerTitle}>Set Reminder Time</Text>
+                <DateTimePicker
+                  value={tempReminderDate || new Date()}
+                  mode="time"
+                  is24Hour={false}
+                  display="spinner"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setTempReminderDate(selectedDate);
+                    }
+                  }}
+                />
+                <View style={styles.timePickerActionRow}>
+                  <TouchableOpacity
+                    style={styles.timePickerCancelBtn}
+                    onPress={() => {
+                      setTimePickerState((prev) => ({ ...prev, visible: false }));
+                    }}
+                  >
+                    <Text style={styles.timePickerCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.timePickerDoneBtn}
+                    onPress={async () => {
+                      if (tempReminderDate) {
+                        await handleSaveTime(tempReminderDate);
+                      } else {
+                        setTimePickerState((prev) => ({ ...prev, visible: false }));
+                      }
+                    }}
+                  >
+                    <Text style={styles.timePickerDoneBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </SurfaceCard>
+            </View>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={
+              new Date(
+                0,
+                0,
+                0,
+                modalReminders[timePickerState.reminderId]?.hour ?? 9,
+                modalReminders[timePickerState.reminderId]?.minute ?? 0,
+              )
+            }
+            mode="time"
+            is24Hour={false}
+            display="default"
+            onChange={handleReminderTimeChange}
+          />
+        )
+      ) : null}
 
       <Modal transparent visible={showWishlistModal} onRequestClose={() => setShowWishlistModal(false)} animationType="fade">
         <View style={modalStyles.backdrop}>
@@ -4110,7 +4464,97 @@ export function AppointmentPaymentScreen({ navigation, route }) {
   );
 }
 
-export function MedicineSearchScreen({ navigation }) {
+export function PatientAddMedicineScreen({ navigation }) {
+  const { user } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    medicine_name: "",
+    dosage: "",
+    frequency: "",
+    duration: "",
+  });
+
+  async function saveManualMedicine() {
+    if (!form.medicine_name.trim()) {
+      setError("Please enter a medicine name.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        patient_id: user.id,
+        medicine_name: form.medicine_name.trim(),
+        dosage: form.dosage.trim(),
+        frequency: form.frequency.trim(),
+        duration: form.duration.trim(),
+      };
+      await api.prescriptions.createManual(payload);
+      Alert.alert("Success", "Medicine added to your prescription pad.");
+      navigation.goBack();
+    } catch (saveError) {
+      setError(saveError.message || "Failed to save medicine.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ScreenScroll contentContainerStyle={styles.screenContent}>
+      <TopBar
+        title="Add Medicine"
+        showBack
+        onBack={() => navigation.goBack()}
+      />
+      <InlineError message={error} />
+      <SurfaceCard>
+        <Text style={styles.blockTitle}>Prescription Details</Text>
+        <Text style={[styles.sectionMuted, { marginBottom: 12 }]}>
+          Manually add a medicine to your prescription list.
+        </Text>
+
+        <TextInput
+          value={form.medicine_name}
+          onChangeText={(text) => setForm({ ...form, medicine_name: text })}
+          placeholder="Medicine name (e.g. Adoloc 20mg)"
+          placeholderTextColor={colors.outline}
+          style={styles.input}
+        />
+        <TextInput
+          value={form.dosage}
+          onChangeText={(text) => setForm({ ...form, dosage: text })}
+          placeholder="Dosage (e.g. 1 capsule / 5mg)"
+          placeholderTextColor={colors.outline}
+          style={styles.input}
+        />
+        <TextInput
+          value={form.frequency}
+          onChangeText={(text) => setForm({ ...form, frequency: text })}
+          placeholder="Frequency (e.g. Once daily / 1-0-1)"
+          placeholderTextColor={colors.outline}
+          style={styles.input}
+        />
+        <TextInput
+          value={form.duration}
+          onChangeText={(text) => setForm({ ...form, duration: text })}
+          placeholder="Duration (e.g. 5 days / 1 month)"
+          placeholderTextColor={colors.outline}
+          style={styles.input}
+        />
+
+        <GradientButton
+          label={saving ? "Saving..." : "Add to Prescription"}
+          icon="plus"
+          onPress={saveManualMedicine}
+          disabled={saving}
+        />
+      </SurfaceCard>
+    </ScreenScroll>
+  );
+}
+
+export function MedicineSearchScreen({ navigation, route }) {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -4119,20 +4563,22 @@ export function MedicineSearchScreen({ navigation }) {
   const [priceInsight, setPriceInsight] = useState(null);
   const [safetyInsight, setSafetyInsight] = useState(null);
 
-  async function search() {
-    if (!query.trim()) return;
+  const routeQuery = route?.params?.query || "";
+
+  async function performSearch(searchTerm) {
+    if (!searchTerm.trim()) return;
     setLoading(true);
     try {
       const [searchRes, safetyRes] = await Promise.allSettled([
-        api.medicines.list({ search: query.trim(), limit: 12, page: 1 }),
-        api.prescriptions.safetyCheckLatest(query.trim(), user?.id),
+        api.medicines.list({ search: searchTerm.trim(), limit: 12, page: 1 }),
+        api.prescriptions.safetyCheckLatest(searchTerm.trim(), user?.id),
       ]);
 
       let medicines =
         searchRes.status === "fulfilled" ? normalizeArray(searchRes.value) : [];
 
       if (!medicines.length) {
-        const aiLookup = await api.medicines.lookupWithAi(query.trim()).catch(() => null);
+        const aiLookup = await api.medicines.lookupWithAi(searchTerm.trim()).catch(() => null);
         medicines = aiLookup ? [aiLookup] : [];
       }
 
@@ -4156,6 +4602,17 @@ export function MedicineSearchScreen({ navigation }) {
       setLoading(false);
     }
   }
+
+  async function search() {
+    await performSearch(query);
+  }
+
+  useEffect(() => {
+    if (routeQuery) {
+      setQuery(routeQuery);
+      performSearch(routeQuery);
+    }
+  }, [routeQuery]);
 
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
@@ -4239,6 +4696,65 @@ export function MedicineSearchScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  timePickerModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(18, 20, 43, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  timePickerCard: {
+    width: "85%",
+    backgroundColor: colors.surfaceLowest,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    alignItems: "center",
+    gap: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  timePickerTitle: {
+    fontSize: typography.title || 18,
+    fontWeight: "800",
+    color: colors.primary,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
+  timePickerActionRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    width: "100%",
+    justifyContent: "space-between",
+    marginTop: spacing.sm,
+  },
+  timePickerCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.outline,
+  },
+  timePickerCancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.outline,
+  },
+  timePickerDoneBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+  },
+  timePickerDoneBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
   screenContent: {
     gap: spacing.lg,
   },
