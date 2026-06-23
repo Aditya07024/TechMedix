@@ -157,9 +157,9 @@ export default function MobileLandingScreen({ navigation }) {
           colors={[colors.primary, colors.primaryContainer]}
           style={styles.heroBanner}
         >
-          <Text style={styles.heroTitle}>Trust beyond the screen.</Text>
+          <Text style={styles.heroTitle}>Login / Signup Options</Text>
           <Text style={styles.heroDescription}>
-            Book appointments, follow real-time queues, track health metrics, and access AI-assisted insights in one calm place.
+            
           </Text>
 
           <View style={styles.loginCardRow}>
@@ -538,6 +538,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderBottomLeftRadius: radii.lg,
     borderBottomRightRadius: radii.lg,
+    borderWidth:3,
+    borderColor:"white",
+
   },
   heroTitle: {
     fontSize: typography.h2,
