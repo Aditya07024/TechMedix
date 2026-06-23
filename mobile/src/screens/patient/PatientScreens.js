@@ -4651,14 +4651,19 @@ export function MedicineSearchScreen({ navigation, route }) {
                   {item.salt || item.salt_composition || item.short_composition1 || "Salt not provided"}
                 </Text>
                 <Text style={styles.smallText}>
-                  {item.medicine_desc || item.benefits || item.info || item.usage || "No description available."}
+                  Price: {item.price ? `₹${item.price}` : item.mrp ? `₹${item.mrp}` : "Price not available"}
                 </Text>
+                { (item.medicine_desc || item.benefits || item.info || item.usage) ? (
+                  <Text style={[styles.smallText, { marginTop: 2 }]}>
+                    {item.medicine_desc || item.benefits || item.info || item.usage}
+                  </Text>
+                ) : null }
               </SurfaceCard>
             </TouchableOpacity>
           ))
         : null}
 
-      {safetyInsight ? (
+      {/* {safetyInsight ? (
         <SurfaceCard tone="low">
           <Text style={styles.blockTitle}>Safety Snapshot</Text>
           <Text style={styles.sectionValue}>
@@ -4690,7 +4695,7 @@ export function MedicineSearchScreen({ navigation, route }) {
               "Price insight loaded."}
           </Text>
         </SurfaceCard>
-      ) : null}
+      ) : null} */}
     </ScreenScroll>
   );
 }
