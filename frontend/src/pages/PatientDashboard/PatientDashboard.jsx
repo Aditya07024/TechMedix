@@ -2929,7 +2929,7 @@ export default function PatientDashboard() {
               </div>
 
               <div className="prescriptions-side-column">
-                <div className="prescription-side-card interaction-checker-card">
+                {/* <div className="prescription-side-card interaction-checker-card">
                   <div className="prescription-side-title">
                     <AlertTriangle size={18} strokeWidth={2} />
                     <h3>Medicine Interaction Checker</h3>
@@ -2992,7 +2992,7 @@ export default function PatientDashboard() {
                   <p className="prescription-side-note">
                     AI cross-checks active medicines for timing conflicts, duplication risk, and interaction severity.
                   </p>
-                </div>
+                </div> */}
 
                 {/* <div className="prescription-side-card pharmacy-sync-card">
                   <div className="prescription-side-title">

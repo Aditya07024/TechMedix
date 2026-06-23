@@ -886,14 +886,14 @@ const Search = ({ setShowLogin }) => {
 
                 {/* ── Safety Check ─────────────────────────────────────────── */}
                 <div className="safety-check-section">
-                  <button
+                  {/* <button
                     type="button"
                     className="safety-check-btn"
                     onClick={handleSafetyCheck}
                     disabled={safetyLoading}
                   >
                     {safetyLoading ? "Running Safety Check..." : "🛡 Run Safety Check"}
-                  </button>
+                  </button> */}
 
                   {safetyError && <p className="safety-error">{safetyError}</p>}
 
