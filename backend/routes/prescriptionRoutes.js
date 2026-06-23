@@ -130,9 +130,9 @@ router.post(
   authorizeRoles("patient"),
   uploadPrescription,
   async (req, res) => {
+    let walletUploadResult = null;
     try {
       const { userId, patientId } = req.body;
-      let walletUploadResult = null;
 
       // ✅ VALIDATION
       if (!patientId || !req.file) {

@@ -153,9 +153,22 @@ export default function StaffDashboardScreen() {
           <Text style={styles.headerTitle}>Staff Dashboard</Text>
           <Text style={styles.headerSubtitle}>{user?.name || "Clinic Coordinator"}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={signOut}>
-          <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: spacing.xs, alignItems: "center" }}>
+          <TouchableOpacity 
+            style={[styles.logoutBtn, { backgroundColor: colors.surfaceLow }]} 
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <MaterialCommunityIcons name="refresh" size={20} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={signOut}>
+            <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView

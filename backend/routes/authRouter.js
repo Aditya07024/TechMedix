@@ -73,6 +73,7 @@ function mapUserProfileByRole(role, record) {
       qrSharePrescriptions: record.qr_share_prescriptions !== undefined ? Boolean(record.qr_share_prescriptions) : true,
       qrShareRecordings: record.qr_share_recordings !== undefined ? Boolean(record.qr_share_recordings) : true,
       qrShareReports: record.qr_share_reports !== undefined ? Boolean(record.qr_share_reports) : true,
+      qrShareMetrics: record.qr_share_metrics !== undefined ? Boolean(record.qr_share_metrics) : true,
       createdAt: record.created_at ?? record.createdAt ?? null,
     };
   }

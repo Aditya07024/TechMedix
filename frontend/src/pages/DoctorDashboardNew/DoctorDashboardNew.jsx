@@ -197,9 +197,9 @@ export default function DoctorDashboardNew() {
         return;
       }
 
-      setStatusMessage(
-        payload?.message || `${payload?.staff_name || "Staff"} marked a patient ready.`,
-      );
+      const msg = payload?.message || `${payload?.staff_name || "Staff"} marked a patient ready.`;
+      setStatusMessage(msg);
+      window.alert(`🔔 Notification from Reception:\n\n${msg}`);
       loadDoctorData();
     };
 
@@ -1563,6 +1563,28 @@ export default function DoctorDashboardNew() {
                                 <p>{record.aiInsights || "No AI insight stored for this record."}</p>
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {patientShareSections.includes("metrics") &&
+                        (patientData?.latestMetrics?.length > 0 || patientProfile?.latestMetrics?.length > 0) && (
+                          <div className="doctor-history-list" style={{ marginTop: "16px" }}>
+                            <h3>Shared Health Metrics (Vitals)</h3>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginTop: "8px" }}>
+                              {(patientData?.latestMetrics || patientProfile?.latestMetrics || []).map((m) => (
+                                <div key={m.metric_type} className="doctor-history-card" style={{ margin: 0, padding: "10px", background: "rgba(14, 116, 144, 0.04)" }}>
+                                  <strong style={{ fontSize: "0.75rem", textTransform: "capitalize", color: "var(--doctor-muted)" }}>
+                                    {m.metric_type.replace("_", " ")}
+                                  </strong>
+                                  <div style={{ fontSize: "1.15rem", fontWeight: "700", margin: "4px 0" }}>
+                                    {Number(m.value).toFixed(1)} <span style={{ fontSize: "0.75rem", fontWeight: "normal" }}>{m.unit}</span>
+                                  </div>
+                                  <small style={{ fontSize: "0.65rem", color: "var(--doctor-muted)" }}>
+                                    {new Date(m.recorded_at).toLocaleDateString()}
+                                  </small>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </article>

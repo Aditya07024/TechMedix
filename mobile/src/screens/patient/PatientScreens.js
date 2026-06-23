@@ -1940,6 +1940,20 @@ export function AnalyzePrescriptionScreen({ navigation }) {
                 ))}
               </View>
 
+              {/* QR Verification Code */}
+              <View style={styles.qrVerificationContainer}>
+                <Image
+                  source={{
+                    uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                      `TechMedix Verification\nPatient: ${user?.name || "N/A"}\nPatient ID: ${user?.id || "N/A"}\nRx No: ${selectedPad?.medicines[0]?.prescription_id || selectedPad?.medicines[0]?.id || "RX-TEMP"}\nDoctor: ${selectedPad?.doctor?.name || "N/A"}`
+                    )}`
+                  }}
+                  style={styles.qrVerificationImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.qrVerificationText}>Scan to Verify</Text>
+              </View>
+
               {/* Footer */}
               <View style={styles.rxFooter}>
                 <View style={styles.rxFooterLine} />
@@ -2168,22 +2182,81 @@ export function HealthWalletScreen({ navigation }) {
   );
 
   async function uploadDocument() {
-    const result = await DocumentPicker.getDocumentAsync({
-      multiple: true,
-      copyToCacheDirectory: true,
-      type: ["application/pdf", "image/*"],
-    });
-    if (result.canceled || !result.assets?.length) return;
+    Alert.alert(
+      "Choose Source",
+      "Select where you want to upload your documents from:",
+      [
+        {
+          text: "Choose from Album",
+          onPress: async () => {
+            try {
+              const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!permission.granted) {
+                Alert.alert(
+                  "Permission Needed",
+                  "Allow photo library access to choose images."
+                );
+                return;
+              }
 
-    setUploading(true);
-    try {
-      await api.wallet.uploadDocuments(result.assets);
-      await loadDocuments();
-    } catch (uploadError) {
-      setError(uploadError.message);
-    } finally {
-      setUploading(false);
-    }
+              const response = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+
+              if (response.canceled || !response.assets?.length) return;
+
+              setUploading(true);
+              try {
+                const mappedAssets = response.assets.map((asset) => ({
+                  uri: asset.uri,
+                  name: asset.fileName || `document-${Date.now()}.jpg`,
+                  mimeType: asset.mimeType || "image/jpeg",
+                }));
+                await api.wallet.uploadDocuments(mappedAssets);
+                await loadDocuments();
+              } catch (uploadError) {
+                setError(uploadError.message);
+              } finally {
+                setUploading(false);
+              }
+            } catch (err) {
+              setError(err.message || "Failed to pick image from library.");
+            }
+          },
+        },
+        {
+          text: "Choose from Files",
+          onPress: async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({
+                multiple: true,
+                copyToCacheDirectory: true,
+                type: ["application/pdf", "image/*"],
+              });
+              if (result.canceled || !result.assets?.length) return;
+
+              setUploading(true);
+              try {
+                await api.wallet.uploadDocuments(result.assets);
+                await loadDocuments();
+              } catch (uploadError) {
+                setError(uploadError.message);
+              } finally {
+                setUploading(false);
+              }
+            } catch (err) {
+              setError(err.message || "Failed to pick document.");
+            }
+          },
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
   }
 
   async function deleteDocument(id) {
@@ -2699,23 +2772,58 @@ export function XRayAnalyzerScreen({ navigation }) {
   const [error, setError] = useState("");
 
   async function pickImage() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow photo access to choose an X-ray image.",
-      );
-      return;
-    }
+    Alert.alert(
+      "Choose X-Ray Source",
+      "Select where you want to choose your X-ray image from:",
+      [
+        {
+          text: "Choose from Album",
+          onPress: async () => {
+            try {
+              const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!permission.granted) {
+                Alert.alert(
+                  "Permission needed",
+                  "Allow photo access to choose an X-ray image.",
+                );
+                return;
+              }
 
-    const response = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
+              const response = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+              });
 
-    if (response.canceled || !response.assets?.length) return;
-    setSelectedImage(response.assets[0]);
-    setResult(null);
+              if (response.canceled || !response.assets?.length) return;
+              setSelectedImage(response.assets[0]);
+              setResult(null);
+            } catch (err) {
+              setError(err.message || "Failed to pick image from library.");
+            }
+          },
+        },
+        {
+          text: "Choose from Files",
+          onPress: async () => {
+            try {
+              const asset = await pickSingleDocument({
+                type: ["image/*"],
+              });
+              if (asset) {
+                setSelectedImage(asset);
+                setResult(null);
+              }
+            } catch (err) {
+              setError(err.message || "Failed to pick document.");
+            }
+          },
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
   }
 
   async function analyze() {
@@ -3102,6 +3210,7 @@ export function PatientProfileScreen({ navigation }) {
   const [qrSharePrescriptions, setQrSharePrescriptions] = useState(true);
   const [qrShareRecordings, setQrShareRecordings] = useState(true);
   const [qrShareReports, setQrShareReports] = useState(true);
+  const [qrShareMetrics, setQrShareMetrics] = useState(true);
 
   // Modals & States
   const [darkMode, setDarkMode] = useState(false);
@@ -3362,6 +3471,7 @@ export function PatientProfileScreen({ navigation }) {
           setQrSharePrescriptions(nextProfile.qrSharePrescriptions ?? true);
           setQrShareRecordings(nextProfile.qrShareRecordings ?? true);
           setQrShareReports(nextProfile.qrShareReports ?? true);
+          setQrShareMetrics(nextProfile.qrShareMetrics ?? true);
           setError("");
         } catch (loadError) {
           if (active) setError(loadError.message);
@@ -3392,6 +3502,7 @@ export function PatientProfileScreen({ navigation }) {
         qrSharePrescriptions,
         qrShareRecordings,
         qrShareReports,
+        qrShareMetrics,
       };
       const response = await api.patients.updateProfile(payload);
       const updatedProfile = response?.data || response;
@@ -3541,6 +3652,7 @@ export function PatientProfileScreen({ navigation }) {
               <LocalCheckboxRow label="Prescriptions" checked={qrSharePrescriptions} onChange={setQrSharePrescriptions} />
               <LocalCheckboxRow label="Recordings" checked={qrShareRecordings} onChange={setQrShareRecordings} />
               <LocalCheckboxRow label="Reports & Files" checked={qrShareReports} onChange={setQrShareReports} />
+              <LocalCheckboxRow label="Health Metrics" checked={qrShareMetrics} onChange={setQrShareMetrics} />
             </View>
 
             {/* Actions */}
@@ -5217,6 +5329,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#4caf50",
+  },
+  qrVerificationContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    gap: 6,
+  },
+  qrVerificationImage: {
+    width: 80,
+    height: 80,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    padding: 4,
+  },
+  qrVerificationText: {
+    fontSize: 10,
+    color: colors.outline,
+    fontWeight: "600",
   },
   heroRow: {
     flexDirection: "row",

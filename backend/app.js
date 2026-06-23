@@ -84,6 +84,7 @@ import {
 } from "./models-pg/patientData.js";
 import { createReport, getReportById } from "./models-pg/report.js";
 import { searchMedicines } from "./models-pg/medicine.js";
+import { getLatestHealthMetrics, getHealthMetricsSummary } from "./models-pg/healthMetrics.js";
 import prescriptionSafetyRouter from "./routes/prescriptionSafety.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 import safetyRoutes from "./routes/safetyRoutes.js";
@@ -203,12 +204,13 @@ function mapPatientRowToFrontend(row) {
     qrSharePrescriptions: row.qr_share_prescriptions !== undefined ? Boolean(row.qr_share_prescriptions) : true,
     qrShareRecordings: row.qr_share_recordings !== undefined ? Boolean(row.qr_share_recordings) : true,
     qrShareReports: row.qr_share_reports !== undefined ? Boolean(row.qr_share_reports) : true,
+    qrShareMetrics: row.qr_share_metrics !== undefined ? Boolean(row.qr_share_metrics) : true,
     createdAt: row.created_at,
   };
 }
 
 function normalizeShareScope(scope = []) {
-  const allowed = new Set(["ehr", "prescriptions", "recordings", "reports"]);
+  const allowed = new Set(["ehr", "prescriptions", "recordings", "reports", "metrics"]);
   if (!Array.isArray(scope)) return [];
   return scope.filter((item) => allowed.has(item));
 }
@@ -989,11 +991,14 @@ app.get(
       if (patientRow.qr_share_prescriptions !== false) allowed_sections.push("prescriptions");
       if (patientRow.qr_share_recordings !== false) allowed_sections.push("recordings");
       if (patientRow.qr_share_reports !== false) allowed_sections.push("reports");
+      if (patientRow.qr_share_metrics !== false) allowed_sections.push("metrics");
 
       res.status(200).json({
         patient: mapPatientRowToFrontend(patientRow),
         ehrHistory: patientRow.qr_share_ehr !== false ? ehrHistory : [],
-        allowed_sections
+        allowed_sections,
+        latestMetrics: patientRow.qr_share_metrics !== false ? await getLatestHealthMetrics(patientRow.id) : [],
+        metricsSummary: patientRow.qr_share_metrics !== false ? await getHealthMetricsSummary(patientRow.id, 7) : null,
       });
     } catch (error) {
       console.error("Error fetching patient data for doctor:", error);
@@ -1052,7 +1057,7 @@ app.get(
         shareHistory && shareScope.length > 0
           ? shareScope
           : shareHistory
-            ? ["ehr", "prescriptions", "recordings", "reports"]
+            ? ["ehr", "prescriptions", "recordings", "reports", "metrics"]
             : [];
 
       const patient = mapPatientRowToFrontend({
@@ -1084,6 +1089,8 @@ app.get(
         prescriptions: [],
         recordings: [],
         reports: [],
+        latestMetrics: [],
+        metricsSummary: null,
       };
 
       if (!shareHistory) {
@@ -1091,7 +1098,7 @@ app.get(
       }
 
       const patientId = appointment.appointment_patient_id;
-      const [ehrRows, prescriptionRows, recordingRows, reportRows, walletRows] =
+      const [ehrRows, prescriptionRows, recordingRows, reportRows, walletRows, latestMetricsRow, metricsSummaryRow] =
         await Promise.allSettled([
           effectiveScope.includes("ehr")
             ? getPatientDataByPatientId(patientId)
@@ -1119,6 +1126,12 @@ app.get(
           effectiveScope.includes("reports")
             ? getHealthWalletDocumentsByPatientId(patientId)
             : Promise.resolve([]),
+          effectiveScope.includes("metrics")
+            ? getLatestHealthMetrics(patientId)
+            : Promise.resolve([]),
+          effectiveScope.includes("metrics")
+            ? getHealthMetricsSummary(patientId, 7)
+            : Promise.resolve(null),
         ]);
 
       responsePayload.ehrHistory =
@@ -1151,6 +1164,11 @@ app.get(
           created_at: doc.created_at,
         }))),
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      responsePayload.latestMetrics =
+        latestMetricsRow.status === "fulfilled" ? latestMetricsRow.value : [];
+      responsePayload.metricsSummary =
+        metricsSummaryRow.status === "fulfilled" ? metricsSummaryRow.value : null;
 
       return res.status(200).json(responsePayload);
     } catch (error) {

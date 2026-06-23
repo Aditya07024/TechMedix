@@ -83,7 +83,7 @@ export const getPatientById = async (id) => {
     SELECT id, name, email, age, gender,
            phone, blood_group, medical_history,
            unique_code, qr_share_ehr, qr_share_prescriptions,
-           qr_share_recordings, qr_share_reports, created_at
+           qr_share_recordings, qr_share_reports, qr_share_metrics, created_at
     FROM patients
     WHERE id = ${id}
       AND is_deleted = FALSE
@@ -114,7 +114,7 @@ export const getPatientByUniqueCode = async (uniqueCode) => {
     SELECT id, name, email, age, gender,
            phone, blood_group, medical_history,
            unique_code, qr_share_ehr, qr_share_prescriptions,
-           qr_share_recordings, qr_share_reports, created_at
+           qr_share_recordings, qr_share_reports, qr_share_metrics, created_at
     FROM patients
     WHERE unique_code = ${uniqueCode}
       AND is_deleted = FALSE
@@ -139,6 +139,7 @@ export const updatePatient = async (id, data) => {
   const qrSharePrescriptions = data?.qrSharePrescriptions !== undefined ? data.qrSharePrescriptions : null;
   const qrShareRecordings = data?.qrShareRecordings !== undefined ? data.qrShareRecordings : null;
   const qrShareReports = data?.qrShareReports !== undefined ? data.qrShareReports : null;
+  const qrShareMetrics = data?.qrShareMetrics !== undefined ? data.qrShareMetrics : null;
 
   const result = await sql`
     UPDATE patients
@@ -154,12 +155,13 @@ export const updatePatient = async (id, data) => {
         qr_share_prescriptions = COALESCE(${qrSharePrescriptions}, qr_share_prescriptions),
         qr_share_recordings = COALESCE(${qrShareRecordings}, qr_share_recordings),
         qr_share_reports = COALESCE(${qrShareReports}, qr_share_reports),
+        qr_share_metrics = COALESCE(${qrShareMetrics}, qr_share_metrics),
         updated_at = NOW()
     WHERE id = ${id}
       AND is_deleted = FALSE
     RETURNING id, name, email, age, gender,
               phone, blood_group, medical_history, unique_code,
-              qr_share_ehr, qr_share_prescriptions, qr_share_recordings, qr_share_reports
+              qr_share_ehr, qr_share_prescriptions, qr_share_recordings, qr_share_reports, qr_share_metrics
   `;
 
   return result.length ? result[0] : null;

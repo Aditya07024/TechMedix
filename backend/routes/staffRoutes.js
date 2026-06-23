@@ -4,6 +4,7 @@ import path from "path";
 import multer from "multer";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
 import cloudinary from "../config/cloudinary.js";
+import { createNotification } from "../services/smartNotificationService.js";
 import { createHealthWalletDocument } from "../models-pg/healthWalletDocument.js";
 import {
   generateQueueToken,
@@ -412,6 +413,19 @@ router.post("/notify-doctor", async (req, res) => {
 
     const io = req.app.get("io");
     io?.to(`doctor-${effectiveDoctorId}`).emit("staff-notify-doctor", payload);
+
+    try {
+      await createNotification(
+        effectiveDoctorId,
+        "patient_ready",
+        "Reception Ping",
+        payload.message,
+        appointment_id || null,
+        "appointment"
+      );
+    } catch (dbNotifErr) {
+      console.warn("Failed to write reception ping database notification:", dbNotifErr.message);
+    }
 
     await logStaffAction(
       staffProfile?.id || null,

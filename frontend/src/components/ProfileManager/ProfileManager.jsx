@@ -19,6 +19,7 @@ const getInitialForm = (role, profile = {}) => ({
   qrSharePrescriptions: profile.qrSharePrescriptions ?? true,
   qrShareRecordings: profile.qrShareRecordings ?? true,
   qrShareReports: profile.qrShareReports ?? true,
+  qrShareMetrics: profile.qrShareMetrics ?? true,
 });
 
 export default function ProfileManager({
@@ -83,6 +84,7 @@ export default function ProfileManager({
       qrSharePrescriptions: nextProfile?.qrSharePrescriptions ?? user?.qrSharePrescriptions ?? true,
       qrShareRecordings: nextProfile?.qrShareRecordings ?? user?.qrShareRecordings ?? true,
       qrShareReports: nextProfile?.qrShareReports ?? user?.qrShareReports ?? true,
+      qrShareMetrics: nextProfile?.qrShareMetrics ?? user?.qrShareMetrics ?? true,
     };
 
     login(mergedUser, token);
@@ -286,6 +288,15 @@ export default function ProfileManager({
                     style={{ width: "auto", cursor: "pointer" }}
                   />
                   <span style={{ fontSize: "0.9rem" }}>Reports & Files</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: "normal", background: "none", border: "none", padding: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.qrShareMetrics}
+                    onChange={(event) => updateField("qrShareMetrics", event.target.checked)}
+                    style={{ width: "auto", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Health Metrics</span>
                 </label>
               </div>
             </div>

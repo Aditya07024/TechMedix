@@ -273,6 +273,8 @@ export const api = {
       }),
     getDoctorSummary: (doctorId) =>
       apiRequest(`/api/payments/doctor/${doctorId}/summary`),
+    getDoctorRevenueDetails: (doctorId) =>
+      apiRequest(`/api/payments/doctor/${doctorId}/details`),
     initiateAddMoney: (payload) =>
       apiRequest("/api/payments/wallet/add-money", {
         method: "POST",
@@ -528,5 +530,35 @@ export const api = {
   },
   doctorPosters: {
     listActive: () => apiRequest("/api/doctor-posters/active", { auth: false, unwrap: true }),
+    uploadPoster: async (file) => {
+      const formData = new FormData();
+      await appendMultipartField(formData, "poster", file);
+      return apiRequest("/api/doctor-posters/upload", {
+        method: "POST",
+        body: formData,
+      });
+    },
+    createPaySession: (data) =>
+      apiRequest("/api/doctor-posters/pay", { method: "POST", body: data }),
+    verifyPaySignature: (data) =>
+      apiRequest("/api/doctor-posters/verify", { method: "POST", body: data }),
+    getMyPosters: () =>
+      apiRequest("/api/doctor-posters/my-posters"),
+    deletePoster: (id) =>
+      apiRequest(`/api/doctor-posters/${id}`, { method: "DELETE" }),
+  },
+  doctorStaff: {
+    create: (data) =>
+      apiRequest("/api/doctor/staff/create", { method: "POST", body: data }),
+    list: () =>
+      apiRequest("/api/doctor/staff"),
+    requests: () =>
+      apiRequest("/api/doctor/staff/requests"),
+    resolveRequest: (id, status) =>
+      apiRequest(`/api/doctor/staff/request/${id}`, { method: "PATCH", body: { status } }),
+    delete: (staffId) =>
+      apiRequest(`/api/doctor/staff/${staffId}`, { method: "DELETE" }),
+    resetPassword: (staffId) =>
+      apiRequest(`/api/doctor/staff/${staffId}/reset-password`, { method: "POST" }),
   },
 };

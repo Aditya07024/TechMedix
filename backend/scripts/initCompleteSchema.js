@@ -149,6 +149,7 @@ export async function initializeCompletSchema() {
         qr_share_prescriptions BOOLEAN DEFAULT TRUE,
         qr_share_recordings BOOLEAN DEFAULT TRUE,
         qr_share_reports BOOLEAN DEFAULT TRUE,
+        qr_share_metrics BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE
@@ -161,7 +162,8 @@ export async function initializeCompletSchema() {
       ADD COLUMN IF NOT EXISTS qr_share_ehr BOOLEAN DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS qr_share_prescriptions BOOLEAN DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS qr_share_recordings BOOLEAN DEFAULT TRUE,
-      ADD COLUMN IF NOT EXISTS qr_share_reports BOOLEAN DEFAULT TRUE;
+      ADD COLUMN IF NOT EXISTS qr_share_reports BOOLEAN DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS qr_share_metrics BOOLEAN DEFAULT TRUE;
     `;
 
     // 4️⃣ APPOINTMENTS TABLE
