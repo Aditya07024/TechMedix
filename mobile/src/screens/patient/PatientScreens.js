@@ -3177,7 +3177,7 @@ export function PatientProfileScreen({ navigation }) {
         {/* Quick Options Grid */}
         <SurfaceCard tone="low">
           <Text style={styles.blockTitle}>Quick Portal Options</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 8 }}>
             {[
 
               { label: "Search Medicine", icon: "magnify", onPress: () => navigation.navigate("MedicineSearch") },
@@ -3191,15 +3191,16 @@ export function PatientProfileScreen({ navigation }) {
                 activeOpacity={0.8}
                 onPress={item.onPress}
                 style={{
-                  width: "31%",
-                  aspectRatio: 1.15,
+                  width: idx < 3 ? "31.3%" : "48.5%",
+                  aspectRatio: idx < 3 ? 1.1 : 1.6,
                   backgroundColor: colors.surfaceLowest,
-                  borderRadius: radii.md,
+                  // borderRadius: radii.md,
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
                   borderWidth: 1,
                   borderColor: colors.outline,
+                  marginBottom: 8,
                 }}
               >
                 <MaterialCommunityIcons name={item.icon} size={22} color={colors.primary} />
