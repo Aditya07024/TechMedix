@@ -691,54 +691,52 @@ export function PatientDashboardScreen({ navigation }) {
         />
         <View style={styles.tileGrid}>
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
             label="All Appointments"
             icon="calendar-plus"
             onPress={() => navigation.navigate("Appointments")}
           />
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
             label="Prescription pad"
             icon="file"
             onPress={() => navigation.navigate("Prescriptions")}
           />
           
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
             label="Metrics"
             icon="chart-line"
             onPress={() => navigation.navigate("HealthMetrics")}
           />
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
-              label="My QR"
-              icon="qrcode"
-              onPress={() => navigation.navigate("PatientQR")}
-            />
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
+            label="My QR"
+            icon="qrcode"
+            onPress={() => navigation.navigate("PatientQR")}
+          />
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
             label="Voice Notes"
             icon="microphone-outline"
             onPress={() => navigation.navigate("PatientRecordings")}
           />
           <ActionTile
-            style={{ width: "33%",border:"2px solid #d9cece18" }}
+            style={{ flexBasis: "30%", flexGrow: 1, border: "1.5px solid #d9cece18" }}
             label="Consult Assistant"
             icon="chat"  
-onPress={() => navigation.navigate("AIHealthChat")}          />
-
+            onPress={() => navigation.navigate("AIHealthChat")}
+          />
         </View>
 
         {/* Upcoming Consultation */}
-        <SurfaceCard tone="lowest" style={styles.appointmentCard}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.appointmentHeaderTitle}>Upcoming Consultation</Text>
-            {upcomingAppointment ? (
+        {upcomingAppointment ? (
+          <SurfaceCard tone="lowest" style={styles.appointmentCard}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.appointmentHeaderTitle}>Upcoming Consultation</Text>
               <Pill label={upcomingAppointment.status || "booked"} tone="info" />
-            ) : null}
-          </View>
-          
-          {upcomingAppointment ? (
+            </View>
+            
             <View style={styles.appointmentBody}>
               <View style={styles.appointmentDocInfo}>
                 <View style={styles.appointmentAvatarCircle}>
@@ -803,13 +801,8 @@ onPress={() => navigation.navigate("AIHealthChat")}          />
                 </View>
               </View>
             </View>
-          ) : (
-            <EmptyStateCard
-              title="No upcoming consultation"
-              body="Book a new session using the appointments tab."
-            />
-          )}
-        </SurfaceCard>
+          </SurfaceCard>
+        ) : null}
 
         <SurfaceCard>
           <View style={styles.cardHeaderRow}>
@@ -1450,7 +1443,7 @@ export function BookAppointmentScreen({ navigation }) {
             {(filteredDoctors || []).map((doctor) => (
               <SurfaceCard key={doctor.id}>
                 <View style={styles.cardHeaderRow}>
-                  <View style={styles.inlineRow}>
+                  <View style={[styles.inlineRow, { flex: 1, flexWrap: "nowrap" }]}>
                     <AvatarBubble
                       label={getInitials(doctor.name)}
                       size={46}
@@ -2160,8 +2153,8 @@ export function AnalyzePrescriptionScreen({ navigation }) {
           </View>
         </SurfaceCard>
 
-        <SurfaceCard tone="low">
-          <View style={styles.cardHeaderRow}>
+        <SurfaceCard tone="low" style={{ paddingHorizontal: 0 }}>
+          <View style={[styles.cardHeaderRow, { paddingHorizontal: 16 }]}>
             <Text style={styles.blockTitle}>Extracted Medicines</Text>
             <TouchableOpacity
               onPress={() => navigation.navigate("PatientAddMedicine")}
@@ -2170,66 +2163,72 @@ export function AnalyzePrescriptionScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <GradientButton
-            label="See Prescription Pad"
-            icon="file-document-outline"
-            onPress={() => setShowPadSelection(true)}
-            style={{ marginBottom: 12 }}
-          />
+          <View style={{ paddingHorizontal: 16 }}>
+            <GradientButton
+              label="See Prescription Pad"
+              icon="file-document-outline"
+              onPress={() => setShowPadSelection(true)}
+              style={{ marginBottom: 12 }}
+            />
+          </View>
 
           {medicines.length ? (
-            <View style={styles.tableContainer}>
-              {/* Table Header */}
-              <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>MEDICINE</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DOSAGE</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>FREQUENCY</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DURATION</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.8, textAlign: "center" }]}>ACTIONS</Text>
-              </View>
-
-              {/* Table Body */}
-              {medicines.map((item, idx) => (
-                <View key={item.id || idx} style={styles.tableDataRow}>
-                  <Text style={[styles.tableCell, { flex: 2, fontWeight: "700" }]}>
-                    {item.medicine_name}
-                  </Text>
-                  <Text style={[styles.tableCell, { flex: 1.2 }]}>
-                    {item.dosage || "—"}
-                  </Text>
-                  <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                    {item.frequency || "—"}
-                  </Text>
-                  <Text style={[styles.tableCell, { flex: 1.2 }]}>
-                    {item.duration || "—"}
-                  </Text>
-                  <View style={[styles.tableActionCell, { flex: 1.8 }]}>
-                    <TouchableOpacity
-                      onPress={() => navigation.navigate("MedicineSearch", { query: item.medicine_name })}
-                      style={styles.actionIconButton}
-                    >
-                      <MaterialCommunityIcons name="swap-horizontal" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => openEditModal(item)}
-                      style={styles.actionIconButton}
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteMedicine(item.id || item.medicine_id)}
-                      style={styles.actionIconButton}
-                    >
-                      <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error || "#ff4d4d"} />
-                    </TouchableOpacity>
-                  </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+              <View style={[styles.tableContainer, { minWidth: 600, borderLeftWidth: 0, borderRightWidth: 0, borderRadius: 0 }]}>
+                {/* Table Header */}
+                <View style={styles.tableHeaderRow}>
+                  <Text style={[styles.tableHeaderCell, { flex: 2 }]}>MEDICINE</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DOSAGE</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>FREQUENCY</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DURATION</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.8, textAlign: "center" }]}>ACTIONS</Text>
                 </View>
-              ))}
-            </View>
+
+                {/* Table Body */}
+                {medicines.map((item, idx) => (
+                  <View key={item.id || idx} style={styles.tableDataRow}>
+                    <Text style={[styles.tableCell, { flex: 2, fontWeight: "700" }]}>
+                      {item.medicine_name}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                      {item.dosage || "—"}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                      {item.frequency || "—"}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                      {item.duration || "—"}
+                    </Text>
+                    <View style={[styles.tableActionCell, { flex: 1.8 }]}>
+                      <TouchableOpacity
+                        onPress={() => navigation.navigate("MedicineSearch", { query: item.medicine_name })}
+                        style={styles.actionIconButton}
+                      >
+                        <MaterialCommunityIcons name="swap-horizontal" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => openEditModal(item)}
+                        style={styles.actionIconButton}
+                      >
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteMedicine(item.id || item.medicine_id)}
+                        style={styles.actionIconButton}
+                      >
+                        <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error || "#ff4d4d"} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           ) : (
-            <Text style={styles.sectionMuted}>
-              No extracted medicines available yet.
-            </Text>
+            <View style={{ paddingHorizontal: 16 }}>
+              <Text style={styles.sectionMuted}>
+                No extracted medicines available yet.
+              </Text>
+            </View>
           )}
         </SurfaceCard>
       </ScreenScroll>
