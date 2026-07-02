@@ -3638,7 +3638,7 @@ export function XRayHistoryScreen({ navigation }) {
 export function PatientRecordingsScreen({ navigation }) {
   const { user } = useAuth();
 
-  const soundRef = useRef(new Audio.Sound());
+  const soundRef = useRef(null);
   const [playingId, setPlayingId] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -3667,7 +3667,7 @@ export function PatientRecordingsScreen({ navigation }) {
       return () => {
         active = false;
         if (soundRef.current) {
-          soundRef.current.unloadAsync();
+          soundRef.current.unloadAsync().catch(() => {});
         }
       };
     }, [user?.id])
@@ -3675,19 +3675,27 @@ export function PatientRecordingsScreen({ navigation }) {
 
   async function playRecording(url, id) {
     try {
-      await soundRef.current.unloadAsync();
-      await soundRef.current.loadAsync({ uri: url });
+      if (soundRef.current) {
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        } catch (_) {}
+      }
 
+      const newSound = new Audio.Sound();
+      soundRef.current = newSound;
+
+      await newSound.loadAsync({ uri: url });
       setPlayingId(id);
-      await soundRef.current.playAsync();
+      await newSound.playAsync();
 
-      soundRef.current.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isPlaying) {
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded || !status.isPlaying) {
           setPlayingId(null);
         }
       });
     } catch (e) {
-      setError("Audio play failed");
+      setError("Audio play failed: " + e.message);
     }
   }
 

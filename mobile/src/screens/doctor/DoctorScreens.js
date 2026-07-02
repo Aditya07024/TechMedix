@@ -1952,7 +1952,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
   const [playbackUri, setPlaybackUri] = useState(null);
   const [uploadingRecording, setUploadingRecording] = useState(false);
   const recordingRef = useRef(null);
-  const soundRef = useRef(new Audio.Sound());
+  const soundRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -2139,8 +2139,12 @@ export function DoctorPatientLookupScreen({ navigation }) {
     try {
       if (!recordedUri) return;
       if (playbackUri) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        if (soundRef.current) {
+          try {
+            await soundRef.current.stopAsync();
+            await soundRef.current.unloadAsync();
+          } catch (_) {}
+        }
         setPlaybackUri(null);
         return;
       }
@@ -2152,13 +2156,17 @@ export function DoctorPatientLookupScreen({ navigation }) {
         shouldRouteThroughSpeakerIOS: true,
       });
 
-      await soundRef.current.loadAsync({ uri: recordedUri });
+      const newSound = new Audio.Sound();
+      soundRef.current = newSound;
+
+      await newSound.loadAsync({ uri: recordedUri });
       setPlaybackUri(recordedUri);
-      await soundRef.current.playAsync();
-      soundRef.current.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isPlaying) {
+      await newSound.playAsync();
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded || !status.isPlaying) {
           setPlaybackUri(null);
-          soundRef.current.unloadAsync().catch(() => {});
+          newSound.unloadAsync().catch(() => {});
         }
       });
     } catch (err) {
@@ -2666,7 +2674,7 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
   const [recordedUri, setRecordedUri] = useState(null);
   const [playingRecordingId, setPlayingRecordingId] = useState(null);
   const recordingRef = useRef(new Audio.Recording());
-  const soundRef = useRef(new Audio.Sound());
+  const soundRef = useRef(null);
 
   async function loadRecordings() {
     setLoading(true);
@@ -2686,7 +2694,7 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
       loadRecordings();
       return () => {
         if (soundRef.current) {
-          soundRef.current.unloadAsync();
+          soundRef.current.unloadAsync().catch(() => {});
         }
       };
     }, [user?.id]),
@@ -2761,12 +2769,24 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
 
   async function playRecording(recordingUri) {
     try {
-      await soundRef.current.loadAsync({ uri: recordingUri });
+      if (soundRef.current) {
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+        } catch (_) {}
+      }
+
+      const newSound = new Audio.Sound();
+      soundRef.current = newSound;
+
+      await newSound.loadAsync({ uri: recordingUri });
       setPlayingRecordingId(recordingUri);
-      await soundRef.current.playAsync();
-      soundRef.current.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isPlaying) {
+      await newSound.playAsync();
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded || !status.isPlaying) {
           setPlayingRecordingId(null);
+          newSound.unloadAsync().catch(() => {});
         }
       });
     } catch (playError) {
