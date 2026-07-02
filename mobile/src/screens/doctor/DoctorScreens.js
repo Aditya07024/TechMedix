@@ -5,6 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +14,6 @@ import {
   Image,
   Linking,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -1511,6 +1511,27 @@ export function DoctorProfileScreen() {
       {/* ═══════════ PROFILE SETTINGS TAB ═══════════ */}
       {activeTab === "profile" && (
         <>
+          {/* Reviews Summary Card */}
+          <SurfaceCard onPress={() => setActiveTab("reviews")}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.blockTitle}>Reviews & Rating</Text>
+                <Text style={styles.smallText}>Tap to view patient feedback comments</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <MaterialCommunityIcons name="star" size={20} color="#EAB308" />
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: colors.primary }}>
+                    {avgRating}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: colors.outline }}>
+                  {reviewCount} reviews
+                </Text>
+              </View>
+            </View>
+          </SurfaceCard>
+
           {/* Practice Coverage & Subscription Details */}
           {subLoading ? (
             <LoadingCard label="Loading subscription details..." />
