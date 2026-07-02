@@ -1475,7 +1475,7 @@ export function DoctorProfileScreen() {
     { key: "profile", label: "Profile", icon: "account-cog-outline" },
     { key: "staff", label: "Staff", icon: "account-group-outline" },
     { key: "promotions", label: "Promotions", icon: "bullhorn-outline" },
-    { key: "reviews", label: "Reviews", icon: "star-outline" },
+    // { key: "reviews", label: "Reviews", icon: "star-outline" },
   ];
 
   return (
