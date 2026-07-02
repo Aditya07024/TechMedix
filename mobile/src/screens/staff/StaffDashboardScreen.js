@@ -382,6 +382,9 @@ export default function StaffDashboardScreen() {
             )}
           </View>
         )}
+      </>
+    );
+  })()}
       </ScrollView>
     </SafeAreaView>
   );
