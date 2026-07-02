@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigation } from "@react-navigation/native";
 import {
   Platform,
   SafeAreaView,
@@ -66,6 +67,7 @@ export function TopBar({
   rightIcon,
   onRightPress,
 }) {
+  const navigation = useNavigation();
   return (
     <View style={styles.topBar}>
       <View style={styles.topLeft}>
@@ -78,7 +80,28 @@ export function TopBar({
             />
           </TouchableOpacity>
         ) : onMenuPress ? (
-          <TouchableOpacity onPress={onMenuPress} style={styles.iconButton}>
+          <TouchableOpacity 
+            onPress={() => {
+              if (menuIcon === "logo") {
+                const state = navigation.getState();
+                const routeNames = state ? state.routeNames : [];
+                if (routeNames && routeNames.includes("Home")) {
+                  navigation.navigate("Home");
+                } else if (routeNames && routeNames.includes("DoctorHome")) {
+                  navigation.navigate("DoctorHome");
+                } else {
+                  try {
+                    navigation.navigate("Home");
+                  } catch (_) {
+                    onMenuPress && onMenuPress();
+                  }
+                }
+              } else {
+                onMenuPress && onMenuPress();
+              }
+            }} 
+            style={styles.iconButton}
+          >
             {menuIcon === "logo" ? (
               <Image
                 source={require("../../assets/icon.png")}
