@@ -3682,6 +3682,13 @@ export function PatientRecordingsScreen({ navigation }) {
         } catch (_) {}
       }
 
+      // Configure audio mode for loudspeaker playback
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldRouteThroughSpeakerIOS: true,
+      });
+
       const newSound = new Audio.Sound();
       soundRef.current = newSound;
 
