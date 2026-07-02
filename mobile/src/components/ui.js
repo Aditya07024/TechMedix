@@ -91,9 +91,13 @@ export function TopBar({
                   navigation.navigate("DoctorHome");
                 } else {
                   try {
-                    navigation.navigate("Home");
+                    navigation.navigate("PatientApp", { screen: "Home" });
                   } catch (_) {
-                    onMenuPress && onMenuPress();
+                    try {
+                      navigation.navigate("Home");
+                    } catch (err) {
+                      console.warn("Navigation to home failed", err);
+                    }
                   }
                 }
               } else {

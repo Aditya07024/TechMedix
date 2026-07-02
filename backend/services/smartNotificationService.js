@@ -18,21 +18,27 @@ export async function createNotification(
   let notification;
 
   if (isUuid) {
-    // Patient notification (UUID key) -> patient_notifications table
-    notification = await sql`
-      INSERT INTO patient_notifications (
-        patient_id,
-        title,
-        message,
-        is_read
-      ) VALUES (
-        ${userId},
-        ${title || type},
-        ${message},
-        false
-      )
-      RETURNING id, title AS message, is_read, created_at
+    // Check if user is a patient to avoid FK constraint violation for doctor UUIDs
+    const patientExists = await sql`
+      SELECT id FROM patients WHERE id = ${userId} LIMIT 1
     `;
+    if (patientExists.length > 0) {
+      // Patient notification (UUID key) -> patient_notifications table
+      notification = await sql`
+        INSERT INTO patient_notifications (
+          patient_id,
+          title,
+          message,
+          is_read
+        ) VALUES (
+          ${userId},
+          ${title || type},
+          ${message},
+          false
+        )
+        RETURNING id, title AS message, is_read, created_at
+      `;
+    }
   } else {
     // Doctor or non-patient notification (Integer key) -> legacy notifications table
     notification = await sql`

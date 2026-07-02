@@ -341,8 +341,15 @@ export async function getLiveQueue({ doctorId, date = getTodayIsoDate(), hospita
 }
 
 export async function updateQueueStatus({ queueId, status, staffId }) {
+  let normalizedStatus = status;
+  if (status === "in_progress") {
+    normalizedStatus = "in-progress";
+  } else if (status === "skipped") {
+    normalizedStatus = "waiting";
+  }
+
   const allowedStatuses = new Set(["waiting", "in-progress", "completed"]);
-  if (!allowedStatuses.has(status)) {
+  if (!allowedStatuses.has(normalizedStatus)) {
     throw new Error("Invalid queue status");
   }
 
@@ -360,17 +367,17 @@ export async function updateQueueStatus({ queueId, status, staffId }) {
     }
 
     const mappedAppointmentStatus =
-      status === "waiting" ? "arrived" : status === "in-progress" ? "in_progress" : "visited";
+      normalizedStatus === "waiting" ? "arrived" : normalizedStatus === "in-progress" ? "in_progress" : "visited";
 
     const updatedRows = await tx`
       UPDATE queue
-      SET status = ${status},
+      SET status = ${normalizedStatus},
           started_at = CASE
-            WHEN ${status} = 'in-progress' AND started_at IS NULL THEN CURRENT_TIMESTAMP
+            WHEN ${normalizedStatus} = 'in-progress' AND started_at IS NULL THEN CURRENT_TIMESTAMP
             ELSE started_at
           END,
           completed_at = CASE
-            WHEN ${status} = 'completed' THEN CURRENT_TIMESTAMP
+            WHEN ${normalizedStatus} = 'completed' THEN CURRENT_TIMESTAMP
             ELSE completed_at
           END,
           assigned_staff_id = COALESCE(${staffId}, assigned_staff_id),

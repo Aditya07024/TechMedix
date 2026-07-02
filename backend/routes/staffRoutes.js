@@ -223,6 +223,7 @@ router.get("/queue/live", async (req, res) => {
 router.patch("/queue/:queueId/status", async (req, res) => {
   try {
     const { status } = req.body;
+    console.log("[DEBUG] PATCH /queue/:queueId/status: status =", status, "body =", req.body, "params =", req.params);
     const { staffProfile } = await resolveStaffContext(req);
 
     const updated = await updateQueueStatus({
