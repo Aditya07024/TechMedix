@@ -148,6 +148,13 @@ export default function AppointmentHistory() {
                   </div>
                 </div>
 
+                {appointment.clinic_address && (
+                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '1rem', marginTop: '-2px' }}>📍</span>
+                    <span><strong>Clinic Address:</strong> {appointment.clinic_address}</span>
+                  </div>
+                )}
+
                 <div className="appointment-history-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Doctor ID</span>

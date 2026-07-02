@@ -22,7 +22,7 @@ const DigitalPrescription = ({
   const clinicAddress = "124, Healthcare Boulevard, Medical District";
   const clinicContact = isDoc && (doctor?.phone || doctor?.email)
     ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
-    : "+91 98765-43210 | support@techmedix.com";
+    : "techmedixcare@gmail.com";
   
   const handlePrint = () => {
     window.print();
@@ -145,7 +145,7 @@ const DigitalPrescription = ({
 
         {/* Body */}
         <div className="paper-body">
-          <div className="rx-symbol">Rx</div>
+          {/* <div className="rx-symbol">Rx</div> */}
           
           {diagnosis && (
             <div className="section-block">
@@ -174,12 +174,12 @@ const DigitalPrescription = ({
                      <React.Fragment key={dateKey}>
                        <tr className="rx-table-section-header no-print">
                          <td colSpan="5" style={{ fontWeight: 'bold', backgroundColor: '#f1f5f9', padding: '10px 12px', color: '#334155', fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                           Prescribed / Modified on: {dateStr}
+                           Prescribed on: {dateStr}
                          </td>
                        </tr>
                        <tr className="rx-table-section-header print-only-header" style={{ display: 'none' }}>
                          <td colSpan="5" style={{ fontWeight: 'bold', borderTop: '2px solid #0f6b57', padding: '10px 12px 6px', color: '#1a1a1a', fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                           Prescribed / Modified on: {dateStr}
+                           Prescribed on: {dateStr}
                          </td>
                        </tr>
                        {meds.map((med, idx) => {

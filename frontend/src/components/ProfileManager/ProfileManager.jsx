@@ -15,6 +15,7 @@ const getInitialForm = (role, profile = {}) => ({
   specialty: profile.specialty || "",
   consultation_fee: profile.consultation_fee ?? "",
   department: profile.department || "",
+  clinic_address: profile.clinic_address || "",
   qrShareEhr: profile.qrShareEhr ?? true,
   qrSharePrescriptions: profile.qrSharePrescriptions ?? true,
   qrShareRecordings: profile.qrShareRecordings ?? true,
@@ -324,6 +325,15 @@ export default function ProfileManager({
                 onChange={(event) =>
                   updateField("consultation_fee", event.target.value)
                 }
+              />
+            </label>
+            <label className="profile-manager-full">
+              <span>Clinic Address</span>
+              <textarea
+                rows="3"
+                value={form.clinic_address}
+                onChange={(event) => updateField("clinic_address", event.target.value)}
+                placeholder="Enter clinic address details..."
               />
             </label>
           </>

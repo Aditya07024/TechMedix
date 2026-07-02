@@ -16,10 +16,12 @@ import {
   Wallet,
   Megaphone,
   Menu,
+  CreditCard,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../context/AuthContext";
 import { appointmentAPI, analyticsAPI, queueAPI } from "../../api/techmedixAPI";
+import { subscriptionAPI } from "../../api/techmedixAPI";
 import { initQueueSocket } from "../../api/socketService";
 import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
@@ -37,6 +39,7 @@ const NAV_ITEMS = [
   { id: "staff", label: "Staff Hub", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "promotions", label: "Promotions", icon: Megaphone },
+  { id: "subscription", label: "Subscription", icon: CreditCard },
   { id: "profile", label: "Profile", icon: Wallet },
 ];
 
@@ -93,6 +96,12 @@ export default function DoctorDashboardNew() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [busyMap, setBusyMap] = useState({});
+
+  // Subscription gating
+  const [subStatus, setSubStatus] = useState(null); // null = loading, object = status
+  const [subChecked, setSubChecked] = useState(false);
+  const [detailedSub, setDetailedSub] = useState(null);
+  const [detailedSubLoading, setDetailedSubLoading] = useState(false);
 
   const [uniqueCode, setUniqueCode] = useState("");
   const [scannerVisible, setScannerVisible] = useState(false);
@@ -179,7 +188,40 @@ export default function DoctorDashboardNew() {
     loadDoctorData(true);
     loadStaffData();
     fetchProfile();
+    checkSubscription();
   }, [user?.id, selectedDate]);
+
+  async function checkSubscription() {
+    if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) return;
+    try {
+      const res = await subscriptionAPI.getDoctorStatus(user.id);
+      setSubStatus(res.data?.data || { valid: true, status: "trial" });
+    } catch (err) {
+      console.warn("Subscription check failed:", err.message);
+      // On error, allow access (don't lock out due to API failure)
+      setSubStatus({ valid: true, status: "unknown" });
+    } finally {
+      setSubChecked(true);
+    }
+  }
+
+  useEffect(() => {
+    if (activeView === "subscription" && user?.id) {
+      loadDetailedSubscription();
+    }
+  }, [activeView, user?.id]);
+
+  async function loadDetailedSubscription() {
+    try {
+      setDetailedSubLoading(true);
+      const res = await subscriptionAPI.getDoctorSubscription(user.id);
+      setDetailedSub(res.data?.data || null);
+    } catch (err) {
+      console.error("Failed to load detailed subscription:", err);
+    } finally {
+      setDetailedSubLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!user?.id) return undefined;
@@ -854,6 +896,8 @@ export default function DoctorDashboardNew() {
       return;
     }
 
+    const name = window.prompt("Enter new medicine name", medicine.medicine_name || "");
+    if (name === null) return;
     const dosage = window.prompt("Enter new dosage", medicine.dosage || "");
     if (dosage === null) return;
     const frequency = window.prompt("Enter new frequency", medicine.frequency || "");
@@ -868,7 +912,7 @@ export default function DoctorDashboardNew() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({ dosage, frequency, duration }),
+        body: JSON.stringify({ medicine_name: name, dosage, frequency, duration }),
       });
 
       if (!response.ok) {
@@ -923,6 +967,33 @@ export default function DoctorDashboardNew() {
     );
   }
 
+  // Subscription wall — block access if subscription expired
+  if (subChecked && subStatus && !subStatus.valid) {
+    return (
+      <div className="doctor-dashboard">
+        <div className="doctor-sub-wall">
+          <div className="doctor-sub-wall-card">
+            <div className="sub-wall-icon">🔒</div>
+            <h2>Subscription Required</h2>
+            <p className="sub-wall-message">{subStatus.message}</p>
+            <div className="sub-wall-details">
+              {subStatus.trial_end_date && (
+                <p>Trial ended: <strong>{new Date(subStatus.trial_end_date).toLocaleDateString()}</strong></p>
+              )}
+              {subStatus.paid_end_date && (
+                <p>Subscription ended: <strong>{new Date(subStatus.paid_end_date).toLocaleDateString()}</strong></p>
+              )}
+            </div>
+            <p className="sub-wall-contact">
+              Please contact the TechMedix admin to activate or renew your subscription.
+            </p>
+            <a href="mailto:techmedixcare@gmail.com" className="sub-wall-btn">Contact Admin</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="doctor-dashboard">
       <div className="doctor-dashboard-shell">
@@ -934,6 +1005,11 @@ export default function DoctorDashboardNew() {
               Review your practice performance, run consultations, manage staff,
               and work patient cases from a cleaner doctor workspace.
             </p>
+            {subStatus?.status === "trial" && subStatus?.days_left != null && (
+              <span className="doctor-trial-badge">
+                🟢 Free Trial — {subStatus.days_left} days remaining
+              </span>
+            )}
           </div>
 
           <div className="doctor-command-actions">
@@ -1116,7 +1192,7 @@ export default function DoctorDashboardNew() {
                   />
                 </section>
 
-                <section className="doctor-layout-grid">
+                <section className="doctor-layout">
                   <article className="doctor-panel">
                     <div className="doctor-panel-heading">
                       <div>
@@ -1707,7 +1783,7 @@ export default function DoctorDashboardNew() {
                       {/* All Doctors History List */}
                       <article className="doctor-panel medicines-list-panel">
                         <div className="doctor-panel-heading">
-                           <h2>Added Medicines List (All Doctors)</h2>
+                           <h2>Previous Prescription Pad</h2>
                            <span className="count-pill">{patientHistoryPrescriptions.length} items</span>
                         </div>
                         
@@ -2272,6 +2348,103 @@ export default function DoctorDashboardNew() {
             {activeView === "profile" && (
               <section className="doctor-panel doctor-panel--schedule">
                 <ProfileManager title="Doctor Profile" roleOverride="doctor" />
+              </section>
+            )}
+
+            {activeView === "subscription" && (
+              <section className="doctor-panel doctor-subscription-view">
+                <div className="doctor-panel-heading">
+                  <div>
+                    <span>Subscription Details</span>
+                    <h2>Practice Coverage & Billing</h2>
+                  </div>
+                </div>
+
+                {detailedSubLoading ? (
+                  <div className="doctor-loading-panel">
+                    <span className="doctor-loading-spinner" />
+                    <p>Fetching subscription details...</p>
+                  </div>
+                ) : (
+                  <div className="doctor-sub-details-grid">
+                    {/* Hospital Covered Banner */}
+                    {subStatus?.status === "hospital_covered" && (
+                      <div className="sub-status-card hospital-covered">
+                        <div className="card-icon">🏢</div>
+                        <div className="card-content">
+                          <h3>Hospital Corporate Coverage</h3>
+                          <p>Your practice access is covered under <strong>{subStatus.hospital_name}</strong>'s subscription package.</p>
+                          <small>All billing and slot allocation is managed by your hospital administration.</small>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Standard details card */}
+                    <div className="sub-info-card">
+                      <h3>Active Coverage</h3>
+                      <div className="sub-info-rows">
+                        <div className="sub-info-row">
+                          <span>Current Status</span>
+                          <strong className={`status-badge-val ${subStatus?.status}`}>
+                            {subStatus?.status === "trial" ? "Free Trial" :
+                             subStatus?.status === "active" ? "Active Paid" :
+                             subStatus?.status === "hospital_covered" ? "Hospital Covered" : "Expired"}
+                          </strong>
+                        </div>
+                        
+                        {subStatus?.status === "trial" && (
+                          <>
+                            <div className="sub-info-row">
+                              <span>Trial Ends On</span>
+                              <strong>{subStatus?.trial_end_date ? new Date(subStatus.trial_end_date).toLocaleDateString() : "N/A"}</strong>
+                            </div>
+                            <div className="sub-info-row">
+                              <span>Remaining Time</span>
+                              <strong>{subStatus?.days_left} Days</strong>
+                            </div>
+                          </>
+                        )}
+
+                        {(subStatus?.status === "active" || subStatus?.status === "hospital_covered") && subStatus?.paid_end_date && (
+                          <div className="sub-info-row">
+                            <span>Coverage Until</span>
+                            <strong>{new Date(subStatus.paid_end_date).toLocaleDateString()}</strong>
+                          </div>
+                        )}
+
+                        {detailedSub?.plan_name && (
+                          <div className="sub-info-row">
+                            <span>Assigned Plan</span>
+                            <strong>{detailedSub.plan_name}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Payment details if they paid individually */}
+                    {subStatus?.status === "active" && detailedSub && (
+                      <div className="sub-info-card">
+                        <h3>Billing & Payment Information</h3>
+                        <div className="sub-info-rows">
+                          <div className="sub-info-row">
+                            <span>Amount Paid</span>
+                            <strong>₹{Number(detailedSub.amount_paid || 0).toLocaleString("en-IN")}</strong>
+                          </div>
+                          {detailedSub.payment_notes && (
+                            <div className="sub-info-row">
+                              <span>Payment Reference</span>
+                              <strong>{detailedSub.payment_notes}</strong>
+                            </div>
+                          )}
+                          <div className="sub-info-row">
+                            <span>Last Renewed At</span>
+                            <strong>{detailedSub.updated_at ? new Date(detailedSub.updated_at).toLocaleDateString() : "N/A"}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
             )}
           </main>

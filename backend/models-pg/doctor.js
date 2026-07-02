@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 */
 export const createDoctor = async (doctorData) => {
   try {
-    const { name, email, password, specialty, consultation_fee, branch_id } = doctorData;
+    const { name, email, password, specialty, consultation_fee, branch_id, reg_no } = doctorData;
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -18,6 +18,7 @@ export const createDoctor = async (doctorData) => {
         specialty,
         consultation_fee,
         branch_id,
+        reg_no,
         created_at,
         is_deleted
       )
@@ -28,10 +29,11 @@ export const createDoctor = async (doctorData) => {
         ${specialty},
         ${consultation_fee || 0},
         ${branch_id || null},
+        ${reg_no || null},
         NOW(),
         FALSE
       )
-      RETURNING id, name, email, specialty, consultation_fee, branch_id, created_at
+      RETURNING id, name, email, specialty, reg_no, consultation_fee, branch_id, created_at
     `;
 
     return result[0];
@@ -52,8 +54,8 @@ export const createDoctor = async (doctorData) => {
 export const getDoctorById = async (id) => {
   try {
     const result = await sql`
-      SELECT id, name, email, specialty,
-             consultation_fee, branch_id, created_at
+      SELECT id, name, email, specialty, reg_no,
+             consultation_fee, branch_id, clinic_address, created_at
       FROM doctors
       WHERE id = ${id}
         AND is_deleted = FALSE
@@ -95,6 +97,7 @@ export const updateDoctor = async (id, doctorData) => {
     const specialty = doctorData?.specialty ?? null;
     const consultationFee = doctorData?.consultation_fee ?? null;
     const branchId = doctorData?.branch_id ?? null;
+    const clinicAddress = doctorData?.clinic_address !== undefined ? doctorData.clinic_address : null;
 
     const result = await sql`
       UPDATE doctors
@@ -103,10 +106,11 @@ export const updateDoctor = async (id, doctorData) => {
           specialty = COALESCE(${specialty}, specialty),
           consultation_fee = COALESCE(${consultationFee}, consultation_fee),
           branch_id = COALESCE(${branchId}, branch_id),
+          clinic_address = COALESCE(${clinicAddress}::text, clinic_address),
           updated_at = NOW()
       WHERE id = ${id}
         AND is_deleted = FALSE
-      RETURNING id, name, email, specialty, consultation_fee, branch_id
+      RETURNING id, name, email, specialty, consultation_fee, branch_id, clinic_address
     `;
 
     return result.length ? result[0] : null;
@@ -153,7 +157,7 @@ export const getAllDoctors = async () => {
   try {
     return await sql`
       SELECT id, name, email, specialty,
-             consultation_fee, branch_id, created_at
+             consultation_fee, branch_id, clinic_address, created_at
       FROM doctors
       WHERE is_deleted = FALSE
       ORDER BY created_at DESC

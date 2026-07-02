@@ -27,6 +27,9 @@ import AdminDashboard from "./pages/AdminDashboard/AdminDashboard";
 import StaffDashboard from "./pages/StaffDashboard/StaffDashboard";
 import StaffLogin from "./pages/StaffLogin/StaffLogin";
 import AdminLogin from "./pages/AdminLogin/AdminLogin";
+import HospitalLogin from "./pages/HospitalLogin/HospitalLogin";
+import HospitalSignup from "./pages/HospitalSignup/HospitalSignup";
+import HospitalDashboard from "./pages/HospitalDashboard/HospitalDashboard";
 
 import UploadPrescription from "./pages/UploadPrescription/UploadPrescription";
 import PrescriptionDetails from "./pages/UploadPrescription/PrescriptionDetails";
@@ -47,7 +50,9 @@ const App = () => {
   const isPublicMarketingPage =
     location.pathname === "/" ||
     location.pathname === "/about-techmedix" ||
-    location.pathname === "/admin/login";
+    location.pathname === "/admin/login" ||
+    location.pathname === "/hospital/login" ||
+    location.pathname === "/hospital/signup";
 
   const GoogleAuthWrapper = () => {
     return (
@@ -200,6 +205,16 @@ const App = () => {
             element={
               <ProtectedRoute requiredRole="staff">
                 <StaffDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/hospital/login" element={<HospitalLogin />} />
+          <Route path="/hospital/signup" element={<HospitalSignup />} />
+          <Route
+            path="/hospital/dashboard"
+            element={
+              <ProtectedRoute requiredRole="hospital">
+                <HospitalDashboard />
               </ProtectedRoute>
             }
           />

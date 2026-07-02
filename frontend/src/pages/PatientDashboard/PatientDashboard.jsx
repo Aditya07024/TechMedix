@@ -321,7 +321,7 @@ const renderPrescriptionToBlob = async (doctor, patient, medicines, diagnosis, n
   const isDoc = doctorName && !doctorName.toLowerCase().includes("upload");
   const clinicContact = isDoc && (doctor?.phone || doctor?.email)
     ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
-    : "+91 98765-43210 | support@techmedix.com";
+    : "techmedixcare@gmail.com";
 
   ctx.fillStyle = "#0f6b57";
   ctx.font = "bold 16px sans-serif";
@@ -2325,6 +2325,9 @@ export default function PatientDashboard() {
                           Generate QR
                         </button>
                       )}
+                      <p className="qr-description-text">
+                        Show this QR to your doctor to instantly share your health profile & records
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -2499,7 +2502,12 @@ export default function PatientDashboard() {
                           />
                           <div className="appointment-person-copy">
                             <h3>{nextAppointment.doctor_name || "Doctor Assigned"}</h3>
-                            <p>Senior Cardiologist</p>
+                            <p>{nextAppointment.doctor_specialty || "Senior Consulting Doctor"}</p>
+                            {nextAppointment.clinic_address && (
+                              <p className="appointment-clinic-address" style={{ fontSize: '0.8rem', color: '#718096', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                📍 {nextAppointment.clinic_address}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="appointment-summary-meta">
@@ -2638,6 +2646,11 @@ export default function PatientDashboard() {
                           (d) => String(d.id) === String(selectedDoctorId),
                         )?.consultation_fee
                       }
+                      clinicAddress={
+                        doctors.find(
+                          (d) => String(d.id) === String(selectedDoctorId),
+                        )?.clinic_address
+                      }
                     />
 
                     <div className="doctor-reviews-section" style={{ marginTop: '30px', borderTop: '1px solid #edf2f7', paddingTop: '20px' }}>
@@ -2722,6 +2735,11 @@ export default function PatientDashboard() {
                                   })}
                                   {apt.slot_time ? `, ${apt.slot_time}` : ""}
                                 </span>
+                                {apt.clinic_address && (
+                                  <span style={{ fontSize: '0.78rem', color: '#718096', marginTop: '2px', display: 'block' }}>
+                                    📍 {apt.clinic_address}
+                                  </span>
+                                )}
                               </div>
                               <span className={`appointment-badge ${apt.status}`}>
                                 {statusLabel}

@@ -14,34 +14,48 @@ export async function createNotification(
   actionUrl = null,
   expiresAt = null,
 ) {
-  const notification = await sql`
-    INSERT INTO notifications (
-      user_id,
-      type,
-      title,
-      message,
-      related_entity_id,
-      related_entity_type,
-      action_url,
-      expires_at,
-      is_read
-    ) VALUES (
-      ${userId},
-      ${type},
-      ${title},
-      ${message},
-      ${relatedEntityId},
-      ${relatedEntityType},
-      ${actionUrl},
-      ${expiresAt},
-      false
-    )
-    RETURNING *
-  `;
+  const isUuid = typeof userId === "string" && userId.includes("-");
+  let notification;
 
-  emitUserNotification(userId, notification[0]);
+  if (isUuid) {
+    // Patient notification (UUID key) -> patient_notifications table
+    notification = await sql`
+      INSERT INTO patient_notifications (
+        patient_id,
+        title,
+        message,
+        is_read
+      ) VALUES (
+        ${userId},
+        ${title || type},
+        ${message},
+        false
+      )
+      RETURNING id, title AS message, is_read, created_at
+    `;
+  } else {
+    // Doctor or non-patient notification (Integer key) -> legacy notifications table
+    notification = await sql`
+      INSERT INTO notifications (
+        user_type,
+        user_id,
+        message,
+        is_read
+      ) VALUES (
+        'doctor',
+        ${userId},
+        ${message},
+        false
+      )
+      RETURNING id, message, is_read, created_at
+    `;
+  }
 
-  return notification[0];
+  if (notification && notification[0]) {
+    emitUserNotification(userId, notification[0]);
+    return notification[0];
+  }
+  return null;
 }
 
 /**

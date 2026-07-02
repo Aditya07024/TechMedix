@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Allow: /about-techmedix
+Allow: /search
+Allow: /suggestions
+Allow: /terms
+Allow: /blog
+Disallow: /dashboard
+Disallow: /new/dashboard
+Disallow: /health-wallet
+Disallow: /xray-analyzer
+Disallow: /xray-history
+Disallow: /payment
+Disallow: /appointments/history
+Disallow: /queue/
+Disallow: /doctor/
+Disallow: /staff/
+Disallow: /admin/
+
+Sitemap: https://techmedix.onrender.com/sitemap.xml

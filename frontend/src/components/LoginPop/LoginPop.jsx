@@ -7,6 +7,14 @@ import { authApi } from "../../api";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const LoginPop = ({ setShowLogin }) => {
+  const [showAppBanner, setShowAppBanner] = useState(
+    () => !localStorage.getItem("techmedix_app_banner_dismissed")
+  );
+
+  const dismissAppBanner = () => {
+    setShowAppBanner(false);
+    localStorage.setItem("techmedix_app_banner_dismissed", "1");
+  };
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -213,6 +221,37 @@ const LoginPop = ({ setShowLogin }) => {
           </p>
 
           <button>techmedixcare@gmail.com</button>
+
+          {showAppBanner && (
+            <div className="app-download-banner">
+              <button
+                type="button"
+                className="app-banner-close"
+                onClick={dismissAppBanner}
+                aria-label="Dismiss app download banner"
+              >
+                ×
+              </button>
+              <div className="app-banner-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                  <line x1="12" y1="18" x2="12.01" y2="18" />
+                </svg>
+              </div>
+              <div className="app-banner-text">
+                <strong>Download our App</strong>
+                <p>Get a better experience with more features on mobile!</p>
+              </div>
+              <a
+                href="https://techmedix.care/app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="app-banner-download-btn"
+              >
+                Download Now
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -353,6 +392,7 @@ const LoginPop = ({ setShowLogin }) => {
                 </>
               )}
             </p>
+            
           </form>
         </div>
       </div>

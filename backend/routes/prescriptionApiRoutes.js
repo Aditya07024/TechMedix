@@ -93,19 +93,20 @@ router.post(
   completePrescriptionHandler,
 );
 
-// Update medicine dosage/frequency/duration
+// Update medicine dosage/frequency/duration/name
 router.patch("/medicine/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { dosage, frequency, duration } = req.body;
+    const { medicine_name, dosage, frequency, duration } = req.body;
 
     const updated = await sql`
         UPDATE prescription_medicines
         SET
-          dosage = ${dosage || null},
-          frequency = ${frequency || null},
-          duration = ${duration || null}
-        WHERE id = ${id}
+          medicine_name = COALESCE(${medicine_name || null}, medicine_name),
+          dosage = COALESCE(${dosage || null}, dosage),
+          frequency = COALESCE(${frequency || null}, frequency),
+          duration = COALESCE(${duration || null}, duration)
+        WHERE id = ${id}::uuid
         RETURNING id, medicine_name, dosage, frequency, duration
       `;
 

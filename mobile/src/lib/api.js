@@ -213,6 +213,8 @@ export const api = {
       apiRequest(`/api/doctor/patient-data/${encodeURIComponent(uniqueCode)}`),
     getDashboard: () => apiRequest("/api/doctor/dashboard"),
     getAnalytics: () => apiRequest("/api/doctor/analytics"),
+    getSharedContext: (appointmentId) =>
+      apiRequest(`/api/doctor/appointments/${appointmentId}/shared-context`),
   },
 
   appointments: {
@@ -302,6 +304,15 @@ export const api = {
     createManual: (payload) =>
       apiRequest("/api/prescriptions/manual", {
         method: "POST",
+        body: payload,
+      }),
+    deleteMedicine: (medicineId) =>
+      apiRequest(`/api/prescriptions/medicine/${medicineId}`, {
+        method: "DELETE",
+      }),
+    updateMedicine: (medicineId, payload) =>
+      apiRequest(`/api/prescriptions/medicine/${medicineId}`, {
+        method: "PATCH",
         body: payload,
       }),
     safetyCheck: (prescriptionId, candidateMedicine) =>
@@ -560,5 +571,21 @@ export const api = {
       apiRequest(`/api/doctor/staff/${staffId}`, { method: "DELETE" }),
     resetPassword: (staffId) =>
       apiRequest(`/api/doctor/staff/${staffId}/reset-password`, { method: "POST" }),
+  },
+  subscriptions: {
+    getDoctorStatus: (doctorId) =>
+      apiRequest(`/api/v2/subscriptions/doctor/${doctorId}/status`),
+    getDoctorSubscription: (doctorId) =>
+      apiRequest(`/api/v2/subscriptions/doctor/${doctorId}`),
+    getPlans: () =>
+      apiRequest("/api/v2/subscriptions/plans", { auth: false }),
+  },
+  reviews: {
+    submit: (payload) =>
+      apiRequest("/api/reviews", { method: "POST", body: payload }),
+    getByDoctor: (doctorId) =>
+      apiRequest(`/api/reviews/doctor/${doctorId}`),
+    getByPatient: () =>
+      apiRequest("/api/reviews/patient"),
   },
 };

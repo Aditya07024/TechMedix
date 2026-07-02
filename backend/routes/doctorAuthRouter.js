@@ -8,6 +8,7 @@ import {
   updateDoctor,
 } from "../models-pg/doctor.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
+import { createTrialSubscription } from "../services/subscriptionService.js";
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
@@ -17,12 +18,12 @@ const SALT_ROUNDS = 10;
  */
 router.post("/signup", async (req, res) => {
   try {
-    const { name, email, password, specialty } = req.body;
+    const { name, email, password, specialty, reg_no } = req.body;
 
-    if (!email || !password || !name || !specialty) {
+    if (!email || !password || !name || !specialty || !reg_no) {
       return res
         .status(400)
-        .json({ error: "Name, email, password and specialty are required" });
+        .json({ error: "Name, email, password, specialty and registration number are required" });
     }
 
     const cleanEmail = email.toLowerCase().trim();
@@ -35,12 +36,23 @@ router.post("/signup", async (req, res) => {
 
     // Pass PLAIN password here.
     // The createDoctor function in your model handles the hashing.
-    await createDoctor({
+    const newDoctor = await createDoctor({
       name,
       email: cleanEmail,
       password: cleanPassword,
       specialty,
+      reg_no,
     });
+
+    // Auto-create 3-month free trial subscription
+    try {
+      if (newDoctor?.id) {
+        await createTrialSubscription(newDoctor.id);
+        console.log(`✓ Trial subscription created for doctor ${newDoctor.id}`);
+      }
+    } catch (subErr) {
+      console.warn("Could not create trial subscription:", subErr.message);
+    }
 
     return res.status(201).json({ message: "Doctor registered successfully" });
   } catch (error) {
@@ -113,6 +125,7 @@ router.post("/login", async (req, res) => {
         role: "doctor",
         consultation_fee: doctor.consultation_fee || 0,
         specialty: doctor.specialty,
+        clinic_address: doctor.clinic_address || "",
       },
     });
   } catch (error) {
@@ -150,11 +163,12 @@ router.patch(
   authorizeRoles("doctor"),
   async (req, res) => {
     try {
-      const { consultation_fee, name, specialty } = req.body;
+      const { consultation_fee, name, specialty, clinic_address } = req.body;
       const updated = await updateDoctor(req.user.id, {
         consultation_fee,
         name,
         specialty,
+        clinic_address,
       });
       if (!updated) {
         return res.status(400).json({ error: "Update failed" });

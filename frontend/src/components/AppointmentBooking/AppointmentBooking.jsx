@@ -18,6 +18,7 @@ export default function AppointmentBooking({
   doctorName,
   doctorSpecialty,
   consultationFee,
+  clinicAddress,
 }) {
   const SHARE_OPTIONS = [
     { id: "ehr", label: "Medical history and vitals" },
@@ -286,12 +287,16 @@ export default function AppointmentBooking({
               <div className="booking-specialist-note">
                 <div className="booking-specialist-note-title">
                   <ShieldCheck size={15} strokeWidth={2.2} />
-                  <span>Top rated care</span>
+                  <span>Doctor Details</span>
                 </div>
-                <p>
-                  Highly experienced in preventive cardiology and metabolic health.
-                  Patient-first approach with data-driven insights.
-                </p>
+                <div className="doctor-details-box" style={{ padding: '8px 0', fontSize: '13px', lineHeight: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <p style={{ margin: 0, color: '#4a5568' }}>
+                    <strong>Consultation Fee:</strong> ₹{consultationFee || 500}
+                  </p>
+                  <p style={{ margin: 0, color: '#4a5568' }}>
+                    <strong>Clinic Address:</strong> {clinicAddress || (doctorName?.includes("Singh") ? "124, Healthcare Boulevard, Saket, Delhi" : "TechMedix Main Sanctuary clinic")}
+                  </p>
+                </div>
               </div>
             </div>
 

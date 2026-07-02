@@ -276,17 +276,23 @@
 }
 
 .login-button {
-  margin-top: 8px;
-  border: none;
-  background: linear-gradient(180deg, var(--doctor-auth-accent) 0%, var(--doctor-auth-accent-dark) 100%);
-  color: #ffffff;
-  box-shadow: 0 18px 34px rgba(11, 122, 114, 0.2);
+  margin-top: 8px !important;
+  border: none !important;
+  background: #0b7a72 !important;
+  background: linear-gradient(180deg, #0b7a72 0%, #085f59 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 34px rgba(11, 122, 114, 0.2) !important;
+  display: block !important;
+  width: 100% !important;
 }
 
 .demo-login-button {
-  border: 1px solid var(--doctor-auth-input-border);
-  background: transparent;
-  color: var(--doctor-auth-text);
+  border: 1.5px solid #0b7a72 !important;
+  background: #f0fdf4 !important;
+  color: #0b7a72 !important;
+  display: block !important;
+  width: 100% !important;
+  margin-top: 12px !important;
 }
 
 .login-button:hover,

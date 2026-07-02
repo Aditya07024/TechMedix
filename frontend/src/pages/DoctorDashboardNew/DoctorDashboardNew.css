@@ -923,3 +923,219 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════ Subscription Wall ═══════ */
+.doctor-sub-wall {
+  min-height: 78vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+}
+
+.doctor-sub-wall-card {
+  max-width: 520px;
+  width: 100%;
+  padding: 48px 40px;
+  border-radius: var(--doctor-radius-xl);
+  background: var(--doctor-paper);
+  border: 1px solid var(--doctor-line);
+  box-shadow: var(--doctor-shadow);
+  text-align: center;
+  animation: subWallFade 0.6s ease both;
+}
+
+@keyframes subWallFade {
+  0% { opacity: 0; transform: translateY(16px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.sub-wall-icon {
+  font-size: 3.5rem;
+  margin-bottom: 16px;
+}
+
+.doctor-sub-wall-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.8rem;
+  letter-spacing: -0.03em;
+  color: var(--doctor-ink);
+}
+
+.sub-wall-message {
+  font-size: 1.05rem;
+  color: var(--doctor-muted);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.sub-wall-details {
+  margin-bottom: 20px;
+}
+
+.sub-wall-details p {
+  font-size: 0.92rem;
+  color: var(--doctor-muted);
+  margin: 4px 0;
+}
+
+.sub-wall-contact {
+  font-size: 0.9rem;
+  color: var(--doctor-muted);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.sub-wall-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 32px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--doctor-accent) 0%, var(--doctor-accent-deep) 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  box-shadow: 0 16px 30px rgba(13, 141, 118, 0.22);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sub-wall-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 36px rgba(13, 141, 118, 0.3);
+}
+
+/* Trial Badge in header */
+.doctor-trial-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(13, 141, 118, 0.1);
+  color: var(--doctor-accent-deep);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* ═══════ Doctor Subscription View ═══════ */
+.doctor-subscription-view {
+  padding: 28px;
+}
+
+.doctor-sub-details-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-top: 18px;
+}
+
+.sub-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px;
+  border-radius: var(--doctor-radius-lg);
+  border: 1px solid var(--doctor-line);
+  background: linear-gradient(135deg, rgba(13, 141, 118, 0.08) 0%, rgba(20, 94, 99, 0.06) 100%);
+  box-shadow: var(--doctor-shadow);
+}
+
+.hospital-covered {
+  border-left: 5px solid var(--doctor-accent);
+}
+
+.sub-status-card .card-icon {
+  font-size: 2.2rem;
+}
+
+.sub-status-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--doctor-accent-deep);
+}
+
+.sub-status-card p {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: var(--doctor-ink);
+}
+
+.sub-status-card small {
+  display: block;
+  color: var(--doctor-muted);
+}
+
+.sub-info-card {
+  padding: 24px;
+  border-radius: var(--doctor-radius-lg);
+  border: 1px solid var(--doctor-line);
+  background: var(--doctor-paper);
+  box-shadow: var(--doctor-shadow);
+}
+
+.sub-info-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  border-bottom: 1px solid var(--doctor-line);
+  padding-bottom: 10px;
+  color: var(--doctor-ink);
+}
+
+.sub-info-rows {
+  display: grid;
+  gap: 12px;
+}
+
+.sub-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.98rem;
+  border-bottom: 1px dashed var(--doctor-line);
+  padding-bottom: 8px;
+}
+
+.sub-info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sub-info-row span {
+  color: var(--doctor-muted);
+  font-weight: 600;
+}
+
+.sub-info-row strong {
+  color: var(--doctor-ink);
+  font-weight: 700;
+}
+
+.status-badge-val {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  font-weight: 800 !important;
+}
+
+.status-badge-val.trial,
+.status-badge-val.hospital_covered {
+  background: rgba(13, 141, 118, 0.1);
+  color: #0b6152;
+}
+
+.status-badge-val.active {
+  background: rgba(16, 124, 65, 0.1);
+  color: #107c41;
+}
+
+.status-badge-val.expired,
+.status-badge-val.trial_expired {
+  background: rgba(200, 63, 95, 0.1);
+  color: #c83f5f;
+}
+

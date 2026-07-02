@@ -398,19 +398,20 @@ router.post("/manual", authenticate, async (req, res) => {
   }
 });
 
-/* ===================== EDIT MEDICINE DOSAGE/FREQUENCY/DURATION ===================== */
+/* ===================== EDIT MEDICINE DETAILS ===================== */
 router.patch(
   "/medicine/:id",
   authenticate,
-  authorizeRoles("doctor"),
+  authorizeRoles("doctor", "patient"),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { dosage, frequency, duration } = req.body;
+      const { medicine_name, dosage, frequency, duration } = req.body;
 
       const result = await sql`
         UPDATE prescription_medicines
         SET
+          medicine_name = COALESCE(${medicine_name}, medicine_name),
           dosage = COALESCE(${dosage}, dosage),
           frequency = COALESCE(${frequency}, frequency),
           duration = COALESCE(${duration}, duration)
@@ -443,7 +444,7 @@ router.patch(
 router.delete(
   "/medicine/:id",
   authenticate,
-  authorizeRoles("doctor"),
+  authorizeRoles("doctor", "patient"),
   async (req, res) => {
     try {
       const { id } = req.params;

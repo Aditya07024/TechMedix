@@ -18,6 +18,7 @@ const DoctorSignup = () => {
     email: "",
     password: "",
     specialty: "",
+    reg_no: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -58,6 +59,23 @@ const DoctorSignup = () => {
 
   return (
     <div className="doctor-signup-container">
+      <style>{`
+        .doctor-signup-container .signup-button {
+          background: #0b6656 !important;
+          background: linear-gradient(180deg, #0b7a72 0%, #064e3b 100%) !important;
+          color: #ffffff !important;
+          box-shadow: 0 18px 34px rgba(11, 102, 86, 0.25) !important;
+          display: block !important;
+          width: 100% !important;
+          min-height: 56px !important;
+          border-radius: 16px !important;
+          font-size: 1rem !important;
+          font-weight: 700 !important;
+          border: none !important;
+          cursor: pointer !important;
+          margin-top: 8px !important;
+        }
+      `}</style>
       <div className="doctor-auth-shell">
         <section className="doctor-auth-hero">
           <div className="doctor-auth-badge">
@@ -152,7 +170,7 @@ const DoctorSignup = () => {
                 />
               </div>
             </div>
-            <div className="form-group">
+             <div className="form-group">
               <label htmlFor="specialty">Specialty</label>
               <div className="doctor-auth-input">
                 <Stethoscope size={18} strokeWidth={2} />
@@ -167,8 +185,41 @@ const DoctorSignup = () => {
                 />
               </div>
             </div>
+            <div className="form-group">
+              <label htmlFor="reg_no">Medical Registration Number (Reg No)</label>
+              <div className="doctor-auth-input">
+                <BadgeCheck size={18} strokeWidth={2} />
+                <input
+                  type="text"
+                  id="reg_no"
+                  name="reg_no"
+                  value={formData.reg_no}
+                  onChange={handleChange}
+                  placeholder="MCI-12345, Reg No..."
+                  required
+                />
+              </div>
+            </div>
 
-            <button type="submit" className="signup-button" disabled={loading}>
+            <button
+              type="submit"
+              className="signup-button"
+              disabled={loading}
+              style={{
+                color: "#ffffff",
+                background: "linear-gradient(180deg, #0b7a72 0%, #085f59 100%)",
+                width: "100%",
+                padding: "16px",
+                border: "none",
+                fontWeight: "700",
+                fontSize: "1rem",
+                borderRadius: "16px",
+                marginTop: "8px",
+                cursor: "pointer",
+                boxShadow: "0 18px 34px rgba(11, 122, 114, 0.2)",
+                display: "block"
+              }}
+            >
               {loading ? "Creating account..." : "Create Doctor Account"}
             </button>
           </form>

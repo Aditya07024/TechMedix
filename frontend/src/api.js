@@ -206,4 +206,16 @@ export const doctorPosterApi = {
     }),
 };
 
+export const hospitalApi = {
+  signup: (data) => api.post("/auth/hospital/signup", data),
+  login: (data) => api.post("/auth/hospital/login", data),
+  getProfile: () => api.get("/auth/hospital/profile"),
+  updateProfile: (data) => api.patch("/auth/hospital/profile", data),
+  getLinkedDoctors: () => api.get("/api/v2/hospitals/doctors"),
+  linkDoctor: (email) => api.post("/api/v2/hospitals/link", { email }),
+  unlinkDoctor: (doctorId) => api.post("/api/v2/hospitals/unlink", { doctor_id: doctorId }),
+  getHospitalPlans: () => api.get("/api/v2/hospitals/plans"),
+  subscribe: (planId) => api.post("/api/v2/hospitals/subscribe", { plan_id: planId }),
+};
+
 export default api;

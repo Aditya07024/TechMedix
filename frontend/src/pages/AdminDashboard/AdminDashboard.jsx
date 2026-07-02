@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { adminAPI, analyticsAPI, supportAPI } from "../../api/techmedixAPI";
+import { adminAPI, analyticsAPI, supportAPI, subscriptionAPI } from "../../api/techmedixAPI";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -41,6 +41,21 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState(null);
   const [chartsLoading, setChartsLoading] = useState(false);
 
+  // Subscription state
+  const [subPlans, setSubPlans] = useState([]);
+  const [subDoctors, setSubDoctors] = useState([]);
+  const [subHospitals, setSubHospitals] = useState([]);
+  const [subLoading, setSubLoading] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planForm, setPlanForm] = useState({ name: "", price: "", trial_duration_days: "90", duration_days: "30", features: "", plan_type: "individual", max_doctors: "1" });
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [activateDoctor, setActivateDoctor] = useState(null);
+  const [activateForm, setActivateForm] = useState({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+  const [showActivateHospitalModal, setShowActivateHospitalModal] = useState(false);
+  const [activateHospital, setActivateHospital] = useState(null);
+  const [activateHospitalForm, setActivateHospitalForm] = useState({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+
   useEffect(() => {
     loadAdminData();
   }, []);
@@ -50,8 +65,129 @@ export default function AdminDashboard() {
       loadPayoutData();
     } else if (activeTab === "tickets" || activeTab === "transfers") {
       loadSupportTickets();
+    } else if (activeTab === "subscriptions") {
+      loadSubscriptionData();
     }
   }, [activeTab]);
+
+  const loadSubscriptionData = async () => {
+    try {
+      setSubLoading(true);
+      const [plansRes, doctorsRes, hospitalsRes] = await Promise.allSettled([
+        subscriptionAPI.adminGetPlans(),
+        subscriptionAPI.adminGetDoctors(),
+        subscriptionAPI.adminGetHospitals(),
+      ]);
+      if (plansRes.status === "fulfilled") {
+        setSubPlans(plansRes.value.data?.data || []);
+      }
+      if (doctorsRes.status === "fulfilled") {
+        setSubDoctors(doctorsRes.value.data?.data || []);
+      }
+      if (hospitalsRes.status === "fulfilled") {
+        setSubHospitals(hospitalsRes.value.data?.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load subscription data:", err);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  const handleCreateOrUpdatePlan = async (e) => {
+    e.preventDefault();
+    try {
+      const data = {
+        name: planForm.name,
+        price: Number(planForm.price) || 0,
+        trial_duration_days: Number(planForm.trial_duration_days) || 90,
+        duration_days: Number(planForm.duration_days) || 30,
+        features: planForm.features ? planForm.features.split(",").map(f => f.trim()).filter(Boolean) : [],
+        plan_type: planForm.plan_type || "individual",
+        max_doctors: Number(planForm.max_doctors) || 1,
+      };
+      if (editingPlan) {
+        await subscriptionAPI.adminUpdatePlan(editingPlan.id, data);
+        alert("Plan updated!");
+      } else {
+        await subscriptionAPI.adminCreatePlan(data);
+        alert("Plan created!");
+      }
+      setShowPlanModal(false);
+      setEditingPlan(null);
+      setPlanForm({ name: "", price: "", trial_duration_days: "90", duration_days: "30", features: "", plan_type: "individual", max_doctors: "1" });
+      await loadSubscriptionData();
+    } catch (err) {
+      alert("Failed: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDeletePlan = async (planId) => {
+    if (!window.confirm("Delete this subscription plan?")) return;
+    try {
+      await subscriptionAPI.adminDeletePlan(planId);
+      alert("Plan deleted.");
+      await loadSubscriptionData();
+    } catch (err) {
+      alert("Failed: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const openEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name,
+      price: String(plan.price),
+      trial_duration_days: String(plan.trial_duration_days),
+      duration_days: String(plan.duration_days),
+      features: Array.isArray(plan.features) ? plan.features.join(", ") : "",
+      plan_type: plan.plan_type || "individual",
+      max_doctors: String(plan.max_doctors || 1),
+    });
+    setShowPlanModal(true);
+  };
+
+  const handleActivateHospitalSubscription = async (e) => {
+    e.preventDefault();
+    if (!activateHospital) return;
+    try {
+      await subscriptionAPI.adminActivateHospitalSubscription({
+        hospital_id: activateHospital.hospital_id,
+        plan_id: activateHospitalForm.plan_id || null,
+        duration_days: Number(activateHospitalForm.duration_days) || null,
+        amount_paid: Number(activateHospitalForm.amount_paid) || 0,
+        payment_notes: activateHospitalForm.payment_notes,
+      });
+      alert(`Subscription activated for ${activateHospital.hospital_name}!`);
+      setShowActivateHospitalModal(false);
+      setActivateHospital(null);
+      setActivateHospitalForm({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+      await loadSubscriptionData();
+    } catch (err) {
+      alert("Failed: " + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleActivateSubscription = async (e) => {
+    e.preventDefault();
+    if (!activateDoctor) return;
+    try {
+      await subscriptionAPI.adminActivateSubscription({
+        doctor_id: activateDoctor.doctor_id,
+        plan_id: activateForm.plan_id || null,
+        duration_days: Number(activateForm.duration_days) || null,
+        amount_paid: Number(activateForm.amount_paid) || 0,
+        payment_notes: activateForm.payment_notes,
+      });
+      alert(`Subscription activated for Dr. ${activateDoctor.doctor_name}!`);
+      setShowActivateModal(false);
+      setActivateDoctor(null);
+      setActivateForm({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+      await loadSubscriptionData();
+    } catch (err) {
+      alert("Failed: " + (err.response?.data?.error || err.message));
+    }
+  };
 
   const loadSupportTickets = async () => {
     try {
@@ -243,10 +379,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
-      <header className="admin-header">
-        <h1>🏥 TechMedix Admin Panel</h1>
+      {/* <header className="admin-header">
+        <h1>🏥 Admin Panel</h1>
         <p>System Management, Financial Payouts & Branch Control</p>
-      </header>
+      </header> */}
 
       <div className="admin-tabs">
         <button
@@ -290,6 +426,12 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("transfers")}
         >
           🔄 Patient Transfers
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "subscriptions" ? "active" : ""}`}
+          onClick={() => setActiveTab("subscriptions")}
+        >
+          📋 Subscriptions
         </button>
         <button
           className={`tab-btn ${activeTab === "profile" ? "active" : ""}`}
@@ -1011,6 +1153,186 @@ export default function AdminDashboard() {
             <ProfileManager title="Admin Profile" roleOverride="admin" />
           </div>
         )}
+
+        {/* SUBSCRIPTIONS TAB */}
+        {activeTab === "subscriptions" && (
+          <div className="tab-content subscriptions-tab">
+            <div className="tab-header-row">
+              <h2>Subscription Plans & Doctor Access</h2>
+              <button onClick={loadSubscriptionData} disabled={subLoading} className={`refresh-btn ${subLoading ? "spinning" : ""}`}>
+                <span>{subLoading ? "Refreshing..." : "🔄 Refresh"}</span>
+              </button>
+            </div>
+
+            {/* ── PLANS SECTION ── */}
+            <div className="sub-section">
+              <div className="sub-section-header">
+                <h3>📋 Subscription Plans</h3>
+                <button className="record-payout-btn" onClick={() => { setEditingPlan(null); setPlanForm({ name: "", price: "", trial_duration_days: "90", duration_days: "30", features: "", plan_type: "individual", max_doctors: "1" }); setShowPlanModal(true); }}>
+                  + Create Plan
+                </button>
+              </div>
+
+              {subPlans.length === 0 ? (
+                <p className="empty-state">No subscription plans created yet. Create one to get started.</p>
+              ) : (
+                <div className="sub-plans-grid">
+                  {subPlans.map((plan) => (
+                    <div key={plan.id} className={`sub-plan-card ${!plan.is_active ? "inactive" : ""}`}>
+                      <div className="sub-plan-header">
+                        <h4>{plan.name}</h4>
+                        {!plan.is_active && <span className="sub-badge inactive">Inactive</span>}
+                      </div>
+                      <div className="sub-plan-price">
+                        {Number(plan.price) === 0 ? (
+                          <span className="free-label">Free</span>
+                        ) : (
+                          <><span className="price-amount">₹{Number(plan.price).toLocaleString("en-IN")}</span><span className="price-period">/ {plan.duration_days} days</span></>
+                        )}
+                      </div>
+                      <div className="sub-plan-meta">
+                        <span>Trial: {plan.trial_duration_days} days</span>
+                        <span>Duration: {plan.duration_days} days</span>
+                      </div>
+                      <div className="sub-plan-meta">
+                        <span>Type: {plan.plan_type === 'hospital' ? `🏢 Hospital (${plan.max_doctors} slots)` : '👤 Individual'}</span>
+                      </div>
+                      {Array.isArray(plan.features) && plan.features.length > 0 && (
+                        <ul className="sub-plan-features">
+                          {plan.features.map((f, i) => <li key={i}>✓ {f}</li>)}
+                        </ul>
+                      )}
+                      <div className="sub-plan-actions">
+                        <button className="sub-edit-btn" onClick={() => openEditPlan(plan)}>Edit</button>
+                        <button className="sub-delete-btn" onClick={() => handleDeletePlan(plan.id)}>Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── DOCTORS SECTION ── */}
+            <div className="sub-section">
+              <h3>👨‍⚕️ Doctor Subscription Status</h3>
+              <div className="transactions-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Doctor</th>
+                      <th>Specialty</th>
+                      <th>Status</th>
+                      <th>Plan</th>
+                      <th>Trial Ends</th>
+                      <th>Paid Until</th>
+                      <th>Amount Paid</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subDoctors.length === 0 ? (
+                      <tr><td colSpan="8">No doctors found</td></tr>
+                    ) : (
+                      subDoctors.map((doc) => {
+                        const statusClass = doc.computed_status === "active" ? "status-active"
+                          : doc.computed_status === "trial" ? "status-trial"
+                          : doc.computed_status === "hospital_covered" ? "status-active"
+                          : "status-expired";
+                        const statusLabel = doc.computed_status === "trial" ? "🟢 Trial"
+                          : doc.computed_status === "active" ? "🟢 Active"
+                          : doc.computed_status === "hospital_covered" ? `🏢 Hospital (${doc.hospital_name || 'Covered'})`
+                          : doc.computed_status === "trial_expired" ? "🔴 Trial Expired"
+                          : doc.computed_status === "expired" ? "🔴 Expired"
+                          : "⚪ None";
+                        return (
+                          <tr key={doc.doctor_id}>
+                            <td><strong>Dr. {doc.doctor_name}</strong></td>
+                            <td>{doc.specialty || "—"}</td>
+                            <td><span className={`sub-status-badge ${statusClass}`}>{statusLabel}</span></td>
+                            <td>{doc.plan_name || (doc.hospital_id ? "Hospital Package" : "—")}</td>
+                            <td>{doc.trial_end_date && !doc.hospital_id ? new Date(doc.trial_end_date).toLocaleDateString() : "—"}</td>
+                            <td>{doc.paid_end_date && !doc.hospital_id ? new Date(doc.paid_end_date).toLocaleDateString() : "—"}</td>
+                            <td>{doc.amount_paid && !doc.hospital_id ? `₹${Number(doc.amount_paid).toLocaleString("en-IN")}` : "—"}</td>
+                            <td>
+                              {!doc.hospital_id && (
+                                <button
+                                  className="record-payout-btn"
+                                  onClick={() => {
+                                    setActivateDoctor(doc);
+                                    setActivateForm({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+                                    setShowActivateModal(true);
+                                  }}
+                                >
+                                  Activate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── HOSPITALS SECTION ── */}
+            <div className="sub-section mt-4">
+              <h3>🏢 Hospital Subscription Status</h3>
+              <div className="transactions-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hospital</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Plan</th>
+                      <th>Doctors Linked</th>
+                      <th>Valid Until</th>
+                      <th>Amount Paid</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subHospitals.length === 0 ? (
+                      <tr><td colSpan="8">No hospitals found</td></tr>
+                    ) : (
+                      subHospitals.map((hosp) => {
+                        const statusClass = hosp.computed_status === "active" ? "status-active" : "status-expired";
+                        const statusLabel = hosp.computed_status === "active" ? "🟢 Active"
+                          : hosp.computed_status === "expired" ? "🔴 Expired"
+                          : "⚪ None";
+                        return (
+                          <tr key={hosp.hospital_id}>
+                            <td><strong>{hosp.hospital_name}</strong></td>
+                            <td>{hosp.hospital_email}</td>
+                            <td><span className={`sub-status-badge ${statusClass}`}>{statusLabel}</span></td>
+                            <td>{hosp.plan_name || "—"}</td>
+                            <td>{hosp.linked_doctors_count || 0} / {hosp.max_doctors || 0}</td>
+                            <td>{hosp.end_date ? new Date(hosp.end_date).toLocaleDateString() : "—"}</td>
+                            <td>{hosp.amount_paid ? `₹${Number(hosp.amount_paid).toLocaleString("en-IN")}` : "—"}</td>
+                            <td>
+                              <button
+                                className="record-payout-btn"
+                                onClick={() => {
+                                  setActivateHospital(hosp);
+                                  setActivateHospitalForm({ plan_id: "", duration_days: "", amount_paid: "", payment_notes: "" });
+                                  setShowActivateHospitalModal(true);
+                                }}
+                              >
+                                Activate
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RECORD PAYOUT MODAL */}
@@ -1053,6 +1375,128 @@ export default function AdminDashboard() {
                 >
                   Cancel
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE/EDIT PLAN MODAL */}
+      {showPlanModal && (
+        <div className="modal-overlay">
+          <div className="payout-modal-content">
+            <h3>{editingPlan ? "Edit Plan" : "Create Subscription Plan"}</h3>
+            <form onSubmit={handleCreateOrUpdatePlan}>
+              <div className="form-group">
+                <label>Plan Name</label>
+                <input type="text" value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} required placeholder="e.g. Professional" />
+              </div>
+              <div className="form-group">
+                <label>Plan Type</label>
+                <select value={planForm.plan_type} onChange={(e) => setPlanForm({ ...planForm, plan_type: e.target.value })}>
+                  <option value="individual">👤 Individual Plan</option>
+                  <option value="hospital">🏢 Hospital Plan (slots based)</option>
+                </select>
+              </div>
+              {planForm.plan_type === "hospital" && (
+                <div className="form-group">
+                  <label>Max Covered Doctors (slots)</label>
+                  <input type="number" min="1" value={planForm.max_doctors} onChange={(e) => setPlanForm({ ...planForm, max_doctors: e.target.value })} placeholder="5" />
+                </div>
+              )}
+              <div className="form-group">
+                <label>Monthly Price (₹) — 0 for free</label>
+                <input type="number" step="1" min="0" value={planForm.price} onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })} placeholder="0" />
+              </div>
+              <div className="form-group">
+                <label>Trial Duration (days)</label>
+                <input type="number" min="0" value={planForm.trial_duration_days} onChange={(e) => setPlanForm({ ...planForm, trial_duration_days: e.target.value })} placeholder="90" />
+              </div>
+              <div className="form-group">
+                <label>Paid Duration (days)</label>
+                <input type="number" min="1" value={planForm.duration_days} onChange={(e) => setPlanForm({ ...planForm, duration_days: e.target.value })} placeholder="30" />
+              </div>
+              <div className="form-group">
+                <label>Features (comma separated)</label>
+                <input type="text" value={planForm.features} onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })} placeholder="Unlimited patients, Priority support" />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="modal-btn submit">{editingPlan ? "Update Plan" : "Create Plan"}</button>
+                <button type="button" className="modal-btn cancel" onClick={() => { setShowPlanModal(false); setEditingPlan(null); }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVATE SUBSCRIPTION MODAL */}
+      {showActivateModal && activateDoctor && (
+        <div className="modal-overlay">
+          <div className="payout-modal-content">
+            <h3>Activate Subscription</h3>
+            <p>Activate paid subscription for <strong>Dr. {activateDoctor.doctor_name}</strong></p>
+            <form onSubmit={handleActivateSubscription}>
+              <div className="form-group">
+                <label>Select Plan</label>
+                <select value={activateForm.plan_id} onChange={(e) => setActivateForm({ ...activateForm, plan_id: e.target.value })}>
+                  <option value="">— No specific plan —</option>
+                  {subPlans.filter(p => p.is_active && p.plan_type === "individual").map(p => (
+                    <option key={p.id} value={p.id}>{p.name} — ₹{Number(p.price).toLocaleString("en-IN")} / {p.duration_days}d</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Duration (days) — leave blank to use plan default</label>
+                <input type="number" min="1" value={activateForm.duration_days} onChange={(e) => setActivateForm({ ...activateForm, duration_days: e.target.value })} placeholder="30" />
+              </div>
+              <div className="form-group">
+                <label>Amount Paid (₹)</label>
+                <input type="number" step="0.01" min="0" value={activateForm.amount_paid} onChange={(e) => setActivateForm({ ...activateForm, amount_paid: e.target.value })} placeholder="0" />
+              </div>
+              <div className="form-group">
+                <label>Payment Notes</label>
+                <textarea value={activateForm.payment_notes} onChange={(e) => setActivateForm({ ...activateForm, payment_notes: e.target.value })} placeholder="e.g. UPI txn ref, cheque number" />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="modal-btn submit">Activate Subscription</button>
+                <button type="button" className="modal-btn cancel" onClick={() => { setShowActivateModal(false); setActivateDoctor(null); }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVATE HOSPITAL SUBSCRIPTION MODAL */}
+      {showActivateHospitalModal && activateHospital && (
+        <div className="modal-overlay">
+          <div className="payout-modal-content">
+            <h3>Activate Hospital Subscription</h3>
+            <p>Activate paid subscription package for <strong>{activateHospital.hospital_name}</strong></p>
+            <form onSubmit={handleActivateHospitalSubscription}>
+              <div className="form-group">
+                <label>Select Plan</label>
+                <select value={activateHospitalForm.plan_id} onChange={(e) => setActivateHospitalForm({ ...activateHospitalForm, plan_id: e.target.value })}>
+                  <option value="">— No specific plan —</option>
+                  {subPlans.filter(p => p.is_active && p.plan_type === "hospital").map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.max_doctors} slots) — ₹{Number(p.price).toLocaleString("en-IN")} / {p.duration_days}d</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Duration (days) — leave blank to use plan default</label>
+                <input type="number" min="1" value={activateHospitalForm.duration_days} onChange={(e) => setActivateHospitalForm({ ...activateHospitalForm, duration_days: e.target.value })} placeholder="30" />
+              </div>
+              <div className="form-group">
+                <label>Amount Paid (₹)</label>
+                <input type="number" step="0.01" min="0" value={activateHospitalForm.amount_paid} onChange={(e) => setActivateHospitalForm({ ...activateHospitalForm, amount_paid: e.target.value })} placeholder="0" />
+              </div>
+              <div className="form-group">
+                <label>Payment Notes</label>
+                <textarea value={activateHospitalForm.payment_notes} onChange={(e) => setActivateHospitalForm({ ...activateHospitalForm, payment_notes: e.target.value })} placeholder="e.g. UPI txn ref, cheque number" />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="modal-btn submit">Activate Subscription</button>
+                <button type="button" className="modal-btn cancel" onClick={() => { setShowActivateHospitalModal(false); setActivateHospital(null); }}>Cancel</button>
               </div>
             </form>
           </div>

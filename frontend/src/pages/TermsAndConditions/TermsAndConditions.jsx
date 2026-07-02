@@ -102,8 +102,8 @@ const TermsAndConditions = () => {
           If you have any questions about these Terms and Conditions or our
           Privacy Policy, please contact us at:
         </p>
-        <p>Email: support@techmedix.com</p>
-        <p>Phone: +1 (123) 456-7890</p>
+        <p>Email: techmedixcare@gmail.com</p>
+
       </section>
     </div>
   );

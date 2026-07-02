@@ -295,6 +295,32 @@ export async function getAvailableTimeSlots(
       isAvailable = existing < 1;
     }
 
+    // Filter out past slots relative to Asia/Kolkata (IST) time
+    const todayKolkata = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+
+    if (cleanDate < todayKolkata) {
+      isAvailable = false;
+    } else if (cleanDate === todayKolkata) {
+      const kolkataParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false
+      }).formatToParts(new Date());
+      const curHour = Number(kolkataParts.find(p => p.type === "hour").value);
+      const curMin = Number(kolkataParts.find(p => p.type === "minute").value);
+      const curMinutes = curHour * 60 + curMin;
+      const slotMinutes = slotHour * 60 + slotMin;
+      if (slotMinutes <= curMinutes) {
+        isAvailable = false;
+      }
+    }
+
     slots.push({
       start_time: slotStartTime,
       duration_minutes: slotDuration,

@@ -31,7 +31,7 @@ This platform is designed to make healthcare interactions feel more connected, m
 
 # 🌐 Live Demo
 
-🔗 https://techmedix.onrender.com  
+🔗 https://techmedix.tech
 
 # 🌐 Mobile App
 
@@ -41,7 +41,7 @@ This platform is designed to make healthcare interactions feel more connected, m
 
 ```bash
 Email: demo@gmail.com
-Password: 123456789
+Password: 1234589
 ```
 
 ### Demo Doctor

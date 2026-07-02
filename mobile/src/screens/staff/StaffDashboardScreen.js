@@ -209,55 +209,68 @@ export default function StaffDashboardScreen() {
         </View>
 
         {/* Overview Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Today's Bookings</Text>
-            <Text style={styles.statValue}>{stats.appointments_today}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Arrived</Text>
-            <Text style={[styles.statValue, { color: colors.success }]}>{stats.arrived_today}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Active Queue</Text>
-            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.queue_active}</Text>
-          </View>
-        </View>
+        {(() => {
+          const activeAppts = (appointments || []).filter(
+            (appt) => appt.status !== "cancelled" && appt.status !== "cancel"
+          );
+          const arrivedCount = (appointments || []).filter(
+            (appt) => appt.status === "arrived"
+          ).length;
+          const activeQueueCount = (liveQueue || []).filter(
+            (q) => q.status === "waiting" || q.status === "in_progress"
+          ).length;
 
-        {/* Tab Controls */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === "appointments" && styles.tabButtonActive]}
-            onPress={() => setActiveTab("appointments")}
-          >
-            <Text style={[styles.tabButtonText, activeTab === "appointments" && styles.tabButtonTextActive]}>
-              Appointments
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === "queue" && styles.tabButtonActive]}
-            onPress={() => setActiveTab("queue")}
-          >
-            <Text style={[styles.tabButtonText, activeTab === "queue" && styles.tabButtonTextActive]}>
-              Live Queue ({liveQueue.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
-        ) : activeTab === "appointments" ? (
-          /* APPOINTMENTS VIEW */
-          <View style={styles.listWrapper}>
-            {appointments.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <MaterialCommunityIcons name="calendar-blank" size={32} color={colors.outline} />
-                <Text style={styles.emptyCardText}>No appointments scheduled for today.</Text>
+          return (
+            <>
+              <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Today's Bookings</Text>
+                  <Text style={styles.statValue}>{activeAppts.length}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Arrived</Text>
+                  <Text style={[styles.statValue, { color: colors.success }]}>{arrivedCount}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Active Queue</Text>
+                  <Text style={[styles.statValue, { color: colors.primary }]}>{activeQueueCount}</Text>
+                </View>
               </View>
-            ) : (
-              appointments.map((appt) => (
-                <View key={appt.id} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
+
+              {/* Tab Controls */}
+              <View style={styles.tabBar}>
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === "appointments" && styles.tabButtonActive]}
+                  onPress={() => setActiveTab("appointments")}
+                >
+                  <Text style={[styles.tabButtonText, activeTab === "appointments" && styles.tabButtonTextActive]}>
+                    Appointments ({activeAppts.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === "queue" && styles.tabButtonActive]}
+                  onPress={() => setActiveTab("queue")}
+                >
+                  <Text style={[styles.tabButtonText, activeTab === "queue" && styles.tabButtonTextActive]}>
+                    Live Queue ({activeQueueCount})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {loading ? (
+                <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
+              ) : activeTab === "appointments" ? (
+                /* APPOINTMENTS VIEW */
+                <View style={styles.listWrapper}>
+                  {activeAppts.length === 0 ? (
+                    <View style={styles.emptyCard}>
+                      <MaterialCommunityIcons name="calendar-blank" size={32} color={colors.outline} />
+                      <Text style={styles.emptyCardText}>No appointments scheduled for today.</Text>
+                    </View>
+                  ) : (
+                    activeAppts.map((appt) => (
+                      <View key={appt.id} style={styles.itemCard}>
+                        <View style={styles.itemHeader}>
                     <View>
                       <Text style={styles.patientName}>{appt.patient_name || "Patient Profile"}</Text>
                       <Text style={styles.apptTime}>Slot: {appt.slot_time || appt.appointment_time || "Scheduled"}</Text>

@@ -83,9 +83,20 @@ router.get("/dashboard", authenticate, requireAdmin, async (req, res) => {
 router.get("/doctors", async (req, res) => {
   try {
     const doctors = await sql`
-      SELECT id, name, email, specialty, consultation_fee
-      FROM doctors
-      ORDER BY name ASC
+      SELECT 
+        d.id, 
+        d.name, 
+        d.email, 
+        d.specialty, 
+        d.consultation_fee, 
+        d.clinic_address,
+        COALESCE(AVG(dr.rating)::numeric(10,1), 0.0) as average_rating,
+        COUNT(dr.id)::int as review_count
+      FROM doctors d
+      LEFT JOIN doctor_reviews dr ON dr.doctor_id = d.id
+      WHERE d.is_deleted = FALSE
+      GROUP BY d.id
+      ORDER BY d.name ASC
     `;
 
     res.json({
@@ -105,10 +116,20 @@ router.get("/doctors", async (req, res) => {
 router.get("/doctors/:id", async (req, res) => {
   try {
     const [doctor] = await sql`
-      SELECT id, name, email, specialty, consultation_fee
-      FROM doctors
-      WHERE id = ${req.params.id}
-        AND is_deleted = FALSE
+      SELECT 
+        d.id, 
+        d.name, 
+        d.email, 
+        d.specialty, 
+        d.consultation_fee, 
+        d.clinic_address,
+        COALESCE(AVG(dr.rating)::numeric(10,1), 0.0) as average_rating,
+        COUNT(dr.id)::int as review_count
+      FROM doctors d
+      LEFT JOIN doctor_reviews dr ON dr.doctor_id = d.id
+      WHERE d.id = ${req.params.id}
+        AND d.is_deleted = FALSE
+      GROUP BY d.id
     `;
     if (!doctor) {
       return res

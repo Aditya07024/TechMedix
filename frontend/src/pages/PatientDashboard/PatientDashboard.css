@@ -800,6 +800,17 @@
   font-size: 0.78rem;
 }
 
+.qr-description-text {
+  margin: 8px 6px 4px;
+  padding: 0;
+  color: #6e7d8a;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
 .wallet-hero-card {
   min-height: 160px;
   background: linear-gradient(180deg, #0b7a72 0%, #086860 100%);

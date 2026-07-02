@@ -750,7 +750,13 @@ onPress={() => navigation.navigate("AIHealthChat")}          />
                   <Text style={styles.appointmentDocName}>
                     {upcomingAppointment.doctor_name.startsWith("Dr.") ? upcomingAppointment.doctor_name : `Dr. ${upcomingAppointment.doctor_name}`}
                   </Text>
-                  <Text style={styles.appointmentSpecialty}>Consulting Doctor</Text>
+                  {upcomingAppointment.clinic_address ? (
+                    <Text style={[styles.appointmentSpecialty, { fontSize: 11, marginTop: 2 }]} numberOfLines={1}>
+                      📍 {upcomingAppointment.clinic_address}
+                    </Text>
+                  ) : (
+                    <Text style={styles.appointmentSpecialty}>Consulting Doctor</Text>
+                  )}
                 </View>
               </View>
               
@@ -918,7 +924,7 @@ onPress={() => navigation.navigate("AIHealthChat")}          />
           )}
         </SurfaceCard>
 
-        <SurfaceCard>
+        {/* <SurfaceCard>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.blockTitle}>AI Insights</Text>
            
@@ -934,7 +940,7 @@ onPress={() => navigation.navigate("AIHealthChat")}          />
               No insights found. Sync Google Fit or complete an X-ray check.
             </Text>
           )}
-        </SurfaceCard>
+        </SurfaceCard> */}
       </ScreenScroll>
 
       {timePickerState.visible ? (
@@ -1032,19 +1038,130 @@ export function BookAppointmentScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState("my"); // "my" or "book"
   const [myAppointments, setMyAppointments] = useState([]);
   const [myApptsLoading, setMyApptsLoading] = useState(false);
+  const [reviewedAppts, setReviewedAppts] = useState(new Set());
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedApptForReview, setSelectedApptForReview] = useState(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [selectedDocReviews, setSelectedDocReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [doctorReviewsModalVisible, setDoctorReviewsModalVisible] = useState(false);
+  const [reviewModalDoctor, setReviewModalDoctor] = useState(null);
+  const [doctorReviewsList, setDoctorReviewsList] = useState([]);
+  const [doctorReviewsLoading, setDoctorReviewsLoading] = useState(false);
 
   async function loadMyAppointments() {
     if (!user?.id) return;
     setMyApptsLoading(true);
     try {
-      const response = await api.appointments.getByPatient(user.id);
-      setMyAppointments(normalizeArray(response));
+      const [apptsRes, reviewsRes] = await Promise.allSettled([
+        api.appointments.getByPatient(user.id),
+        api.reviews.getByPatient(),
+      ]);
+
+      if (apptsRes.status === "fulfilled") {
+        setMyAppointments(normalizeArray(apptsRes.value));
+      }
+      if (reviewsRes.status === "fulfilled") {
+        const reviews =
+          reviewsRes.value?.reviews || reviewsRes.value?.data?.reviews || reviewsRes.value?.data || [];
+        const reviewedIds = new Set(
+          reviews.map((r) => r.appointment_id).filter(Boolean)
+        );
+        setReviewedAppts(reviewedIds);
+      }
       setError("");
     } catch (loadError) {
       setError(loadError.message);
     } finally {
       setMyApptsLoading(false);
     }
+  }
+
+  function openReviewModal(appt) {
+    setSelectedApptForReview(appt);
+    setRating(5);
+    setComment("");
+    setReviewModalVisible(true);
+  }
+
+  async function submitReview() {
+    if (!selectedApptForReview) return;
+    setSubmittingReview(true);
+    try {
+      await api.reviews.submit({
+        doctor_id: selectedApptForReview.doctor_id,
+        appointment_id: selectedApptForReview.id,
+        rating,
+        comment: comment.trim(),
+      });
+      if (Platform.OS === "web") {
+        window.alert("Thank you! Your review has been submitted.");
+      } else {
+        Alert.alert("Thank you", "Your review has been submitted.");
+      }
+      setReviewModalVisible(false);
+      loadMyAppointments();
+    } catch (err) {
+      if (Platform.OS === "web") {
+        window.alert(`Failed to submit review: ${err.message}`);
+      } else {
+        Alert.alert("Error", err.message);
+      }
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
+  async function openDoctorReviews(doctor) {
+    setReviewModalDoctor(doctor);
+    setDoctorReviewsModalVisible(true);
+    setDoctorReviewsLoading(true);
+    setDoctorReviewsList([]);
+    try {
+      const res = await api.reviews.getByDoctor(doctor.id);
+      const val = res?.data || res;
+      setDoctorReviewsList(val?.reviews || val?.data?.reviews || val?.data || []);
+    } catch (err) {
+      console.warn("Failed to load doctor reviews:", err.message);
+    } finally {
+      setDoctorReviewsLoading(false);
+    }
+  }
+
+  async function handleCancelAppointment(apptId) {
+    if (Platform.OS === "web") {
+      const confirmCancel = window.confirm("Are you sure you want to cancel this appointment?");
+      if (!confirmCancel) return;
+      try {
+        await api.appointments.cancel(apptId);
+        loadMyAppointments();
+      } catch (err) {
+        window.alert(`Error: ${err.message}`);
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Cancel Appointment",
+      "Are you sure you want to cancel this appointment?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.appointments.cancel(apptId);
+              loadMyAppointments();
+            } catch (err) {
+              Alert.alert("Error", err.message);
+            }
+          },
+        },
+      ]
+    );
   }
 
   const handleTabChange = (tab) => {
@@ -1083,17 +1200,31 @@ export function BookAppointmentScreen({ navigation }) {
     setSelectedSlot("");
     setSlots([]);
     setDatesLoading(true);
+    setReviewsLoading(true);
+    setSelectedDocReviews([]);
 
-    try {
-      const response = await api.schedule.getAvailableDates(doctor.id, 14);
-      setDates(response?.available_dates || response?.data || []);
-      setError("");
-    } catch (loadError) {
-      setError(loadError.message);
-      setDates([]);
-    } finally {
+    // Fetch dates and reviews in parallel
+    Promise.allSettled([
+      api.schedule.getAvailableDates(doctor.id, 14),
+      api.reviews.getByDoctor(doctor.id),
+    ]).then(([datesRes, reviewsRes]) => {
+      if (datesRes.status === "fulfilled") {
+        const val = datesRes.value;
+        setDates(val?.available_dates || val?.data || []);
+      } else {
+        setError(datesRes.reason?.message);
+        setDates([]);
+      }
+
+      if (reviewsRes.status === "fulfilled") {
+        const val = reviewsRes.value;
+        setSelectedDocReviews(
+          val?.reviews || val?.data?.reviews || val?.data || []
+        );
+      }
       setDatesLoading(false);
-    }
+      setReviewsLoading(false);
+    });
   }
 
   async function selectDate(date) {
@@ -1229,19 +1360,27 @@ export function BookAppointmentScreen({ navigation }) {
                 <Text style={styles.sectionMuted}>
                   {formatDate(appt.appointment_date)} at {formatSlotTime12Hour(appt.slot_time)}
                 </Text>
+                {appt.clinic_address ? (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 4 }}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.outline} />
+                    <Text style={[styles.sectionMuted, { flex: 1, fontSize: 11 }]} numberOfLines={2}>
+                      {appt.clinic_address}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.inlineRow}>
                   <InfoChip
                     icon="cash-multiple"
                     label={`Payment: ${appt.payment_status || "pending"}`}
                   />
-                  {appt.status !== "cancelled" && appt.status !== "completed" && (
+                  {appt.status !== "cancelled" && appt.status !== "completed" && appt.status !== "visited" && (
                     <InfoChip
                       icon="clock-outline"
                       label={`Slot: ${appt.slot_time}`}
                     />
                   )}
                 </View>
-                {appt.status !== "cancelled" && appt.status !== "completed" && (
+                {appt.status !== "cancelled" && appt.status !== "completed" && appt.status !== "visited" ? (
                   <View style={styles.buttonRow}>
                     {appt.payment_status !== "paid" ? (
                       <GradientButton
@@ -1258,31 +1397,29 @@ export function BookAppointmentScreen({ navigation }) {
                     <SecondaryButton
                       label="Cancel"
                       icon="close"
-                      onPress={async () => {
-                        Alert.alert(
-                          "Cancel Appointment",
-                          "Are you sure you want to cancel this appointment?",
-                          [
-                            { text: "No", style: "cancel" },
-                            {
-                              text: "Yes, Cancel",
-                              style: "destructive",
-                              onPress: async () => {
-                                try {
-                                  await api.appointments.cancel(appt.id);
-                                  loadMyAppointments();
-                                } catch (err) {
-                                  setError(err.message);
-                                }
-                              },
-                            },
-                          ]
-                        );
-                      }}
+                      onPress={() => handleCancelAppointment(appt.id)}
                       style={{ flex: 1 }}
                     />
                   </View>
-                )}
+                ) : (appt.status === "completed" || appt.status === "visited") ? (
+                  <View style={styles.buttonRow}>
+                    {reviewedAppts.has(appt.id) ? (
+                      <SecondaryButton
+                        label="Reviewed"
+                        icon="star"
+                        disabled={true}
+                        style={{ flex: 1, opacity: 0.6 }}
+                      />
+                    ) : (
+                      <GradientButton
+                        label="Review"
+                        icon="star-outline"
+                        onPress={() => openReviewModal(appt)}
+                        style={{ flex: 1 }}
+                      />
+                    )}
+                  </View>
+                ) : null}
               </SurfaceCard>
             ))
           ) : (
@@ -1319,9 +1456,28 @@ export function BookAppointmentScreen({ navigation }) {
                       size={46}
                       tone="secondary"
                     />
-                    <View style={{ marginLeft: 12 }}>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
                       <Text style={styles.listTitle}>{doctor.name}</Text>
                       <Text style={styles.listMeta}>{doctor.specialty}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <MaterialCommunityIcons name="star" size={14} color="#EAB308" />
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: colors.onSurface }}>
+                          {doctor.average_rating || "0.0"}
+                        </Text>
+                        <TouchableOpacity onPress={() => openDoctorReviews(doctor)}>
+                          <Text style={{ fontSize: 12, color: colors.primary}}>
+                            ({doctor.review_count || 0} reviews)
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      {doctor.clinic_address ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                          <MaterialCommunityIcons name="map-marker-outline" size={12} color={colors.outline} />
+                          <Text style={[styles.listMeta, { fontSize: 11 }]} numberOfLines={1}>
+                            {doctor.clinic_address}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                   <Pill
@@ -1376,6 +1532,68 @@ export function BookAppointmentScreen({ navigation }) {
                 <Text style={styles.sectionMuted}>
                   {selectedDoctor?.specialty}
                 </Text>
+                {selectedDoctor?.clinic_address ? (
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 6, backgroundColor: colors.surfaceLow, borderRadius: 8, padding: 10 }}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.sectionMuted, { flex: 1, lineHeight: 18 }]}>
+                      {selectedDoctor.clinic_address}
+                    </Text>
+                  </View>
+                ) : null}
+                {/* Patient Reviews Section */}
+                <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.outline + "30", paddingTop: 12 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>Patient Reviews</Text>
+                    {selectedDocReviews.length > 0 ? (
+                      <TouchableOpacity onPress={() => { setBookingSheetVisible(false); openDoctorReviews(selectedDoctor); }}>
+                        <Text style={{ fontSize: 12, color: colors.primary, fontWeight: "600" }}>View All</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  {reviewsLoading ? (
+                    <ActivityIndicator color={colors.primary} size="small" style={{ marginVertical: 8 }} />
+                  ) : selectedDocReviews.length > 0 ? (
+                    <View style={{ maxHeight: 150, overflow: "scroll" }}>
+                      <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }} showsVerticalScrollIndicator={true}>
+                        {selectedDocReviews.map((rev) => (
+                          <View key={rev.id} style={{ padding: 8, backgroundColor: colors.surfaceLowest, borderRadius: 6, marginBottom: 6, borderWidth: 1, borderColor: colors.outline + "30" }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                              <View style={{ flexDirection: "row", gap: 2 }}>
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <MaterialCommunityIcons
+                                    key={s}
+                                    name={s <= rev.rating ? "star" : "star-outline"}
+                                    size={12}
+                                    color={s <= rev.rating ? "#EAB308" : colors.outline}
+                                  />
+                                ))}
+                              </View>
+                              <Text style={{ fontSize: 10, color: colors.outline }}>
+                                {new Date(rev.created_at).toLocaleDateString()}
+                              </Text>
+                            </View>
+                            {rev.comment ? (
+                              <Text style={{ fontSize: 12, color: colors.onSurface, fontStyle: "italic" }}>
+                                "{rev.comment}"
+                              </Text>
+                            ) : (
+                              <Text style={{ fontSize: 12, color: colors.outline, fontStyle: "italic" }}>
+                                Rated {rev.rating} stars
+                              </Text>
+                            )}
+                            <Text style={{ fontSize: 10, color: colors.outline, marginTop: 4, fontWeight: "600" }}>
+                              Verified Patient
+                            </Text>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 12, color: colors.outline, fontStyle: "italic", marginVertical: 4 }}>
+                      No reviews yet for this doctor.
+                    </Text>
+                  )}
+                </View>
 
                 <Text style={styles.inputLabel}>Available Dates</Text>
                 {datesLoading ? (
@@ -1512,6 +1730,151 @@ export function BookAppointmentScreen({ navigation }) {
             </SurfaceCard>
           </View>
         </Modal>
+
+        {/* Review Modal */}
+        <Modal
+          visible={reviewModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setReviewModalVisible(false)}
+        >
+          <View style={modalStyles.backdrop}>
+            <SurfaceCard style={[modalStyles.card, { maxWidth: 400 }]}>
+              <View style={modalStyles.header}>
+                <Text style={modalStyles.title}>Rate Consultation</Text>
+                <TouchableOpacity onPress={() => setReviewModalVisible(false)}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ alignItems: "center", marginVertical: 12 }}>
+                <Text style={{ fontSize: 16, fontWeight: "600", color: colors.onSurface, marginBottom: 8 }}>
+                  {selectedApptForReview?.doctor_name}
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.outline, marginBottom: 16 }}>
+                  How was your experience with the doctor?
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                      <MaterialCommunityIcons
+                        name={star <= rating ? "star" : "star-outline"}
+                        size={36}
+                        color={star <= rating ? "#EAB308" : colors.outline}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.outline,
+                  borderRadius: radii.md,
+                  padding: spacing.sm,
+                  fontSize: 14,
+                  color: colors.onSurface,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                  backgroundColor: colors.surfaceLow,
+                }}
+                multiline
+                numberOfLines={4}
+                placeholder="Write your feedback/comment here (optional)..."
+                placeholderTextColor={colors.outline}
+                value={comment}
+                onChangeText={setComment}
+              />
+              <GradientButton
+                label={submittingReview ? "Submitting..." : "Submit Review"}
+                icon="check-decagram"
+                onPress={submitReview}
+                disabled={submittingReview}
+              />
+            </SurfaceCard>
+          </View>
+        </Modal>
+
+        {/* View Doctor Reviews Modal */}
+        <Modal
+          visible={doctorReviewsModalVisible && !!reviewModalDoctor}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDoctorReviewsModalVisible(false)}
+        >
+          <View style={modalStyles.backdrop}>
+            <SurfaceCard style={[modalStyles.card, { maxWidth: 420, maxHeight: "80%" }]}>
+              <View style={modalStyles.header}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={modalStyles.title} numberOfLines={1}>Reviews & Ratings</Text>
+                  <Text style={{ fontSize: 12, color: colors.outline }}>
+                    Dr. {reviewModalDoctor?.name}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setDoctorReviewsModalVisible(false)}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginVertical: 8, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.outline + "20" }}>
+                <MaterialCommunityIcons name="star" size={24} color="#EAB308" />
+                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.onSurface }}>
+                  {reviewModalDoctor?.average_rating || "0.0"}
+                </Text>
+                <Text style={{ fontSize: 14, color: colors.outline }}>
+                  ({reviewModalDoctor?.review_count || 0} reviews)
+                </Text>
+              </View>
+
+              {doctorReviewsLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+              ) : doctorReviewsList.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={true} style={{ maxHeight: 350 }}>
+                  {doctorReviewsList.map((rev) => (
+                    <View key={rev.id} style={{ padding: 12, backgroundColor: colors.surfaceLowest, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: colors.outline + "30" }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <View style={{ flexDirection: "row", gap: 2 }}>
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <MaterialCommunityIcons
+                              key={s}
+                              name={s <= rev.rating ? "star" : "star-outline"}
+                              size={14}
+                              color={s <= rev.rating ? "#EAB308" : colors.outline}
+                            />
+                          ))}
+                        </View>
+                        <Text style={{ fontSize: 11, color: colors.outline }}>
+                          {new Date(rev.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      {rev.comment ? (
+                        <Text style={{ fontSize: 13, color: colors.onSurface, lineHeight: 18 }}>
+                          "{rev.comment}"
+                        </Text>
+                      ) : (
+                        <Text style={{ fontSize: 13, color: colors.outline, fontStyle: "italic" }}>
+                          Patient rated this consultation {rev.rating} stars.
+                        </Text>
+                      )}
+                      <Text style={{ fontSize: 10, color: colors.outline, marginTop: 6, fontWeight: "600" }}>
+                        Verified Patient
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={{ fontSize: 14, color: colors.outline, fontStyle: "italic", textAlign: "center", marginVertical: 20 }}>
+                  No patient reviews yet for this doctor.
+                </Text>
+              )}
+
+              <GradientButton
+                label="Close"
+                icon="check"
+                onPress={() => setDoctorReviewsModalVisible(false)}
+              />
+            </SurfaceCard>
+          </View>
+        </Modal>
       </ScreenScroll>
 
       <PatientMenuDrawer
@@ -1533,6 +1896,10 @@ export function AnalyzePrescriptionScreen({ navigation }) {
   const [viewingRxPad, setViewingRxPad] = useState(false);
   const [selectedPad, setSelectedPad] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedMedicineForEdit, setSelectedMedicineForEdit] = useState(null);
+  const [editForm, setEditForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleDownloadPrescription = () => {
     if (Platform.OS === "web") {
@@ -1644,6 +2011,19 @@ export function AnalyzePrescriptionScreen({ navigation }) {
 
   async function handleDeleteMedicine(id) {
     if (!id) return;
+
+    if (Platform.OS === "web") {
+      const confirmDelete = window.confirm("Are you sure you want to remove this medicine from your active list?");
+      if (!confirmDelete) return;
+      try {
+        await api.prescriptions.deleteMedicine(id);
+        await loadCurrentMeds();
+      } catch (err) {
+        window.alert(`Failed to delete medicine: ${err.message}`);
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Medicine",
       "Are you sure you want to remove this medicine from your active list?",
@@ -1654,7 +2034,7 @@ export function AnalyzePrescriptionScreen({ navigation }) {
           style: "destructive",
           onPress: async () => {
             try {
-              await api.medicines.delete(id);
+              await api.prescriptions.deleteMedicine(id);
               await loadCurrentMeds();
             } catch (err) {
               setError(err.message);
@@ -1663,6 +2043,48 @@ export function AnalyzePrescriptionScreen({ navigation }) {
         },
       ]
     );
+  }
+
+  function openEditModal(item) {
+    setSelectedMedicineForEdit(item);
+    setEditForm({
+      medicine_name: item.medicine_name || "",
+      dosage: item.dosage || "",
+      frequency: item.frequency || "",
+      duration: item.duration || "",
+    });
+    setEditModalVisible(true);
+  }
+
+  async function saveMedicineEdit() {
+    if (!selectedMedicineForEdit) return;
+    const medId = selectedMedicineForEdit.id || selectedMedicineForEdit.medicine_id;
+    if (!medId) return;
+
+    setSavingEdit(true);
+    try {
+      await api.prescriptions.updateMedicine(medId, {
+        medicine_name: editForm.medicine_name.trim(),
+        dosage: editForm.dosage.trim(),
+        frequency: editForm.frequency.trim(),
+        duration: editForm.duration.trim(),
+      });
+      setEditModalVisible(false);
+      await loadCurrentMeds();
+      if (Platform.OS === "web") {
+        window.alert("Medicine updated successfully.");
+      } else {
+        Alert.alert("Success", "Medicine updated successfully.");
+      }
+    } catch (err) {
+      if (Platform.OS === "web") {
+        window.alert(`Failed to update medicine: ${err.message}`);
+      } else {
+        Alert.alert("Error", `Failed to update medicine: ${err.message}`);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   const groupedPrescriptionPads = React.useMemo(() => {
@@ -1763,7 +2185,7 @@ export function AnalyzePrescriptionScreen({ navigation }) {
                 <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DOSAGE</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>FREQUENCY</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>DURATION</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: "center" }]}>ACTIONS</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.8, textAlign: "center" }]}>ACTIONS</Text>
               </View>
 
               {/* Table Body */}
@@ -1781,12 +2203,18 @@ export function AnalyzePrescriptionScreen({ navigation }) {
                   <Text style={[styles.tableCell, { flex: 1.2 }]}>
                     {item.duration || "—"}
                   </Text>
-                  <View style={[styles.tableActionCell, { flex: 1.5 }]}>
+                  <View style={[styles.tableActionCell, { flex: 1.8 }]}>
                     <TouchableOpacity
                       onPress={() => navigation.navigate("MedicineSearch", { query: item.medicine_name })}
                       style={styles.actionIconButton}
                     >
                       <MaterialCommunityIcons name="swap-horizontal" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => openEditModal(item)}
+                      style={styles.actionIconButton}
+                    >
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteMedicine(item.id || item.medicine_id)}
@@ -1968,6 +2396,110 @@ export function AnalyzePrescriptionScreen({ navigation }) {
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Edit Medicine Modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={modalStyles.backdrop}>
+          <SurfaceCard style={[modalStyles.card, { maxWidth: 360 }]}>
+            <View style={modalStyles.header}>
+              <Text style={modalStyles.title}>Edit Medicine</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Medicine Name</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                padding: spacing.sm,
+                fontSize: 14,
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceLow,
+                marginBottom: 12,
+              }}
+              value={editForm.medicine_name}
+              onChangeText={(txt) => setEditForm(prev => ({ ...prev, medicine_name: txt }))}
+            />
+
+            <Text style={styles.inputLabel}>Dosage</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                padding: spacing.sm,
+                fontSize: 14,
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceLow,
+                marginBottom: 12,
+              }}
+              placeholder="e.g. 500mg, 1 tab"
+              placeholderTextColor={colors.outline}
+              value={editForm.dosage}
+              onChangeText={(txt) => setEditForm(prev => ({ ...prev, dosage: txt }))}
+            />
+
+            <Text style={styles.inputLabel}>Frequency</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                padding: spacing.sm,
+                fontSize: 14,
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceLow,
+                marginBottom: 12,
+              }}
+              placeholder="e.g. Once daily, Twice a day"
+              placeholderTextColor={colors.outline}
+              value={editForm.frequency}
+              onChangeText={(txt) => setEditForm(prev => ({ ...prev, frequency: txt }))}
+            />
+
+            <Text style={styles.inputLabel}>Duration</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                padding: spacing.sm,
+                fontSize: 14,
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceLow,
+                marginBottom: 20,
+              }}
+              placeholder="e.g. 5 days, 1 month"
+              placeholderTextColor={colors.outline}
+              value={editForm.duration}
+              onChangeText={(txt) => setEditForm(prev => ({ ...prev, duration: txt }))}
+            />
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <SecondaryButton
+                label="Cancel"
+                onPress={() => setEditModalVisible(false)}
+                style={{ flex: 1 }}
+              />
+              <GradientButton
+                label={savingEdit ? "Saving..." : "Save"}
+                icon="check"
+                disabled={savingEdit}
+                onPress={saveMedicineEdit}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </SurfaceCard>
+        </View>
       </Modal>
 
       <PatientMenuDrawer
@@ -2339,6 +2871,8 @@ export function PaymentWalletScreen({ navigation }) {
   const [transactions, setTransactions] = useState([]);
   const [addingMoney, setAddingMoney] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [topUpModalVisible, setTopUpModalVisible] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("");
 
   async function loadWalletData() {
     setLoading(true);
@@ -2375,11 +2909,26 @@ export function PaymentWalletScreen({ navigation }) {
     }, [user?.id]),
   );
 
-  async function addMoneyToWallet() {
+  function addMoneyToWallet() {
+    setTopUpAmount("");
+    setTopUpModalVisible(true);
+  }
+
+  async function triggerAddMoney() {
+    const amt = parseFloat(topUpAmount);
+    if (isNaN(amt) || amt <= 0) {
+      if (Platform.OS === "web") {
+        window.alert("Please enter a valid amount greater than 0.");
+      } else {
+        Alert.alert("Invalid Amount", "Please enter a valid amount greater than 0.");
+      }
+      return;
+    }
+
     setAddingMoney(true);
     try {
       const response = await api.payments.initiateAddMoney({
-        amount: 5000,
+        amount: amt,
         patient_id: user.id,
       });
       const sessionId = response?.payment_session_id;
@@ -2392,13 +2941,19 @@ export function PaymentWalletScreen({ navigation }) {
         : `https://payments-test.cashfree.com/order/#${sessionId}`;
 
       console.log("Opening Cashfree wallet topup URL:", checkoutUrl);
+      setTopUpModalVisible(false);
       await Linking.openURL(checkoutUrl);
 
-      Alert.alert(
-        "Top-up Process Launched",
-        "Once payment is completed, tap Refresh to update your balance.",
-        [{ text: "Refresh Now", onPress: () => loadWalletData() }]
-      );
+      if (Platform.OS === "web") {
+        window.alert("Top-up Process Launched. Once payment is completed, tap Refresh to update your balance.");
+        loadWalletData();
+      } else {
+        Alert.alert(
+          "Top-up Process Launched",
+          "Once payment is completed, tap Refresh to update your balance.",
+          [{ text: "Refresh Now", onPress: () => loadWalletData() }]
+        );
+      }
     } catch (addError) {
       setError(addError.message);
     } finally {
@@ -2598,6 +3153,91 @@ export function PaymentWalletScreen({ navigation }) {
           />
         ) : null}
       </ScreenScroll>
+
+      {/* Top-up Amount Modal */}
+      <Modal
+        visible={topUpModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTopUpModalVisible(false)}
+      >
+        <View style={modalStyles.backdrop}>
+          <SurfaceCard style={[modalStyles.card, { maxWidth: 360 }]}>
+            <View style={modalStyles.header}>
+              <Text style={modalStyles.title}>Top-up Wallet</Text>
+              <TouchableOpacity onPress={() => setTopUpModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.outline, marginBottom: 12 }}>
+              Enter the amount you wish to add to your TechMedix wallet.
+            </Text>
+
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.outline,
+                borderRadius: radii.md,
+                padding: spacing.sm,
+                fontSize: 18,
+                fontWeight: "700",
+                color: colors.onSurface,
+                backgroundColor: colors.surfaceLow,
+                textAlign: "center",
+                marginBottom: 16,
+              }}
+              placeholder="Enter Amount (₹)"
+              placeholderTextColor={colors.outline}
+              value={topUpAmount}
+              onChangeText={setTopUpAmount}
+              keyboardType="numeric"
+            />
+
+            {/* Quick Presets */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20, gap: 8 }}>
+              {["500", "1000", "2000", "5000"].map((preset) => (
+                <TouchableOpacity
+                  key={preset}
+                  onPress={() => setTopUpAmount(preset)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: topUpAmount === preset ? colors.primary : colors.surfaceLowest,
+                    borderColor: colors.outline + "40",
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    paddingVertical: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: topUpAmount === preset ? colors.onPrimary : colors.primary
+                  }}>
+                    ₹{preset}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <SecondaryButton
+                label="Cancel"
+                onPress={() => setTopUpModalVisible(false)}
+                style={{ flex: 1 }}
+              />
+              <GradientButton
+                label={addingMoney ? "Paying..." : "Pay"}
+                icon="cash-multiple"
+                disabled={addingMoney}
+                onPress={triggerAddMoney}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </SurfaceCard>
+        </View>
+      </Modal>
 
       <PatientMenuDrawer
         visible={drawerVisible}
@@ -3181,8 +3821,8 @@ export function PatientQRScreen({ navigation }) {
           <Image source={{ uri: qr }} style={styles.qrImage} />
           <Text style={styles.sectionValue}>{uniqueCode}</Text>
           <Text style={styles.sectionMuted}>
-            Share this code with your doctor to open your quick profile without
-            changing the backend.
+            Show this QR code to your doctor to instantly share your health
+            profile and medical records during your visit.
           </Text>
         </SurfaceCard>
       ) : null}
@@ -3638,7 +4278,12 @@ export function PatientProfileScreen({ navigation }) {
             <LocalField label="Blood Group" value={bloodGroup} onChangeText={setBloodGroup} placeholder="e.g. O+" />
             <LocalField label="Medical History" value={medicalHistory} onChangeText={setMedicalHistory} placeholder="Allergies, chronic conditions..." multiline />
             <LocalField label="Current QR Code" value={profile.uniqueCode || ""} editable={false} />
-
+<SecondaryButton
+                label={resettingQr ? "Resetting..." : "Reset QR Code"}
+                icon="qrcode-scan"
+                onPress={handleResetQr}
+                disabled={resettingQr}
+              />
             {/* Sharing Preferences */}
             <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.outline, paddingTop: 14 }}>
               <Text style={{ fontSize: 12, fontWeight: "800", color: colors.primary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
@@ -3662,12 +4307,7 @@ export function PatientProfileScreen({ navigation }) {
                 onPress={handleSaveProfile}
                 disabled={saving}
               />
-              <SecondaryButton
-                label={resettingQr ? "Resetting..." : "Reset QR Code"}
-                icon="qrcode-scan"
-                onPress={handleResetQr}
-                disabled={resettingQr}
-              />
+              
               <SecondaryButton
                 label={deleting ? "Deleting..." : "Delete Account"}
                 icon="delete-outline"
@@ -3953,6 +4593,7 @@ export function NotificationsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all"); // "all" or "unread"
 
   async function loadNotifications() {
     if (!user?.id) return;
@@ -3963,7 +4604,6 @@ export function NotificationsScreen({ navigation }) {
       setNotifications(normalizeArray(response));
       setError("");
     } catch (err) {
-      // API unavailable — show empty list, no crash
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -3977,18 +4617,51 @@ export function NotificationsScreen({ navigation }) {
   );
 
   async function markAll() {
-    // Frontend-only fallback (no backend call)
+    if (!user?.id) return;
+    try {
+      await api.notifications.markAllRead(user.id);
+    } catch (e) {
+      console.warn("Backend markAllRead failed:", e.message);
+    }
     const updated = notifications.map((n) => ({ ...n, is_read: true }));
     setNotifications(updated);
   }
 
   async function markOne(id) {
-    // Frontend-only fallback (no backend call)
+    try {
+      await api.notifications.markRead(id);
+    } catch (e) {
+      console.warn("Backend markRead failed:", e.message);
+    }
     const updated = notifications.map((n) =>
-      n.id === id ? { ...n, is_read: true } : n,
+      n.id === id ? { ...n, is_read: true } : n
     );
     setNotifications(updated);
   }
+
+  function getNotificationIcon(title) {
+    const t = (title || "").toLowerCase();
+    if (t.includes("appointment") || t.includes("book") || t.includes("consult")) {
+      return { name: "calendar-clock", color: colors.primary, bg: colors.primary + "15" };
+    }
+    if (t.includes("payment") || t.includes("wallet") || t.includes("rupee") || t.includes("cash")) {
+      return { name: "cash-multiple", color: colors.success, bg: colors.success + "15" };
+    }
+    if (t.includes("prescription") || t.includes("medicine")) {
+      return { name: "pill", color: colors.info || "#0EA5E9", bg: (colors.info || "#0EA5E9") + "15" };
+    }
+    if (t.includes("risk") || t.includes("alert") || t.includes("critical") || t.includes("vital")) {
+      return { name: "alert-decagram", color: colors.error, bg: colors.error + "15" };
+    }
+    return { name: "bell-outline", color: colors.outline, bg: colors.outline + "15" };
+  }
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (filter === "unread") return !n.is_read;
+    return true;
+  });
 
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
@@ -3997,33 +4670,133 @@ export function NotificationsScreen({ navigation }) {
         showBack
         onBack={() => navigation.goBack()}
       />
-      <View style={styles.cardHeaderRow}>
-        <Text style={styles.blockTitle}>Recent Updates</Text>
-        <TouchableOpacity onPress={markAll}>
-          <Text style={styles.linkText}>Mark all read</Text>
-        </TouchableOpacity>
-      </View>
       <InlineError message={error} />
+
+      {/* Segmented Filters & Mark All Action */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 12 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setFilter("all")}
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 20,
+              backgroundColor: filter === "all" ? colors.primary : colors.surfaceLow,
+              borderWidth: 1,
+              borderColor: filter === "all" ? colors.primary : colors.outline + "20",
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: filter === "all" ? colors.onPrimary : colors.outline }}>
+              All ({notifications.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setFilter("unread")}
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 20,
+              backgroundColor: filter === "unread" ? colors.primary : colors.surfaceLow,
+              borderWidth: 1,
+              borderColor: filter === "unread" ? colors.primary : colors.outline + "20",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: filter === "unread" ? colors.onPrimary : colors.outline }}>
+              Unread
+            </Text>
+            {unreadCount > 0 && (
+              <View style={{ backgroundColor: filter === "unread" ? colors.onPrimary : colors.primary, borderRadius: 10, minWidth: 16, height: 16, justifyContent: "center", alignItems: "center", paddingHorizontal: 4 }}>
+                <Text style={{ fontSize: 9, fontWeight: "800", color: filter === "unread" ? colors.primary : colors.onPrimary }}>
+                  {unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {unreadCount > 0 && (
+          <TouchableOpacity onPress={markAll}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primary }}>
+              Mark all read
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading ? <LoadingCard label="Loading notifications..." /> : null}
-      {(notifications || []).length ? (
-        notifications.map((item) => (
-          <SurfaceCard key={item.id} tone={item.is_read ? "lowest" : "low"}>
-            <Text style={styles.listTitle}>{item.title || "Notification"}</Text>
-            <Text style={styles.smallText}>{item.message}</Text>
-            <View style={styles.buttonRow}>
-              <Text style={styles.listMeta}>
-                {formatDateTime(item.created_at)}
-              </Text>
-              {!item.is_read ? (
-                <TouchableOpacity onPress={() => markOne(item.id)}>
-                  <Text style={styles.linkText}>Mark read</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </SurfaceCard>
-        ))
+
+      {filteredNotifications.length ? (
+        filteredNotifications.map((item) => {
+          const badge = getNotificationIcon(item.title);
+          return (
+            <SurfaceCard
+              key={item.id}
+              tone={item.is_read ? "lowest" : "low"}
+              style={{
+                paddingLeft: 12,
+                borderLeftWidth: item.is_read ? 0 : 4,
+                borderLeftColor: colors.primary,
+                position: "relative",
+              }}
+            >
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                {/* Icon bubble */}
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: badge.bg, justifyContent: "center", alignItems: "center" }}>
+                  <MaterialCommunityIcons name={badge.name} size={20} color={badge.color} />
+                </View>
+
+                {/* Content block */}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
+                    <Text style={[styles.listTitle, { fontWeight: item.is_read ? "600" : "800", flex: 1, paddingRight: 8 }]}>
+                      {item.title || "Notification"}
+                    </Text>
+                    {!item.is_read && (
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 4 }} />
+                    )}
+                  </View>
+
+                  <Text style={[styles.smallText, { color: item.is_read ? colors.outline : colors.onSurface, lineHeight: 18, marginBottom: 8 }]}>
+                    {item.message}
+                  </Text>
+
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={{ fontSize: 11, color: colors.outline }}>
+                      {formatDateTime(item.created_at)}
+                    </Text>
+
+                    {!item.is_read && (
+                      <TouchableOpacity
+                        onPress={() => markOne(item.id)}
+                        style={{
+                          backgroundColor: colors.surfaceLowest,
+                          borderWidth: 1,
+                          borderColor: colors.outline + "30",
+                          borderRadius: 6,
+                          paddingVertical: 3,
+                          paddingHorizontal: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>
+                          Mark Read
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </SurfaceCard>
+          );
+        })
       ) : !loading ? (
-        <EmptyStateCard title="No notifications" body="You’re all caught up." />
+        <EmptyStateCard
+          title={filter === "unread" ? "No unread notifications" : "All caught up!"}
+          body={filter === "unread" ? "You don't have any unread notifications." : "Your inbox is empty."}
+        />
       ) : null}
     </ScreenScroll>
   );

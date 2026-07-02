@@ -188,20 +188,25 @@ export function SectionHeader({ eyebrow, title, description, actionLabel, onActi
   );
 }
 
-export function SurfaceCard({ children, style, tone = "lowest" }) {
+export function SurfaceCard({ children, style, tone = "lowest", onPress, ...props }) {
   const backgroundColor =
     tone === "low" ? colors.surfaceLow : tone === "high" ? colors.surfaceHigh : colors.surfaceLowest;
 
+  const Container = onPress ? TouchableOpacity : View;
+
   return (
-    <View
+    <Container
+      onPress={onPress}
+      activeOpacity={onPress ? 0.9 : undefined}
       style={[
         styles.card,
         { backgroundColor, ...getCardShadow(tone) },
         style,
       ]}
+      {...props}
     >
       {children}
-    </View>
+    </Container>
   );
 }
 

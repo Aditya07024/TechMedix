@@ -1,0 +1,299 @@
+.hospital-login-container {
+  --hospital-auth-bg: #eceffd;
+  --hospital-auth-surface: rgba(255, 255, 255, 0.84);
+  --hospital-auth-surface-strong: #ffffff;
+  --hospital-auth-border: rgba(162, 175, 214, 0.48);
+  --hospital-auth-shadow: 0 32px 80px rgba(26, 40, 97, 0.14);
+  --hospital-auth-text: #101c3d;
+  --hospital-auth-text-secondary: #5b6382;
+  --hospital-auth-muted: #6d7595;
+  --hospital-auth-accent: #2e4aae;
+  --hospital-auth-accent-dark: #1f3484;
+  --hospital-auth-accent-soft: rgba(46, 74, 174, 0.1);
+  --hospital-auth-input: #f6f7ff;
+  --hospital-auth-input-border: #d2d7ed;
+  --hospital-auth-error: #c83f5f;
+  min-height: 100vh;
+  padding: 48px 24px;
+  background:
+    radial-gradient(circle at top left, rgba(46, 74, 174, 0.14), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(92, 107, 192, 0.12), transparent 22%),
+    linear-gradient(180deg, #f8f9fe 0%, var(--hospital-auth-bg) 100%);
+}
+
+.dark-mode .hospital-login-container {
+  --hospital-auth-bg: #090e1a;
+  --hospital-auth-surface: rgba(12, 18, 35, 0.84);
+  --hospital-auth-surface-strong: #0f1628;
+  --hospital-auth-border: rgba(63, 79, 128, 0.46);
+  --hospital-auth-shadow: 0 36px 90px rgba(0, 0, 0, 0.34);
+  --hospital-auth-text: #edf2ff;
+  --hospital-auth-text-secondary: #a9b5d1;
+  --hospital-auth-muted: #8a96b8;
+  --hospital-auth-accent: #5e7bf6;
+  --hospital-auth-accent-dark: #3a54d3;
+  --hospital-auth-accent-soft: rgba(94, 123, 246, 0.14);
+  --hospital-auth-input: #11172b;
+  --hospital-auth-input-border: #27345b;
+  --hospital-auth-error: #ffc4d1;
+  background:
+    radial-gradient(circle at top left, rgba(94, 123, 246, 0.12), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(92, 107, 192, 0.1), transparent 24%),
+    linear-gradient(180deg, #050810 0%, var(--hospital-auth-bg) 100%);
+}
+
+.hospital-auth-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(320px, 1.05fr) minmax(320px, 0.95fr);
+  border: 1px solid var(--hospital-auth-border);
+  border-radius: 32px;
+  background: var(--hospital-auth-surface);
+  box-shadow: var(--hospital-auth-shadow);
+  overflow: hidden;
+  backdrop-filter: blur(18px);
+}
+
+.hospital-auth-hero {
+  position: relative;
+  padding: 56px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  color: #f4f6ff;
+  background:
+    linear-gradient(160deg, rgba(5, 14, 49, 0.8) 0%, rgba(8, 22, 83, 0.72) 100%),
+    radial-gradient(circle at top right, rgba(94, 123, 246, 0.28), transparent 28%),
+    linear-gradient(145deg, #0d1237 0%, #2e4aae 120%);
+}
+
+.hospital-auth-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hospital-auth-hero h1 {
+  max-width: 14ch;
+  margin: 0;
+  font-family: "Plus Jakarta Sans", "Outfit", sans-serif;
+  font-size: clamp(2.2rem, 3.8vw, 3.8rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.hospital-auth-hero p {
+  max-width: 540px;
+  margin: 0;
+  color: rgba(244, 246, 255, 0.78);
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+
+.hospital-auth-hero-card {
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hospital-auth-hero-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.hospital-auth-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.hospital-auth-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.hospital-auth-stat-grid div {
+  display: grid;
+  gap: 8px;
+}
+
+.hospital-auth-stat-grid strong {
+  font-size: 1rem;
+}
+
+.hospital-auth-stat-grid span {
+  color: rgba(244, 246, 255, 0.72);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.hospital-auth-hero-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(244, 246, 255, 0.82);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.hospital-auth-panel {
+  padding: 56px 48px;
+  background: var(--hospital-auth-surface-strong);
+}
+
+.hospital-auth-panel-head {
+  margin-bottom: 28px;
+}
+
+.hospital-auth-kicker {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--hospital-auth-accent);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hospital-auth-panel-head h2 {
+  margin: 0;
+  color: var(--hospital-auth-text);
+  font-family: "Plus Jakarta Sans", "Outfit", sans-serif;
+  font-size: 2rem;
+  letter-spacing: -0.04em;
+}
+
+.hospital-auth-panel-head p {
+  margin: 12px 0 0;
+  color: var(--hospital-auth-text-secondary);
+  line-height: 1.7;
+}
+
+.hospital-auth-form {
+  display: grid;
+  gap: 18px;
+}
+
+.hospital-auth-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 0 16px;
+  border: 1px solid var(--hospital-auth-input-border);
+  border-radius: 18px;
+  background: var(--hospital-auth-input);
+  color: var(--hospital-auth-muted);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.hospital-auth-input:focus-within {
+  border-color: var(--hospital-auth-accent);
+  box-shadow: 0 0 0 4px var(--hospital-auth-accent-soft);
+  transform: translateY(-1px);
+}
+
+.hospital-auth-input input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--hospital-auth-text);
+  font-size: 1rem;
+}
+
+.hospital-auth-input input::placeholder {
+  color: var(--hospital-auth-muted);
+}
+
+.login-button,
+.demo-login-button {
+  min-height: 56px;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.login-button {
+  margin-top: 8px;
+  border: none;
+  background: #2e4aae !important;
+  background: linear-gradient(180deg, var(--hospital-auth-accent) 0%, var(--hospital-auth-accent-dark) 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 34px rgba(46, 74, 174, 0.2) !important;
+}
+
+.demo-login-button {
+  border: 1px solid var(--hospital-auth-input-border) !important;
+  background: transparent !important;
+  color: var(--hospital-auth-text) !important;
+}
+
+.login-button:hover,
+.demo-login-button:hover {
+  transform: translateY(-1px);
+}
+
+.hospital-auth-meta {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.hospital-auth-home-link {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--hospital-auth-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .hospital-auth-shell {
+    grid-template-columns: 1fr;
+  }
+  .hospital-auth-hero {
+    padding: 40px 32px;
+  }
+  .hospital-auth-panel {
+    padding: 36px 32px 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hospital-login-container {
+    padding: 20px 14px;
+  }
+  .hospital-auth-hero,
+  .hospital-auth-panel {
+    padding: 28px 20px;
+  }
+  .hospital-auth-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

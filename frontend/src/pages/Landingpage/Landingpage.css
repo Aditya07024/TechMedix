@@ -125,6 +125,16 @@
   background: linear-gradient(135deg, var(--landing-accent) 0%, #2eaaa1 100%);
 }
 
+.landing-button--hospital {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2e4aae 0%, #4663d3 100%);
+}
+
+.landing-button--hospital:hover {
+  box-shadow: 0 10px 24px rgba(46, 74, 174, 0.22);
+}
+
 .landing-button--ghost {
   color: var(--landing-text);
   background: rgba(243, 234, 234, 0.328);

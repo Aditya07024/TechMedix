@@ -396,3 +396,72 @@ export const reviewAPI = {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     }),
 };
+
+export const subscriptionAPI = {
+  // Public: list active plans
+  getPlans: () =>
+    apiClient.get(`${API_BASE}/subscriptions/plans`, {
+      headers: authHeaders(),
+    }),
+
+  // Doctor: check own subscription status
+  getDoctorStatus: (doctorId) =>
+    apiClient.get(`${API_BASE}/subscriptions/doctor/${doctorId}/status`, {
+      headers: authHeaders(),
+    }),
+
+  // Doctor: get subscription details
+  getDoctorSubscription: (doctorId) =>
+    apiClient.get(`${API_BASE}/subscriptions/doctor/${doctorId}`, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: list all plans (including inactive)
+  adminGetPlans: () =>
+    apiClient.get(`${API_BASE}/subscriptions/admin/plans`, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: create plan
+  adminCreatePlan: (data) =>
+    apiClient.post(`${API_BASE}/subscriptions/plans`, data, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: update plan
+  adminUpdatePlan: (planId, data) =>
+    apiClient.put(`${API_BASE}/subscriptions/plans/${planId}`, data, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: delete plan
+  adminDeletePlan: (planId) =>
+    apiClient.delete(`${API_BASE}/subscriptions/plans/${planId}`, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: activate subscription for doctor
+  adminActivateSubscription: (data) =>
+    apiClient.post(`${API_BASE}/subscriptions/activate`, data, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: get all doctors with subscription status
+  adminGetDoctors: () =>
+    apiClient.get(`${API_BASE}/subscriptions/admin/doctors`, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: get all hospitals with subscription status
+  adminGetHospitals: () =>
+    apiClient.get(`${API_BASE}/subscriptions/admin/hospitals`, {
+      headers: authHeaders(),
+    }),
+
+  // Admin: activate subscription for hospital
+  adminActivateHospitalSubscription: (data) =>
+    apiClient.post(`${API_BASE}/subscriptions/admin/hospitals/activate`, data, {
+      headers: authHeaders(),
+    }),
+};
+

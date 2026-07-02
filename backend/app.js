@@ -134,6 +134,10 @@ import doctorStaffRoutes from "./routes/doctorStaffRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import subscriptionRoutes from "./routes/subscriptionRoutes.js";
+import hospitalAuthRouter from "./routes/hospitalAuthRouter.js";
+import hospitalRoutes from "./routes/hospitalRoutes.js";
+import { ensureSubscriptionTables } from "./services/subscriptionService.js";
 import { runMedicalScansMigration } from "./scripts/runMedicalScansMigration.js";
 import { getHealthWalletDocumentsByPatientId } from "./models-pg/healthWalletDocument.js";
 import { getPatientReports } from "./services/staffService.js";
@@ -524,6 +528,7 @@ const LOCAL_DEV_ORIGINS = new Set([
 
 const DEFAULT_PRODUCTION_ORIGINS = new Set([
   "https://techmedix.onrender.com",
+  "https://techmedix.tech"
 ]);
 
 function normalizeOrigin(value) {
@@ -642,6 +647,14 @@ async function testConnection() {
       console.warn("Could not alter payments doctor_id:", e.message);
     }
 
+    // Ensure clinic_address column exists in doctors table
+    try {
+      await sql`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS clinic_address TEXT`;
+      console.log("✓ Ensured clinic_address column exists in doctors table");
+    } catch (e) {
+      console.warn("Could not add clinic_address column:", e.message);
+    }
+
     if (shouldRunStartupMigrations()) {
       await runStartupMigrations();
     } else {
@@ -649,6 +662,9 @@ async function testConnection() {
         "Skipping startup migrations. Set RUN_STARTUP_MIGRATIONS=true to enable them explicitly.",
       );
     }
+
+    // Always ensure subscription tables exist
+    await ensureSubscriptionTables();
   } catch (err) {
     console.warn("⚠ Database connection warning:", err.message);
     console.warn(
@@ -1378,6 +1394,7 @@ app.use("/api/appointments-v2", appointmentManagementRoutes);
 app.use("/auth", authRouter);
 app.use("/auth/doctor", doctorAuthRouter); // Add doctor auth router
 app.use("/auth/staff", staffAuthRouter);
+app.use("/auth/hospital", hospitalAuthRouter);
 
 const PORT = process.env.PORT;
 
@@ -1461,6 +1478,8 @@ app.use("/api/v2/timeline", timelineApiRoutes);
 app.use("/api/v2/notifications", notificationApiRoutes);
 app.use("/api/v2/schedule", scheduleApiRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/v2/subscriptions", subscriptionRoutes);
+app.use("/api/v2/hospitals", hospitalRoutes);
 
 app.get("/api/user/:userId/medicines", authenticate, async (req, res) => {
   const reqId = `M${Date.now().toString(36)}-${Math.random()

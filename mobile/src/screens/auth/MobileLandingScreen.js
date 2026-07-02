@@ -37,6 +37,30 @@ export default function MobileLandingScreen({ navigation }) {
   const [adminPasscode, setAdminPasscode] = useState("");
   const [passcodeError, setPasscodeError] = useState("");
 
+  // WIDGET 1: Interactive Queue Tracker Simulator States
+  const [simDoctor, setSimDoctor] = useState("Dr. John");
+  const [simToken, setSimToken] = useState(4);
+  const [simWaiting, setSimWaiting] = useState(3);
+  const [simEstWait, setSimEstWait] = useState(12);
+
+  // WIDGET 2: Drug Interaction Simulator States
+  const [drugA, setDrugA] = useState("");
+  const [drugB, setDrugB] = useState("");
+  const [interactionResult, setInteractionResult] = useState(null);
+
+  // WIDGET 3: Sandbox Medication Reminders States
+  const [sandboxReminders, setSandboxReminders] = useState([
+    { id: 1, name: "Aspirin", time: "Morning", checked: false },
+    { id: 2, name: "Multivitamin", time: "Night", checked: true },
+  ]);
+  const [newReminderName, setNewReminderName] = useState("");
+  const [newReminderTime, setNewReminderTime] = useState("Morning");
+
+  // WIDGET 4: Interactive Health Metrics Analyzer States
+  const [simHeartRate, setSimHeartRate] = useState("72");
+  const [simBP, setSimBP] = useState("120");
+  const [metricsReport, setMetricsReport] = useState(null);
+
   React.useEffect(() => {
     let active = true;
     async function getDbDoctors() {
@@ -92,6 +116,111 @@ export default function MobileLandingScreen({ navigation }) {
     }
   };
 
+  // Sandbox Widget Simulator Actions
+  const handleSimulateQueue = () => {
+    setSimToken((prev) => prev + 1);
+    setSimWaiting((prev) => {
+      const nextWaiting = prev - 1;
+      if (nextWaiting <= 0) {
+        setSimEstWait(20);
+        return 5;
+      }
+      setSimEstWait(nextWaiting * 4);
+      return nextWaiting;
+    });
+  };
+
+  const handleCheckInteraction = () => {
+    if (!drugA.trim() || !drugB.trim()) {
+      setInteractionResult("Please enter both drug names.");
+      return;
+    }
+    const a = drugA.toLowerCase().trim();
+    const b = drugB.toLowerCase().trim();
+
+    if (
+      (a.includes("aspirin") && b.includes("ibuprofen")) ||
+      (b.includes("aspirin") && a.includes("ibuprofen")) ||
+      (a.includes("advil") && b.includes("aspirin")) ||
+      (b.includes("advil") && a.includes("aspirin"))
+    ) {
+      setInteractionResult({
+        status: "warning",
+        title: "⚠️ Moderate Risk",
+        desc: "Combining Aspirin with Ibuprofen can increase risk of stomach irritation or ulcers. Space them at least 8 hours apart.",
+      });
+    } else if (
+      (a.includes("amoxicillin") && b.includes("alcohol")) ||
+      (b.includes("amoxicillin") && a.includes("alcohol")) ||
+      (a.includes("antibiotic") && b.includes("alcohol")) ||
+      (b.includes("antibiotic") && a.includes("alcohol"))
+    ) {
+      setInteractionResult({
+        status: "danger",
+        title: "❌ High Risk / Avoid",
+        desc: "Do not mix antibiotics with alcohol. Alcohol decreases drug efficacy and increases liver load.",
+      });
+    } else {
+      setInteractionResult({
+        status: "safe",
+        title: "🟢 Low Risk",
+        desc: "No severe drug interaction found between these two substances. Follow standard spacing of 2 hours.",
+      });
+    }
+  };
+
+  const handleAddSandboxReminder = () => {
+    if (!newReminderName.trim()) return;
+    const newRem = {
+      id: Date.now(),
+      name: newReminderName.trim(),
+      time: newReminderTime,
+      checked: false,
+    };
+    setSandboxReminders((prev) => [...prev, newRem]);
+    setNewReminderName("");
+  };
+
+  const handleToggleSandboxReminder = (id) => {
+    setSandboxReminders((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, checked: !r.checked } : r))
+    );
+  };
+
+  const handleDeleteSandboxReminder = (id) => {
+    setSandboxReminders((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleCalculateMetrics = () => {
+    const hr = Number(simHeartRate);
+    const sbp = Number(simBP);
+
+    if (isNaN(hr) || isNaN(sbp) || hr <= 0 || sbp <= 0) {
+      setMetricsReport("Please enter valid metrics.");
+      return;
+    }
+
+    let status = "🟢 Optimal";
+    let color = colors.success;
+    let tip = "Heart rate and blood pressure are within healthy ranges.";
+
+    if (sbp >= 140 || hr > 100) {
+      status = "🔴 High / Hypertension";
+      color = colors.error;
+      tip = "Elevated blood pressure or heart rate. Rest and re-measure.";
+    } else if (sbp >= 120 || hr > 90) {
+      status = "🟡 Pre-Hypertension / Elevated";
+      color = colors.warning;
+      tip = "Slightly elevated cardiovascular parameters. Maintain hydration.";
+    } else if (sbp < 90 || hr < 55) {
+      status = "🔵 Low / Hypotension";
+      color = colors.primary;
+      tip = "Cardiovascular measurements are lower than average. Hydrate.";
+    }
+
+    setMetricsReport({ status, color, tip });
+  };
+
   const executeMedicineSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -127,7 +256,7 @@ export default function MobileLandingScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      {/* Modern Header */}
+      {/* Translucent Brand Header */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
           <Image
@@ -137,225 +266,162 @@ export default function MobileLandingScreen({ navigation }) {
           />
           <View>
             <Text style={styles.logoText}>TechMedix</Text>
-            <Text style={styles.taglineText}>Care beyond the clinic</Text>
+            <Text style={styles.taglineText}>Care Beyond the Clinic</Text>
           </View>
         </View>
         
-        {/* Go to Website Button */}
         <TouchableOpacity
+          activeOpacity={0.8}
           style={styles.headerWebBtn}
-          onPress={() => Linking.openURL("https://techmedix.onrender.com")}
+          onPress={() => Linking.openURL("https://techmedix.tech")}
         >
-          <MaterialCommunityIcons name="earth" size={16} color={colors.primary} />
-          <Text style={styles.headerWebBtnText}>Go to website</Text>
+          <MaterialCommunityIcons name="earth" size={14} color="#00535b" />
+          <Text style={styles.headerWebBtnText}>Web Portal</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Welcome Banner */}
-        <LinearGradient
-          colors={[colors.primary, colors.primaryContainer]}
-          style={styles.heroBanner}
-        >
-          <Text style={styles.heroTitle}>Login / Signup Options</Text>
-          <Text style={styles.heroDescription}>
-            
+        {/* Welcome Section / Login & Signup Launcher */}
+        <View style={styles.sectionNoBorder}>
+          <Text style={styles.sectionHeaderKicker}>PORTAL ACCESS</Text>
+          <Text style={styles.sectionHeaderTitle}>Login / Signup Options</Text>
+          <Text style={styles.sectionHeaderSubtitle}>
+            Select your professional portal role to open your clinical workspace.
           </Text>
 
-          <View style={styles.loginCardRow}>
+          <View style={styles.portalCardStack}>
+            {/* Patient Card (Highlighted / Hero Card) */}
             <TouchableOpacity
-              style={styles.heroLoginCard}
+              activeOpacity={0.9}
+              style={styles.portalHeroCard}
               onPress={() => handlePortalLogin("patient")}
             >
-              <View style={[styles.loginIconCircle, { backgroundColor: "#e2f1f1" }]}>
-                <MaterialCommunityIcons name="account-heart" size={20} color={colors.primary} />
+              <View style={styles.portalHeroHeader}>
+                <View style={styles.portalHeroBadge}>
+                  <MaterialCommunityIcons name="star" size={10} color="#00535b" style={{ marginRight: 2 }} />
+                  <Text style={styles.portalHeroBadgeText}>PRIMARY CLIENT ACCESS</Text>
+                </View>
               </View>
-              <Text style={styles.loginCardLabel}>Patient</Text>
-              <Text style={styles.loginCardSub}>Sign In</Text>
+
+              <View style={styles.portalHeroBody}>
+                <View style={styles.portalHeroIconCircle}>
+                  <MaterialCommunityIcons name="account-heart" size={32} color="#ffffff" />
+                </View>
+                <View style={styles.portalHeroMeta}>
+                  <Text style={styles.portalHeroTitleText}>Patient Login</Text>
+                  <Text style={styles.portalHeroDescText}>
+                    Monitor live queues, book appointments, view timeline records, and check prescriptions.
+                  </Text>
+                </View>
+                <View style={styles.portalHeroArrow}>
+                  <MaterialCommunityIcons name="arrow-right" size={22} color="#ffffff" />
+                </View>
+              </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.heroLoginCard}
-              onPress={() => handlePortalLogin("doctor")}
-            >
-              <View style={[styles.loginIconCircle, { backgroundColor: "#e8f5e9" }]}>
-                <MaterialCommunityIcons name="doctor" size={20} color={colors.success} />
-              </View>
-              <Text style={styles.loginCardLabel}>Doctor</Text>
-              <Text style={styles.loginCardSub}>Schedule</Text>
-            </TouchableOpacity>
+            {/* Doctor & Staff Row (Secondary Cards) */}
+            <View style={styles.secondaryPortalsRow}>
+              {/* Doctor Card */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[styles.portalSecondaryCard, { backgroundColor: "#0f766e" }]}
+                onPress={() => handlePortalLogin("doctor")}
+              >
+                <View style={styles.secondaryCardIconCircle}>
+                  <MaterialCommunityIcons name="stethoscope" size={20} color="#ffffff" />
+                </View>
+                <Text style={styles.secondaryCardTitleText}>Doctor Login</Text>
+                <Text style={styles.secondaryCardDescText}>Manage queues & prescriptions</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.heroLoginCard}
-              onPress={() => handlePortalLogin("staff")}
-            >
-              <View style={[styles.loginIconCircle, { backgroundColor: "#fff8e1" }]}>
-                <MaterialCommunityIcons name="shield-account-outline" size={20} color={colors.warning} />
-              </View>
-              <Text style={styles.loginCardLabel}>Staff</Text>
-              <Text style={styles.loginCardSub}>Admin</Text>
-            </TouchableOpacity>
+              {/* Staff Card */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[styles.portalSecondaryCard, { backgroundColor: "#1e293b" }]}
+                onPress={() => handlePortalLogin("staff")}
+              >
+                <View style={styles.secondaryCardIconCircle}>
+                  <MaterialCommunityIcons name="shield-account-outline" size={20} color="#ffffff" />
+                </View>
+                <Text style={styles.secondaryCardTitleText}>Clinical Staff</Text>
+                <Text style={styles.secondaryCardDescText}>Verify appts & ticket queues</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </LinearGradient>
+        </View>
 
-        {/* Live Medicine Search Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Medicine Search</Text>
-          <Text style={styles.sectionSubtitle}>
-            Lookup medicines, compositions, or salt details instantly.
+        {/* Medicine Search Section */}
+        <View style={styles.sectionWithTopBorder}>
+          <Text style={styles.sectionHeaderKicker}>DRUG DISCOVERY</Text>
+          <Text style={styles.sectionHeaderTitle}>Medicine Search</Text>
+          <Text style={styles.sectionHeaderSubtitle}>
+            Lookup medicines, active compositions, or salt details instantly.
           </Text>
 
-          <View style={styles.searchFieldContainer}>
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.outline} style={styles.searchIcon} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search paracetamol, aspirin, ibuprofen..."
-              placeholderTextColor={colors.outline}
-              style={styles.searchInputField}
-              onSubmitEditing={executeMedicineSearch}
-            />
-            {searchQuery.length > 0 ? (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <MaterialCommunityIcons name="close-circle" size={18} color={colors.outline} />
-              </TouchableOpacity>
-            ) : null}
+          <View style={styles.searchConsoleCard}>
+            <View style={styles.searchConsoleField}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#6f797a" style={styles.searchConsoleIcon} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search paracetamol, aspirin, ibuprofen..."
+                placeholderTextColor="#6f797a"
+                style={styles.searchConsoleInput}
+                onSubmitEditing={executeMedicineSearch}
+              />
+              {searchQuery.length > 0 ? (
+                <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchConsoleClear}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color="#6f797a" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.searchSubmitButton}
+              onPress={executeMedicineSearch}
+              disabled={searching}
+            >
+              {searching ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.searchSubmitButtonText}>Lookup Composition</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {searchError ? <Text style={styles.searchErrorText}>{searchError}</Text> : null}
           </View>
-
-          <TouchableOpacity style={styles.searchSubmitBtn} onPress={executeMedicineSearch} disabled={searching}>
-            {searching ? (
-              <ActivityIndicator size="small" color={colors.onPrimary} />
-            ) : (
-              <Text style={styles.searchSubmitBtnText}>Search Composition</Text>
-            )}
-          </TouchableOpacity>
-
-          {searchError ? <Text style={styles.searchErrorText}>{searchError}</Text> : null}
 
           {/* Search results list */}
           {searchResults.length > 0 ? (
-            <View style={styles.searchResultsContainer}>
+            <View style={styles.premiumResultsList}>
+              <Text style={styles.resultsHeaderLabel}>SEARCH RESULTS ({searchResults.length})</Text>
               {searchResults.map((item, index) => (
                 <TouchableOpacity
                   key={`${item.id || item._id || item.name}-${index}`}
-                  style={styles.resultItemRow}
+                  style={styles.premiumResultRow}
+                  activeOpacity={0.8}
                   onPress={() => setSelectedMedicine(item)}
                 >
-                  <View style={styles.resultDetails}>
-                    <Text style={styles.resultName}>{item.name}</Text>
-                    <Text style={styles.resultComposition} numberOfLines={1}>
+                  <View style={styles.premiumResultIconCircle}>
+                    <MaterialCommunityIcons name="pill" size={18} color="#00535b" />
+                  </View>
+                  <View style={styles.premiumResultMeta}>
+                    <Text style={styles.premiumResultName}>{item.name}</Text>
+                    <Text style={styles.premiumResultComposition} numberOfLines={1}>
                       {item.salt || item.salt_composition || item.short_composition1 || "Active salts not listed"}
                     </Text>
                   </View>
-                  <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
+                  <MaterialCommunityIcons name="chevron-right" size={20} color="#00535b" />
                 </TouchableOpacity>
               ))}
             </View>
           ) : null}
-        </View>
-
-        {/* Specialists & Doctors List from Database */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Specialist Care Pathways</Text>
-          <Text style={styles.sectionSubtitle}>Find the right care path quickly.</Text>
-
-          {loadingDoctors ? (
-            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 10 }} />
-          ) : specialties.length === 0 ? (
-            <Text style={styles.emptyText}>No specialties available.</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.specialtiesScroll}>
-              {specialties.map((spec) => (
-                <View key={spec} style={styles.specialtyPill}>
-                  <Text style={styles.specialtyText}>{spec}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-
-          <View style={styles.doctorsMockList}>
-            {loadingDoctors ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : doctorsList.length === 0 ? (
-              <Text style={styles.emptyText}>No featured doctors available.</Text>
-            ) : (
-              doctorsList.slice(0, 4).map((doc, idx) => {
-                const initials = doc.name
-                  ? doc.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()
-                  : "DR";
-                const isEven = idx % 2 === 0;
-                return (
-                  <View key={doc.id || idx} style={styles.doctorItemCard}>
-                    <View style={[styles.doctorAvatarBox, { backgroundColor: colors.surfaceHigh }]}>
-                      <Text style={styles.doctorInitials}>{initials}</Text>
-                    </View>
-                    <View style={styles.doctorInfo}>
-                      <Text style={styles.doctorName}>Dr. {doc.name}</Text>
-                      <Text style={styles.doctorSpecialty}>{doc.specialty || "General Physician"}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.doctorStatusBadge,
-                        { backgroundColor: isEven ? colors.successSoft : colors.warningSoft },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.doctorStatusText,
-                          { color: isEven ? colors.success : colors.warning },
-                        ]}
-                      >
-                        {isEven ? "Available" : "Queue Active"}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-        {/* Core Capabilities */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Platform Workflows</Text>
-          <View style={styles.featuresList}>
-            <View style={styles.featureRow}>
-              <MaterialCommunityIcons name="calendar-check" size={24} color={colors.primary} style={styles.featureIcon} />
-              <View style={styles.featureTextCol}>
-                <Text style={styles.featureTitle}>Appointments & Queue</Text>
-                <Text style={styles.featureDesc}>Book appointments and follow active real-time doctor queues.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <MaterialCommunityIcons name="bell-outline" size={24} color={colors.secondary} style={styles.featureIcon} />
-              <View style={styles.featureTextCol}>
-                <Text style={styles.featureTitle}>Medicine Reminders</Text>
-                <Text style={styles.featureDesc}>Get scheduled notifications for prescription tracking.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <MaterialCommunityIcons name="brain" size={24} color={colors.primaryContainer} style={styles.featureIcon} />
-              <View style={styles.featureTextCol}>
-                <Text style={styles.featureTitle}>AI Diagnostics </Text>
-                <Text style={styles.featureDesc}>Upload prescription with intelligent health models.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <MaterialCommunityIcons name="wallet-outline" size={24} color={colors.tertiary} style={styles.featureIcon} />
-              <View style={styles.featureTextCol}>
-                <Text style={styles.featureTitle}>Health Wallet</Text>
-                <Text style={styles.featureDesc}>Manage wallet balances, payment receipts, and health reports.</Text>
-              </View>
-            </View>
-          </View>
         </View>
 
         {/* Sleek App Footer */}
@@ -374,6 +440,7 @@ export default function MobileLandingScreen({ navigation }) {
           <Text style={styles.footerCopyright}>© 2025 TechMedix • Calming Connected Care</Text>
         </View>
       </ScrollView>
+
 
       {/* MEDICINE DETAIL MODAL */}
       <Modal
@@ -500,17 +567,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   logoImage: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
   },
   logoText: {
-    fontSize: typography.title + 1,
+    fontSize: typography.title + 2,
     fontWeight: "800",
     color: colors.primary,
   },
   taglineText: {
     fontSize: 9,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.outline,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -528,130 +595,227 @@ const styles = StyleSheet.create({
   },
   headerWebBtnText: {
     fontSize: typography.bodySmall - 1,
-    fontWeight: "700",
+    fontWeight: "800",
     color: colors.primary,
   },
   scrollContainer: {
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  heroBanner: {
-    padding: spacing.lg,
-    borderBottomLeftRadius: radii.lg,
-    borderBottomRightRadius: radii.lg,
-    borderWidth:3,
-    borderColor:"white",
-
-  },
-  heroTitle: {
-    fontSize: typography.h2,
-    fontWeight: "800",
-    color: colors.onPrimary,
-    marginBottom: 6,
-  },
-  heroDescription: {
-    fontSize: typography.bodySmall,
-    color: colors.onPrimary,
-    opacity: 0.9,
-    lineHeight: 18,
-    marginBottom: spacing.lg,
-  },
-  loginCardRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  heroLoginCard: {
-    backgroundColor: colors.surfaceLowest,
-    flex: 1,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.outline,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
-      : {
-          shadowColor: "rgba(17,20,43,0.06)",
-          shadowOpacity: 0.6,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 2,
-        }),
-  },
-  loginIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.xs,
-  },
-  loginCardLabel: {
-    fontSize: typography.bodySmall + 1,
-    fontWeight: "800",
-    color: colors.onSurface,
-  },
-  loginCardSub: {
-    fontSize: 10,
-    color: colors.outline,
-    marginTop: 2,
-  },
-  section: {
+  sectionNoBorder: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceLow,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
-  sectionHeader: {
-    fontSize: typography.title + 1,
+  sectionWithTopBorder: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceLow,
+    marginTop: spacing.sm,
+  },
+  sectionHeaderKicker: {
+    fontSize: 10,
     fontWeight: "800",
-    color: colors.onSurface,
+    color: colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
     marginBottom: 4,
   },
-  sectionSubtitle: {
+  sectionHeaderTitle: {
+    fontSize: typography.h2,
+    fontWeight: "800",
+    color: colors.onSurface,
+    marginBottom: 6,
+  },
+  sectionHeaderSubtitle: {
     fontSize: typography.bodySmall,
     color: colors.onSurfaceVariant,
     lineHeight: 18,
     marginBottom: spacing.md,
   },
-  searchFieldContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceLowest,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    borderRadius: radii.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginBottom: spacing.sm,
+  portalCardStack: {
+    gap: 12,
+    marginTop: spacing.xs,
+  },
+  portalHeroCard: {
+    backgroundColor: "#00535b",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: "#0f766e",
     ...(Platform.OS === "web"
-      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
+      ? { boxShadow: "0 8px 24px rgba(0,83,91,0.15)" }
       : {
-          shadowColor: "rgba(17,20,43,0.06)",
+          shadowColor: "rgba(0,83,91,0.15)",
           shadowOpacity: 0.6,
           shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 1,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 4,
         }),
   },
-  searchIcon: {
-    marginRight: 8,
+  portalHeroHeader: {
+    flexDirection: "row",
+    marginBottom: 10,
   },
-  searchInputField: {
-    flex: 1,
-    color: colors.onSurface,
-    fontSize: typography.bodySmall + 1,
+  portalHeroBadge: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 8,
     paddingVertical: 4,
-  },
-  searchSubmitBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: radii.pill,
+    borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
   },
-  searchSubmitBtnText: {
-    color: colors.onPrimary,
+  portalHeroBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#00535b",
+  },
+  portalHeroBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  portalHeroIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  portalHeroMeta: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  portalHeroTitleText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 2,
+  },
+  portalHeroDescText: {
+    fontSize: 12,
+    color: "#ffffff",
+    opacity: 0.85,
+    lineHeight: 16,
+  },
+  portalHeroArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  secondaryPortalsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  portalSecondaryCard: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 6px 16px rgba(0,0,0,0.06)" }
+      : {
+          shadowColor: "rgba(0,0,0,0.06)",
+          shadowOpacity: 0.5,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 2,
+        }),
+  },
+  secondaryCardIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  secondaryCardTitleText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 2,
+  },
+  secondaryCardDescText: {
+    fontSize: 10,
+    color: "#ffffff",
+    opacity: 0.8,
+    lineHeight: 13,
+  },
+  searchConsoleCard: {
+    backgroundColor: colors.surfaceLowest,
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 6px 22px rgba(14,29,37,0.05)" }
+      : {
+          shadowColor: "rgba(14,29,37,0.05)",
+          shadowOpacity: 0.6,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 2,
+        }),
+  },
+  searchConsoleField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceLow,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  searchConsoleIcon: {
+    marginRight: 8,
+  },
+  searchConsoleInput: {
+    flex: 1,
+    fontSize: typography.bodySmall + 1,
+    color: colors.onSurface,
+    paddingVertical: 2,
+  },
+  searchConsoleClear: {
+    padding: 2,
+  },
+  quickSearchPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 16,
+  },
+  quickSearchPill: {
+    backgroundColor: colors.surfaceLow,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  quickSearchPillText: {
+    fontSize: 11,
     fontWeight: "700",
-    fontSize: typography.bodySmall,
+    color: colors.primary,
+  },
+  searchSubmitButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  searchSubmitButtonText: {
+    color: "#ffffff",
+    fontSize: typography.bodySmall + 1,
+    fontWeight: "800",
   },
   searchErrorText: {
     color: colors.error,
@@ -659,162 +823,68 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     textAlign: "center",
   },
-  searchResultsContainer: {
-    marginTop: spacing.md,
+  premiumResultsList: {
+    marginTop: 18,
     backgroundColor: colors.surfaceLowest,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.sm,
+    borderRadius: 22,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.outline,
+    borderColor: colors.outlineVariant,
     ...(Platform.OS === "web"
-      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
+      ? { boxShadow: "0 6px 20px rgba(14,29,37,0.05)" }
       : {
-          shadowColor: "rgba(17,20,43,0.06)",
-          shadowOpacity: 0.6,
-          shadowRadius: 16,
+          shadowColor: "rgba(14,29,37,0.05)",
+          shadowOpacity: 0.5,
+          shadowRadius: 14,
           shadowOffset: { width: 0, height: 4 },
           elevation: 2,
         }),
   },
-  resultItemRow: {
+  resultsHeaderLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.outline,
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  premiumResultRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: spacing.md,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceLow,
   },
-  resultDetails: {
+  premiumResultIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceLow,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  premiumResultMeta: {
     flex: 1,
     marginRight: spacing.sm,
   },
-  resultName: {
+  premiumResultName: {
     fontSize: typography.bodySmall + 1,
-    fontWeight: "700",
+    fontWeight: "800",
     color: colors.onSurface,
   },
-  resultComposition: {
+  premiumResultComposition: {
     fontSize: typography.label + 1,
     color: colors.outline,
     marginTop: 2,
-  },
-  specialtiesScroll: {
-    gap: spacing.xs,
-    paddingVertical: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  specialtyPill: {
-    backgroundColor: colors.surfaceLowest,
-    borderWidth: 1,
-    borderColor: colors.surfaceHigh,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-  },
-  specialtyText: {
-    fontSize: typography.label + 1,
-    fontWeight: "700",
-    color: colors.onSurface,
-  },
-  doctorsMockList: {
-    gap: spacing.sm,
-  },
-  doctorItemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceLowest,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
-      : {
-          shadowColor: "rgba(17,20,43,0.06)",
-          shadowOpacity: 0.6,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 2,
-        }),
-  },
-  doctorAvatarBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  doctorInitials: {
-    fontSize: typography.bodySmall,
-    fontWeight: "800",
-    color: colors.primary,
-  },
-  doctorInfo: {
-    flex: 1,
-    marginLeft: spacing.sm,
-  },
-  doctorName: {
-    fontSize: typography.body,
-    fontWeight: "700",
-    color: colors.onSurface,
-  },
-  doctorSpecialty: {
-    fontSize: typography.bodySmall,
-    color: colors.onSurfaceVariant,
-  },
-  doctorStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-  },
-  doctorStatusText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  featuresList: {
-    gap: spacing.md,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: colors.surfaceLowest,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0 4px 16px rgba(17,20,43,0.06)" }
-      : {
-          shadowColor: "rgba(17,20,43,0.06)",
-          shadowOpacity: 0.6,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 2,
-        }),
-  },
-  featureIcon: {
-    marginRight: spacing.sm,
-    marginTop: 2,
-  },
-  featureTextCol: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: typography.title,
-    fontWeight: "700",
-    color: colors.onSurface,
-    marginBottom: 2,
-  },
-  featureDesc: {
-    fontSize: typography.bodySmall,
-    color: colors.onSurfaceVariant,
-    lineHeight: 18,
   },
   appFooter: {
     backgroundColor: colors.onSurface,
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
     alignItems: "center",
+    marginTop: spacing.lg,
   },
   disclaimerText: {
     fontSize: 10,

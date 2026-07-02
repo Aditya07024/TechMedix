@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as DocumentPicker from "expo-document-picker";
 import * as Clipboard from "expo-clipboard";
 import { Audio } from "expo-av";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   ActivityIndicator,
@@ -33,6 +34,7 @@ import {
   SectionHeader,
   SurfaceCard,
   TopBar,
+  getCardShadow,
 } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { api, toAbsoluteUrl } from "../../lib/api";
@@ -55,7 +57,12 @@ function formatDate(value) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 function normalizeArray(payload, key = "data") {
@@ -98,6 +105,9 @@ export function DoctorDashboardScreen({ navigation }) {
   const [summary, setSummary] = useState({});
   const [appointments, setAppointments] = useState([]);
   const [revenueDetails, setRevenueDetails] = useState(null);
+  const [subStatus, setSubStatus] = useState(null);
+  const [subChecked, setSubChecked] = useState(false);
+  const [showEarningsModal, setShowEarningsModal] = useState(false);
 
   async function loadDashboard() {
     setLoading(true);
@@ -139,16 +149,77 @@ export function DoctorDashboardScreen({ navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadDashboard();
+      checkSubscription();
     }, [user?.id]),
   );
 
+  async function checkSubscription() {
+    if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) return;
+    try {
+      const res = await api.subscriptions.getDoctorStatus(user.id);
+      setSubStatus(res?.data || res || { valid: true, status: "trial" });
+    } catch (err) {
+      console.warn("Subscription check failed:", err.message);
+      setSubStatus({ valid: true, status: "unknown" });
+    } finally {
+      setSubChecked(true);
+    }
+  }
+
   // Build bar chart data from revenue details
   const dailyRevenue = revenueDetails?.daily_revenue || revenueDetails?.data?.daily_revenue || [];
-  const methodBreakdown = revenueDetails?.payment_methods || revenueDetails?.data?.payment_methods || {};
+  const rawBreakdown = revenueDetails?.method_breakdown || revenueDetails?.data?.method_breakdown || [];
+  const paymentMethodsObj = {};
+  if (Array.isArray(rawBreakdown)) {
+    rawBreakdown.forEach((item) => {
+      paymentMethodsObj[item.payment_method] = Number(item.revenue || 0);
+    });
+  }
+  const methodBreakdown = {
+    ...paymentMethodsObj,
+    ...(revenueDetails?.payment_methods || revenueDetails?.data?.payment_methods || {}),
+  };
   const recentPayments = revenueDetails?.recent_payments || revenueDetails?.data?.recent_payments || [];
   const maxRevenue = dailyRevenue.length > 0
     ? Math.max(...dailyRevenue.map(d => Number(d.total || d.amount || 0)), 1)
     : 1;
+
+  if (subChecked && subStatus && !subStatus.valid) {
+    return (
+      <ScreenScroll contentContainerStyle={styles.screenContent}>
+        <TopBar
+          title="Doctor Workspace"
+          avatar={getInitials(user?.name)}
+          onBell={() => navigation.navigate("DoctorProfile")}
+        />
+        <View style={subWallStyles.container}>
+          <SurfaceCard style={subWallStyles.card}>
+            <Text style={subWallStyles.icon}>🔒</Text>
+            <Text style={subWallStyles.title}>Subscription Required</Text>
+            <Text style={subWallStyles.message}>{subStatus.message}</Text>
+            {subStatus.trial_end_date && (
+              <Text style={subWallStyles.detail}>
+                Trial ended: {new Date(subStatus.trial_end_date).toLocaleDateString()}
+              </Text>
+            )}
+            {subStatus.paid_end_date && (
+              <Text style={subWallStyles.detail}>
+                Subscription ended: {new Date(subStatus.paid_end_date).toLocaleDateString()}
+              </Text>
+            )}
+            <Text style={subWallStyles.contact}>
+              Please contact the TechMedix admin to activate or renew your subscription.
+            </Text>
+            <GradientButton
+              label="Contact Admin"
+              icon="email-outline"
+              onPress={() => Linking.openURL("mailto:techmedixcare@gmail.com")}
+            />
+          </SurfaceCard>
+        </View>
+      </ScreenScroll>
+    );
+  }
 
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
@@ -161,6 +232,13 @@ export function DoctorDashboardScreen({ navigation }) {
         title={`Welcome back, ${user?.name || "Doctor"}`}
         description="The mobile doctor workspace is now backed by the same doctor routes used by the web product."
       />
+      {subStatus?.status === "trial" && subStatus?.days_left != null && (
+        <View style={subWallStyles.trialBanner}>
+          <Text style={subWallStyles.trialText}>
+            🟢 Free Trial — {subStatus.days_left} days remaining
+          </Text>
+        </View>
+      )}
       <InlineError message={error} />
       {loading ? <LoadingCard label="Loading doctor dashboard..." /> : null}
 
@@ -173,17 +251,22 @@ export function DoctorDashboardScreen({ navigation }) {
       </View>
 
       {/* 3-up Stat row */}
-      <View style={styles.statRow}>
-        <Stat label="Total" value={appointments.length || 0} icon="calendar-multiselect" />
+      <View style={styles.statRow} >
+        <Stat label="Total" value={appointments.length || 0}
+        icon="calendar-multiselect" 
+        onPress={() => navigation.navigate("Appointments")}
+        />
         <Stat
           label="Waiting"
           value={appointments.filter((a) => a.status === "waiting").length || 0}
           icon="account-clock"
+          onPress={() => navigation.navigate("Appointments")}
         />
         <Stat
           label="Completed"
           value={appointments.filter((a) => a.status === "completed").length || 0}
           icon="check-decagram"
+          onPress={() => navigation.navigate("Appointments")}
         />
       </View>
 
@@ -197,11 +280,11 @@ export function DoctorDashboardScreen({ navigation }) {
           <Text style={styles.infoCardLabel}>Avg Risk Score</Text>
           <Text style={styles.infoCardValue}>{String(dashboard.average_risk_score || 0)}</Text>
         </SurfaceCard>
-        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
-          <View style={styles.infoCardIconCircle}>
+        <SurfaceCard onPress={() => setShowEarningsModal(true)} tone="lowest" style={styles.infoGridCard} >
+          <View style={styles.infoCardIconCircle} >
             <MaterialCommunityIcons name="cash-multiple" size={18} color={colors.success} />
           </View>
-          <Text style={styles.infoCardLabel}>Revenue Today</Text>
+          <Text style={styles.infoCardLabel} >Revenue Today</Text>
           <Text style={styles.infoCardValue}>{formatCurrency(analytics.total_revenue_today || 0)}</Text>
         </SurfaceCard>
         <SurfaceCard tone="lowest" style={styles.infoGridCard}>
@@ -211,7 +294,7 @@ export function DoctorDashboardScreen({ navigation }) {
           <Text style={styles.infoCardLabel}>Avg Consultation</Text>
           <Text style={styles.infoCardValue}>{`${analytics.avg_consultation_time_minutes || 0} mins`}</Text>
         </SurfaceCard>
-        <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+        <SurfaceCard tone="lowest" style={styles.infoGridCard} onPress={() => setShowEarningsModal(true)}>
           <View style={styles.infoCardIconCircle}>
             <MaterialCommunityIcons name="wallet-outline" size={18} color={colors.primary} />
           </View>
@@ -220,86 +303,7 @@ export function DoctorDashboardScreen({ navigation }) {
         </SurfaceCard>
       </View>
 
-      {/* ═══════════ EARNINGS ANALYSIS ═══════════ */}
-      <SurfaceCard tone="lowest" style={styles.dashboardListCard}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.blockTitle}>📊 Earnings Analysis</Text>
-        </View>
-
-        {/* Bar Chart */}
-        {dailyRevenue.length > 0 ? (
-          <View style={earningStyles.chartContainer}>
-            <View style={earningStyles.chartArea}>
-              {dailyRevenue.slice(-7).map((day, index) => {
-                const amount = Number(day.total || day.amount || 0);
-                const heightPercent = (amount / maxRevenue) * 100;
-                const dayLabel = day.date
-                  ? new Date(day.date).toLocaleDateString(undefined, { weekday: "short" })
-                  : `D${index + 1}`;
-                return (
-                  <View key={day.date || index} style={earningStyles.barColumn}>
-                    <Text style={earningStyles.barValue}>
-                      {amount >= 1000 ? `${(amount / 1000).toFixed(1)}k` : String(Math.round(amount))}
-                    </Text>
-                    <View style={earningStyles.barTrack}>
-                      <View
-                        style={[
-                          earningStyles.barFill,
-                          { height: `${Math.max(heightPercent, 4)}%` },
-                        ]}
-                      />
-                    </View>
-                    <Text style={earningStyles.barLabel}>{dayLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        ) : (
-          <Text style={styles.smallText}>No daily revenue data available yet.</Text>
-        )}
-
-        {/* Method Breakdown */}
-        <View style={earningStyles.methodRow}>
-          {[
-            { key: "online", label: "Online", icon: "credit-card-outline", color: colors.primary },
-            { key: "cash", label: "Cash", icon: "cash", color: "#4caf50" },
-            { key: "wallet", label: "Wallet", icon: "wallet-outline", color: "#ff9800" },
-          ].map((m) => (
-            <View key={m.key} style={earningStyles.methodCard}>
-              <MaterialCommunityIcons name={m.icon} size={18} color={m.color} />
-              <Text style={earningStyles.methodLabel}>{m.label}</Text>
-              <Text style={earningStyles.methodValue}>
-                {formatCurrency(methodBreakdown[m.key] || 0)}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Recent Payments */}
-        {recentPayments.length > 0 && (
-          <View style={{ marginTop: spacing.sm }}>
-            <Text style={[styles.smallText, { fontWeight: "700", marginBottom: 8 }]}>Recent Payments</Text>
-            {recentPayments.slice(0, 5).map((payment, idx) => (
-              <View key={payment.id || idx} style={earningStyles.paymentRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={earningStyles.paymentName}>
-                    {payment.patient_name || "Patient"}
-                  </Text>
-                  <Text style={earningStyles.paymentMeta}>
-                    {formatDate(payment.created_at || payment.payment_date)} • {payment.payment_method || "N/A"}
-                  </Text>
-                </View>
-                <Text style={earningStyles.paymentAmount}>
-                  {formatCurrency(payment.amount)}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </SurfaceCard>
-
-      <SurfaceCard tone="lowest" style={styles.dashboardListCard}>
+<SurfaceCard tone="lowest" style={styles.dashboardListCard}>
         <View style={styles.cardHeaderRow}>
           <Text style={styles.blockTitle}>Today's Appointments</Text>
           <TouchableOpacity onPress={() => navigation.navigate("Appointments")}>
@@ -329,6 +333,238 @@ export function DoctorDashboardScreen({ navigation }) {
           )}
         </View>
       </SurfaceCard>
+      {/* ═══════════ EARNINGS ANALYSIS ═══════════ */}
+      <TouchableOpacity activeOpacity={0.9} onPress={() => setShowEarningsModal(true)}>
+        <SurfaceCard tone="lowest" style={styles.dashboardListCard}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.blockTitle}>📊 Earnings Analysis</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+          </View>
+
+          {/* Bar Chart */}
+          {dailyRevenue.length > 0 ? (
+            <View style={earningStyles.chartContainer}>
+              <View style={earningStyles.chartArea}>
+                {dailyRevenue.slice(-7).map((day, index) => {
+                  const amount = Number(day.total || day.amount || 0);
+                  const heightPercent = (amount / maxRevenue) * 100;
+                  const dayLabel = day.date
+                    ? new Date(day.date).toLocaleDateString(undefined, { weekday: "short" })
+                    : `D${index + 1}`;
+                  return (
+                    <View key={day.date || index} style={earningStyles.barColumn}>
+                      <Text style={earningStyles.barValue}>
+                        {amount >= 1000 ? `${(amount / 1000).toFixed(1)}k` : String(Math.round(amount))}
+                      </Text>
+                      <View style={earningStyles.barTrack}>
+                        <View
+                          style={[
+                            earningStyles.barFill,
+                            { height: `${Math.max(heightPercent, 4)}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={earningStyles.barLabel}>{dayLabel}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.smallText}>No daily revenue data available yet.</Text>
+          )}
+
+          {/* Method Breakdown */}
+          <View style={earningStyles.methodRow}>
+            {[
+              { key: "online", label: "Online", icon: "credit-card-outline", color: colors.primary },
+              { key: "cash", label: "Cash", icon: "cash", color: "#4caf50" },
+              { key: "wallet", label: "Wallet", icon: "wallet-outline", color: "#ff9800" },
+            ].map((m) => (
+              <View key={m.key} style={earningStyles.methodCard}>
+                <MaterialCommunityIcons name={m.icon} size={18} color={m.color} />
+                <Text style={earningStyles.methodLabel}>{m.label}</Text>
+                <Text style={earningStyles.methodValue}>
+                  {formatCurrency(methodBreakdown[m.key] || 0)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Recent Payments */}
+          {/* {recentPayments.length > 0 && (
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={[styles.smallText, { fontWeight: "700", marginBottom: 8 }]}>Recent Payments</Text>
+              {recentPayments.slice(0, 5).map((payment, idx) => (
+                <View key={payment.id || idx} style={earningStyles.paymentRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={earningStyles.paymentName}>
+                      {payment.patient_name || "Patient"}
+                    </Text>
+                    <Text style={earningStyles.paymentMeta}>
+                      {formatDate(payment.created_at || payment.payment_date)} • {payment.payment_method || "N/A"}
+                    </Text>
+                  </View>
+                  <Text style={earningStyles.paymentAmount}>
+                    {formatCurrency(payment.amount)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )} */}
+        </SurfaceCard>
+      </TouchableOpacity>
+
+      {/* ═══════════ DETAILED EARNINGS DASHBOARD MODAL ═══════════ */}
+      <Modal
+        visible={showEarningsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEarningsModal(false)}
+      >
+        <View style={modalStyles.modalOverlay}>
+          <View style={[modalStyles.modalContainer, { height: "90%" }]}>
+            <View style={modalStyles.modalHeader}>
+              <Text style={styles.blockTitle}>📊 Revenue & Earnings Dashboard</Text>
+              <TouchableOpacity onPress={() => setShowEarningsModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl, gap: spacing.md }} showsVerticalScrollIndicator={false}>
+              {/* Main Stat Summary Cards */}
+              <View style={styles.infoGrid}>
+                <SurfaceCard tone="low" style={[styles.infoGridCard, { width: "100%", flexDirection: "row", alignItems: "center", gap: 12 }]}>
+                  <View style={[styles.infoCardIconCircle, { backgroundColor: "rgba(13,141,118,0.1)", alignSelf: "center", margin: 0 }]}>
+                    <MaterialCommunityIcons name="cash-multiple" size={24} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.infoCardLabel}>Total Lifetime Earnings</Text>
+                    <Text style={[styles.infoCardValue, { fontSize: 24, color: colors.primary, fontWeight: "bold" }]}>
+                      {formatCurrency(revenueDetails?.total_earnings || summary.total_earnings || 0)}
+                    </Text>
+                  </View>
+                </SurfaceCard>
+
+                <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+                  <Text style={styles.infoCardLabel}>Current Month</Text>
+                  <Text style={styles.infoCardValue}>
+                    {formatCurrency(revenueDetails?.current_month || 0)}
+                  </Text>
+                </SurfaceCard>
+
+                <SurfaceCard tone="lowest" style={styles.infoGridCard}>
+                  <Text style={styles.infoCardLabel}>Previous Month</Text>
+                  <Text style={styles.infoCardValue}>
+                    {formatCurrency(revenueDetails?.previous_month || 0)}
+                  </Text>
+                </SurfaceCard>
+              </View>
+
+              {/* Payment Method Breakdown */}
+              <SurfaceCard>
+                <Text style={[styles.blockTitle, { marginBottom: 12 }]}>Payment Channels</Text>
+                <View style={{ gap: spacing.sm }}>
+                  {[
+                    { key: "online", label: "Online Payments", icon: "credit-card-outline", color: colors.primary },
+                    { key: "cash", label: "Cash at Desk", icon: "cash", color: "#4caf50" },
+                    { key: "wallet", label: "Wallet Deductions", icon: "wallet-outline", color: "#ff9800" },
+                  ].map((m) => {
+                    const amt = methodBreakdown[m.key] || 0;
+                    const total = (methodBreakdown.online || 0) + (methodBreakdown.cash || 0) + (methodBreakdown.wallet || 0) || 1;
+                    const percent = Math.round((amt / total) * 100);
+                    return (
+                      <View key={m.key} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}>
+                        <MaterialCommunityIcons name={m.icon} size={20} color={m.color} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.listTitle, { fontSize: 14 }]}>{m.label}</Text>
+                          <Text style={styles.smallText}>{percent}% of total</Text>
+                        </View>
+                        <Text style={[styles.listTitle, { fontSize: 14, fontWeight: "bold" }]}>
+                          {formatCurrency(amt)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </SurfaceCard>
+
+              {/* Daily Revenue History Trend */}
+              <SurfaceCard>
+                <Text style={[styles.blockTitle, { marginBottom: 12 }]}>Daily Income Trend</Text>
+                {dailyRevenue.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 12 }}>
+                    <View style={{ flexDirection: "row", gap: 16, alignItems: "flex-end" }}>
+                      {dailyRevenue.map((day, index) => {
+                        const amount = Number(day.total || day.amount || 0);
+                        const heightPercent = (amount / maxRevenue) * 100;
+                        const dateFormatted = day.date
+                          ? new Date(day.date).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+                          : `Day ${index + 1}`;
+                        return (
+                          <View key={day.date || index} style={{ alignItems: "center", width: 50 }}>
+                            <Text style={{ fontSize: 9, color: colors.onSurfaceVariant, fontWeight: "bold", marginBottom: 4 }}>
+                              {amount >= 1000 ? `${(amount / 1000).toFixed(1)}k` : Math.round(amount)}
+                            </Text>
+                            <View style={{ height: 100, width: 14, backgroundColor: colors.surfaceHighest, borderRadius: 7, justifyContent: "flex-end" }}>
+                              <View style={{ height: `${Math.max(heightPercent, 4)}%`, width: "100%", backgroundColor: colors.primary, borderRadius: 7 }} />
+                            </View>
+                            <Text style={{ fontSize: 9, color: colors.outline, marginTop: 4 }} numberOfLines={1}>
+                              {dateFormatted}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.smallText}>No historical daily revenue data.</Text>
+                )}
+              </SurfaceCard>
+
+              {/* Detailed Transactions List */}
+              <SurfaceCard>
+                <Text style={[styles.blockTitle, { marginBottom: 12 }]}>Recent Transaction Ledger</Text>
+                {recentPayments.length > 0 ? (
+                  <View style={{ gap: spacing.sm }}>
+                    {recentPayments.map((payment, idx) => (
+                      <View key={payment.id || idx} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.outline, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "bold", color: colors.onSurface }}>
+                            {payment.patient_name || "Patient"}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 }}>
+                            {formatDate(payment.created_at || payment.payment_date)} • {payment.payment_method?.toUpperCase() || "N/A"}
+                          </Text>
+                          {payment.id && (
+                            <Text style={{ fontSize: 10, color: colors.outline, fontStyle: "italic" }}>
+                              Ref: #{payment.id.substring(0, 12)}...
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ fontSize: 14, fontWeight: "bold", color: colors.primary }}>
+                            {formatCurrency(payment.amount)}
+                          </Text>
+                          <Pill
+                            label={payment.status || "paid"}
+                            tone={payment.status === "paid" ? "success" : "warning"}
+                            style={{ transform: [{ scale: 0.8 }], marginTop: 4 }}
+                          />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.smallText}>No recent payments found.</Text>
+                )}
+              </SurfaceCard>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      
     </ScreenScroll>
   );
 }
@@ -338,6 +574,10 @@ export function QueueManagerScreen() {
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState([]);
   const [error, setError] = useState("");
+
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [selectedPatientProfile, setSelectedPatientProfile] = useState(null);
 
   async function loadQueue() {
     setLoading(true);
@@ -358,7 +598,29 @@ export function QueueManagerScreen() {
     }, [user?.id]),
   );
 
-  async function runQueueAction(action, appointmentId) {
+  async function openPatientProfile(apptId) {
+    setProfileLoading(true);
+    setProfileModalVisible(true);
+    try {
+      const res = await api.doctors.getSharedContext(apptId);
+      setSelectedPatientProfile(res?.data || res);
+    } catch (err) {
+      setError(err.message);
+      setProfileModalVisible(false);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function runQueueAction(action, appointmentId, status) {
+    if (action === "start" && (status === "booked" || !status || status === "pending")) {
+      Alert.alert(
+        "Consultation Warning",
+        "Patient has not arrived yet. Doctors cannot start consultancy before patient arrives at the clinic.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
     try {
       if (action === "start") await api.queue.startConsultation(appointmentId);
       if (action === "complete")
@@ -400,22 +662,34 @@ export function QueueManagerScreen() {
               value={formatDate(item.appointment_date)}
             />
             <View style={styles.buttonRow}>
+              {item.status !== "in_progress" && item.status !== "completed" && item.status !== "visited" ? (
+                <SecondaryButton
+                  label="Start"
+                  icon="play"
+                  onPress={() => runQueueAction("start", item.id, item.status)}
+                  style={{ flex: 1 }}
+                />
+              ) : null}
+              {item.status === "in_progress" ? (
+                <SecondaryButton
+                  label="Complete"
+                  icon="check"
+                  onPress={() => runQueueAction("complete", item.id, item.status)}
+                  style={{ flex: 1 }}
+                />
+              ) : null}
+              {item.status === "in_progress" ? (
+                <SecondaryButton
+                  label="Skip"
+                  icon="skip-next-outline"
+                  onPress={() => runQueueAction("skip", item.id, item.status)}
+                  style={{ flex: 1 }}
+                />
+              ) : null}
               <SecondaryButton
-                label="Start"
-                icon="play"
-                onPress={() => runQueueAction("start", item.id)}
-                style={{ flex: 1 }}
-              />
-              <SecondaryButton
-                label="Complete"
-                icon="check"
-                onPress={() => runQueueAction("complete", item.id)}
-                style={{ flex: 1 }}
-              />
-              <SecondaryButton
-                label="Skip"
-                icon="skip-next-outline"
-                onPress={() => runQueueAction("skip", item.id)}
+                label="Profile"
+                icon="account-details-outline"
+                onPress={() => openPatientProfile(item.id)}
                 style={{ flex: 1 }}
               />
             </View>
@@ -429,6 +703,122 @@ export function QueueManagerScreen() {
           </Text>
         </SurfaceCard>
       ) : null}
+
+      <Modal
+        visible={profileModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
+        <View style={modalStyles.modalOverlay}>
+          <View style={modalStyles.modalContainer}>
+            <View style={modalStyles.modalHeader}>
+              <Text style={modalStyles.modalTitle}>Patient Workspace</Text>
+              <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            {profileLoading ? (
+              <View style={modalStyles.loadingArea}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={modalStyles.loadingText}>Fetching shared history...</Text>
+              </View>
+            ) : selectedPatientProfile ? (
+              <ScrollView contentContainerStyle={modalStyles.modalScroll}>
+                <View style={modalStyles.profileSection}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <AvatarBubble label={selectedPatientProfile.patient?.name ? selectedPatientProfile.patient.name.substring(0, 2).toUpperCase() : "PA"} size={44} tone="secondary" />
+                    <View>
+                      <Text style={modalStyles.patientName}>{selectedPatientProfile.patient?.name}</Text>
+                      <Text style={modalStyles.patientMeta}>
+                        {selectedPatientProfile.patient?.age ? `${selectedPatientProfile.patient.age} Yrs` : ""} • {selectedPatientProfile.patient?.gender}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {selectedPatientProfile.allowed_sections?.includes("ehr") && selectedPatientProfile.ehrHistory?.length > 0 ? (
+                  <View style={modalStyles.sectionBlock}>
+                    <Text style={modalStyles.sectionTitle}>📋 Medical History (EHR)</Text>
+                    {selectedPatientProfile.ehrHistory.map((ehr) => (
+                      <View key={ehr.id} style={modalStyles.itemCard}>
+                        <Text style={modalStyles.itemHeader}>{ehr.predictedDisease || "Diagnosis Record"}</Text>
+                        <Text style={modalStyles.itemText}>{ehr.aiInsights || "No notes provided"}</Text>
+                        {ehr.timestamp && <Text style={modalStyles.itemTime}>{new Date(ehr.timestamp).toLocaleDateString()}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {selectedPatientProfile.allowed_sections?.includes("prescriptions") && selectedPatientProfile.prescriptions?.length > 0 ? (
+                  <View style={modalStyles.sectionBlock}>
+                    <Text style={modalStyles.sectionTitle}>💊 Shared Prescriptions</Text>
+                    {selectedPatientProfile.prescriptions.map((med) => (
+                      <View key={med.id} style={modalStyles.itemCard}>
+                        <Text style={modalStyles.itemHeader}>{med.medicine_name}</Text>
+                        <Text style={modalStyles.itemText}>
+                          Dosage: {med.dosage || "-"} • Freq: {med.frequency || "-"} • Duration: {med.duration || "-"}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {selectedPatientProfile.allowed_sections?.includes("metrics") && selectedPatientProfile.latestMetrics?.length > 0 ? (
+                  <View style={modalStyles.sectionBlock}>
+                    <Text style={modalStyles.sectionTitle}>❤️ Latest Shared Vitals</Text>
+                    <View style={modalStyles.vitalsGrid}>
+                      {selectedPatientProfile.latestMetrics.map((metric) => (
+                        <View key={metric.id || metric.name} style={modalStyles.vitalCard}>
+                          <MaterialCommunityIcons name="heart-pulse" size={16} color={colors.primary} />
+                          <Text style={modalStyles.vitalLabel}>{metric.name || "Metric"}</Text>
+                          <Text style={modalStyles.vitalValue}>{metric.value} {metric.unit}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {selectedPatientProfile.allowed_sections?.includes("recordings") && selectedPatientProfile.recordings?.length > 0 ? (
+                  <View style={modalStyles.sectionBlock}>
+                    <Text style={modalStyles.sectionTitle}>🎤 Shared Recordings</Text>
+                    {selectedPatientProfile.recordings.map((rec) => (
+                      <View key={rec.id} style={modalStyles.itemCard}>
+                        <Text style={modalStyles.itemHeader}>Consultation Recording #{rec.id}</Text>
+                        {rec.duration && <Text style={modalStyles.itemText}>Duration: {rec.duration}s</Text>}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {selectedPatientProfile.allowed_sections?.includes("reports") && selectedPatientProfile.reports?.length > 0 ? (
+                  <View style={modalStyles.sectionBlock}>
+                    <Text style={modalStyles.sectionTitle}>📁 Shared Files & Reports</Text>
+                    {selectedPatientProfile.reports.map((report) => (
+                      <View key={report.id} style={modalStyles.itemCard}>
+                        <Text style={modalStyles.itemHeader}>{report.file_name || "Medical Report"}</Text>
+                        <Text style={modalStyles.itemText}>{report.file_type || "Document"}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {(!selectedPatientProfile.allowed_sections || selectedPatientProfile.allowed_sections.length === 0) && (
+                  <View style={modalStyles.emptyShare}>
+                    <MaterialCommunityIcons name="shield-lock-outline" size={40} color={colors.outline} />
+                    <Text style={modalStyles.emptyText}>The patient has not shared any medical record history or vitals for this appointment.</Text>
+                  </View>
+                )}
+              </ScrollView>
+            ) : (
+              <View style={modalStyles.loadingArea}>
+                <Text style={modalStyles.loadingText}>No profile details loaded.</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScreenScroll>
   );
 }
@@ -438,11 +828,12 @@ export function DoctorAppointmentsScreen() {
   const [loading, setLoading] = useState(true);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("today");
 
   async function loadAppointments() {
     setLoading(true);
     try {
-      const response = await api.appointments.getByDoctor(user.id, todayIso());
+      const response = await api.appointments.getByDoctor(user.id);
       setAppointments(normalizeArray(response));
       setError("");
     } catch (loadError) {
@@ -468,13 +859,57 @@ export function DoctorAppointmentsScreen() {
     }
   }
 
+  const todayStr = todayIso();
+  const todayAppts = appointments.filter((a) => {
+    const localApptDate = a.appointment_date ? new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date(a.appointment_date)) : "";
+    return localApptDate === todayStr;
+  });
+
+  const pastAppts = appointments.filter((a) => {
+    const localApptDate = a.appointment_date ? new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date(a.appointment_date)) : "";
+    return localApptDate < todayStr;
+  });
+
+  const displayList = activeTab === "today" ? todayAppts : pastAppts;
+
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
       <TopBar title="Doctor Appointments" avatar={getInitials(user?.name)} />
       <InlineError message={error} />
+
+      {/* Tabs */}
+      <View style={tabStyles.tabContainer}>
+        <TouchableOpacity
+          style={[tabStyles.tab, activeTab === "today" && tabStyles.activeTab]}
+          onPress={() => setActiveTab("today")}
+        >
+          <Text style={[tabStyles.tabText, activeTab === "today" && tabStyles.activeTabText]}>
+            Today's ({todayAppts.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[tabStyles.tab, activeTab === "past" && tabStyles.activeTab]}
+          onPress={() => setActiveTab("past")}
+        >
+          <Text style={[tabStyles.tabText, activeTab === "past" && tabStyles.activeTabText]}>
+            Past ({pastAppts.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {loading ? <LoadingCard label="Loading appointments..." /> : null}
-      {(appointments || []).length ? (
-        appointments.map((appointment) => (
+      {displayList.length ? (
+        displayList.map((appointment) => (
           <SurfaceCard key={appointment.id}>
             <View style={styles.cardHeaderRow}>
               <View style={{ flex: 1 }}>
@@ -503,15 +938,49 @@ export function DoctorAppointmentsScreen() {
         ))
       ) : !loading ? (
         <SurfaceCard tone="low">
-          <Text style={styles.blockTitle}>No appointments</Text>
+          <Text style={styles.blockTitle}>
+            {activeTab === "today" ? "No appointments today" : "No past appointments"}
+          </Text>
           <Text style={styles.smallText}>
-            Today’s appointments will show up here.
+            {activeTab === "today"
+              ? "Today’s appointments will show up here."
+              : "Historical appointments will show up here."}
           </Text>
         </SurfaceCard>
       ) : null}
     </ScreenScroll>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceLow,
+    borderRadius: radii.md,
+    padding: 4,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: radii.sm,
+  },
+  activeTab: {
+    backgroundColor: colors.surfaceLowest,
+    ...getCardShadow("lowest"),
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.outline,
+  },
+  activeTabText: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+});
 
 const DAY_OPTIONS = [
   { label: "Sun", value: 0 },
@@ -671,6 +1140,7 @@ export function DoctorProfileScreen() {
     email: user?.email || "",
     specialty: user?.specialty || "",
     consultation_fee: String(user?.consultation_fee || 0),
+    clinic_address: user?.clinic_address || "",
   });
 
   // Staff tab state
@@ -684,6 +1154,33 @@ export function DoctorProfileScreen() {
   const [posters, setPosters] = useState([]);
   const [postersLoading, setPostersLoading] = useState(false);
 
+  // Subscription tab state
+  const [subStatus, setSubStatus] = useState(null);
+  const [detailedSub, setDetailedSub] = useState(null);
+  const [subLoading, setSubLoading] = useState(false);
+
+  // Reviews tab state
+  const [myReviews, setMyReviews] = useState([]);
+  const [myReviewsLoading, setMyReviewsLoading] = useState(false);
+  const [avgRating, setAvgRating] = useState("0.0");
+  const [reviewCount, setReviewCount] = useState(0);
+
+  async function loadMyReviews() {
+    if (!user?.id) return;
+    setMyReviewsLoading(true);
+    try {
+      const res = await api.reviews.getByDoctor(user.id);
+      const val = res?.data || res;
+      setMyReviews(val?.reviews || []);
+      setAvgRating(val?.average || "0.0");
+      setReviewCount(val?.count || 0);
+    } catch (err) {
+      console.warn("Reviews load failed:", err.message);
+    } finally {
+      setMyReviewsLoading(false);
+    }
+  }
+
   async function loadProfile() {
     setLoading(true);
     try {
@@ -693,6 +1190,7 @@ export function DoctorProfileScreen() {
         email: updatedUser?.email || "",
         specialty: updatedUser?.specialty || "",
         consultation_fee: String(updatedUser?.consultation_fee || 0),
+        clinic_address: updatedUser?.clinic_address || "",
       });
       setError("");
     } catch (loadError) {
@@ -726,11 +1224,34 @@ export function DoctorProfileScreen() {
     }
   }
 
+  async function loadSubscription() {
+    if (!user?.id) return;
+    setSubLoading(true);
+    try {
+      const [statusRes, detailedRes] = await Promise.allSettled([
+        api.subscriptions.getDoctorStatus(user.id),
+        api.subscriptions.getDoctorSubscription(user.id),
+      ]);
+      setSubStatus(
+        statusRes.status === "fulfilled" ? (statusRes.value?.data || statusRes.value) : null
+      );
+      setDetailedSub(
+        detailedRes.status === "fulfilled" ? (detailedRes.value?.data || detailedRes.value) : null
+      );
+    } catch (err) {
+      console.warn("Detailed subscription load failed:", err.message);
+    } finally {
+      setSubLoading(false);
+    }
+  }
+
   useFocusEffect(
     React.useCallback(() => {
       loadProfile();
       loadStaff();
       loadPosters();
+      loadSubscription();
+      loadMyReviews();
     }, []),
   );
 
@@ -741,6 +1262,7 @@ export function DoctorProfileScreen() {
         name: profile.name,
         specialty: profile.specialty,
         consultation_fee: Number(profile.consultation_fee || 0),
+        clinic_address: profile.clinic_address,
       });
       await loadProfile();
       Alert.alert("Saved", "Doctor profile updated.");
@@ -770,6 +1292,18 @@ export function DoctorProfileScreen() {
   }
 
   async function deleteStaffMember(staffId) {
+    if (Platform.OS === "web") {
+      const confirmDelete = window.confirm("Remove this staff member?");
+      if (!confirmDelete) return;
+      try {
+        await api.doctorStaff.delete(staffId);
+        await loadStaff();
+      } catch (err) {
+        window.alert(`Error: ${err.message}`);
+      }
+      return;
+    }
+
     Alert.alert("Confirm", "Remove this staff member?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -779,6 +1313,68 @@ export function DoctorProfileScreen() {
           try {
             await api.doctorStaff.delete(staffId);
             await loadStaff();
+          } catch (err) {
+            Alert.alert("Error", err.message);
+          }
+        },
+      },
+    ]);
+  }
+
+  async function resetStaffPassword(staffId) {
+    if (Platform.OS === "web") {
+      const confirmReset = window.confirm("Reset password for this staff member?");
+      if (!confirmReset) return;
+      try {
+        const res = await api.doctorStaff.resetPassword(staffId);
+        const data = res?.data || res;
+        const newPassword =
+          data?.temporary_password ||
+          data?.data?.temporary_password ||
+          res?.temporary_password ||
+          res?.data?.temporary_password ||
+          data?.tempPassword ||
+          res?.tempPassword;
+        if (newPassword) {
+          window.alert(`Password has been reset. Temporary password is:\n\n${newPassword}\n\nShare this with your staff member.`);
+          await Clipboard.setStringAsync(newPassword);
+        } else {
+          window.alert("Password reset successfully.");
+        }
+      } catch (err) {
+        window.alert(`Error: ${err.message}`);
+      }
+      return;
+    }
+
+    Alert.alert("Confirm", "Reset password for this staff member?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reset",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const res = await api.doctorStaff.resetPassword(staffId);
+            const data = res?.data || res;
+            const newPassword =
+              data?.temporary_password ||
+              data?.data?.temporary_password ||
+              res?.temporary_password ||
+              res?.data?.temporary_password ||
+              data?.tempPassword ||
+              res?.tempPassword;
+            if (newPassword) {
+              Alert.alert("Success", `Password has been reset. Temporary password is:\n\n${newPassword}\n\nCopy this and share it with your staff member.`, [
+                {
+                  text: "Copy & Close",
+                  onPress: async () => {
+                    await Clipboard.setStringAsync(newPassword);
+                  }
+                }
+              ]);
+            } else {
+              Alert.alert("Success", "Password reset successfully.");
+            }
           } catch (err) {
             Alert.alert("Error", err.message);
           }
@@ -805,10 +1401,81 @@ export function DoctorProfileScreen() {
     ]);
   }
 
+  async function selectAndUploadPoster() {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permission Denied", "Permission to access photo library is required to upload posters.");
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
+        return;
+      }
+
+      const asset = pickerResult.assets[0];
+      setPostersLoading(true);
+      
+      const fileObj = {
+        uri: asset.uri,
+        name: asset.fileName || `poster-${Date.now()}.jpg`,
+        type: asset.mimeType || "image/jpeg",
+      };
+
+      const res = await api.doctorPosters.uploadPoster(fileObj);
+      if (res.success || res.data) {
+        Alert.alert("Success", "Poster uploaded successfully. Banners require payment activation to go live.");
+        await loadPosters();
+      } else {
+        Alert.alert("Upload Failed", res.error || "Failed to upload poster.");
+      }
+    } catch (err) {
+      Alert.alert("Upload Error", err.message);
+    } finally {
+      setPostersLoading(false);
+    }
+  }
+
+  async function payAndActivatePoster(posterId) {
+    try {
+      setPostersLoading(true);
+      const res = await api.doctorPosters.createPaySession({ poster_id: posterId });
+      const order = res.order;
+      if (!order || !order.payment_session_id) {
+        throw new Error("Failed to initialize payment session.");
+      }
+      
+      const isProd = res.cashfree_mode === "production";
+      const checkoutUrl = isProd
+        ? `https://payments.cashfree.com/order/#${order.payment_session_id}`
+        : `https://payments-test.cashfree.com/order/#${order.payment_session_id}`;
+
+      console.log("Opening Cashfree URL for poster activation:", checkoutUrl);
+      await Linking.openURL(checkoutUrl);
+
+      Alert.alert(
+        "Payment Initiated",
+        "Once payment is completed, tap Refresh to activate your banner.",
+        [{ text: "Refresh", onPress: () => loadPosters() }]
+      );
+    } catch (err) {
+      Alert.alert("Payment Error", err.message);
+    } finally {
+      setPostersLoading(false);
+    }
+  }
+
   const PROFILE_TABS = [
     { key: "profile", label: "Profile", icon: "account-cog-outline" },
     { key: "staff", label: "Staff", icon: "account-group-outline" },
     { key: "promotions", label: "Promotions", icon: "bullhorn-outline" },
+    { key: "reviews", label: "Reviews", icon: "star-outline" },
   ];
 
   return (
@@ -844,6 +1511,118 @@ export function DoctorProfileScreen() {
       {/* ═══════════ PROFILE SETTINGS TAB ═══════════ */}
       {activeTab === "profile" && (
         <>
+          {/* Practice Coverage & Subscription Details */}
+          {subLoading ? (
+            <LoadingCard label="Loading subscription details..." />
+          ) : subStatus ? (
+            <>
+              {/* Plan Coverage Card */}
+              <SurfaceCard>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.blockTitle}>Practice Coverage</Text>
+                  <Pill
+                    label={
+                      subStatus?.status === "trial" ? "Trial" :
+                      subStatus?.status === "active" ? "Active" :
+                      subStatus?.status === "hospital_covered" ? "Covered" : "Expired"
+                    }
+                    tone={
+                      subStatus?.status === "active" || subStatus?.status === "hospital_covered"
+                        ? "success"
+                        : subStatus?.status === "trial"
+                        ? "warning"
+                        : "error"
+                    }
+                  />
+                </View>
+
+                {subStatus?.status === "hospital_covered" && (
+                  <View style={[styles.listRow, { backgroundColor: colors.surfaceLow, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: "row", alignItems: "center" }]}>
+                    <MaterialCommunityIcons name="office-building" size={24} color={colors.primary} style={{ marginRight: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.listTitle, { fontWeight: "bold" }]}>Hospital Covered</Text>
+                      <Text style={styles.listMeta}>
+                        Your access is covered under {subStatus.hospital_name || "your hospital"}'s central package.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={{ marginTop: 8 }}>
+                  <DetailRow
+                    icon="shield-check-outline"
+                    label="Current Status"
+                    value={
+                      subStatus?.status === "trial" ? "Free Trial" :
+                      subStatus?.status === "active" ? "Active Paid" :
+                      subStatus?.status === "hospital_covered" ? "Hospital Covered" : "Expired"
+                    }
+                  />
+
+                  {subStatus?.status === "trial" && (
+                    <>
+                      <DetailRow
+                        icon="calendar-clock"
+                        label="Trial Ends On"
+                        value={subStatus?.trial_end_date ? formatDate(subStatus.trial_end_date) : "N/A"}
+                      />
+                      <DetailRow
+                        icon="timer-sand"
+                        label="Remaining Time"
+                        value={`${subStatus?.days_left || 0} Days`}
+                      />
+                    </>
+                  )}
+
+                  {(subStatus?.status === "active" || subStatus?.status === "hospital_covered") && subStatus?.paid_end_date && (
+                    <DetailRow
+                      icon="calendar-check"
+                      label="Coverage Until"
+                      value={formatDate(subStatus.paid_end_date)}
+                    />
+                  )}
+
+                  {detailedSub?.plan_name && (
+                    <DetailRow
+                      icon="package-variant-closed"
+                      label="Assigned Plan"
+                      value={detailedSub.plan_name}
+                    />
+                  )}
+                </View>
+              </SurfaceCard>
+
+              {/* Billing Info Card */}
+              {subStatus?.status === "active" && detailedSub && (
+                <SurfaceCard>
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={styles.blockTitle}>Billing & Payment</Text>
+                  </View>
+
+                  <View style={{ marginTop: 8 }}>
+                    <DetailRow
+                      icon="cash"
+                      label="Amount Paid"
+                      value={formatCurrency(detailedSub.amount_paid || 0)}
+                    />
+                    {detailedSub.payment_notes && (
+                      <DetailRow
+                        icon="receipt"
+                        label="Reference"
+                        value={detailedSub.payment_notes}
+                      />
+                    )}
+                    <DetailRow
+                      icon="calendar-sync"
+                      label="Last Renewed"
+                      value={detailedSub.updated_at ? formatDate(detailedSub.updated_at) : "N/A"}
+                    />
+                  </View>
+                </SurfaceCard>
+              )}
+            </>
+          ) : null}
+
           <SurfaceCard>
             <Text style={styles.blockTitle}>Profile Settings</Text>
             <TextInput
@@ -876,6 +1655,16 @@ export function DoctorProfileScreen() {
               placeholder="Consultation fee"
               placeholderTextColor={colors.outline}
               style={styles.input}
+            />
+            <TextInput
+              value={profile.clinic_address}
+              onChangeText={(text) =>
+                setProfile({ ...profile, clinic_address: text })
+              }
+              placeholder="Clinic address (shown to patients)"
+              placeholderTextColor={colors.outline}
+              multiline
+              style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
             />
             <GradientButton
               label={saving ? "Saving..." : "Save Profile"}
@@ -962,9 +1751,14 @@ export function DoctorProfileScreen() {
                     <Text style={profileTabStyles.staffName}>{staff.name}</Text>
                     <Text style={profileTabStyles.staffEmail}>{staff.email}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => deleteStaffMember(staff.id)}>
-                    <MaterialCommunityIcons name="delete-outline" size={20} color={colors.error} />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity onPress={() => resetStaffPassword(staff.id)}>
+                      <MaterialCommunityIcons name="key-variant" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteStaffMember(staff.id)}>
+                      <MaterialCommunityIcons name="delete-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))
             ) : (
@@ -981,9 +1775,16 @@ export function DoctorProfileScreen() {
             <View style={styles.cardHeaderRow}>
               <Text style={styles.blockTitle}>Promotional Campaigns</Text>
             </View>
-            <Text style={styles.smallText}>
+            <Text style={[styles.smallText, { marginBottom: 12 }]}>
               Upload banner ads for your practice. Posters appear on the patient home screen and landing page.
             </Text>
+
+            <GradientButton
+              label="Upload New Poster"
+              icon="camera-plus-outline"
+              onPress={selectAndUploadPoster}
+              style={{ marginBottom: 12 }}
+            />
 
             {/* AI Prompt Card */}
             <View style={profileTabStyles.aiPromptCard}>
@@ -1031,23 +1832,95 @@ export function DoctorProfileScreen() {
                     />
                   )}
                   <View style={profileTabStyles.posterInfo}>
-                    <Pill
-                      label={poster.status || "pending"}
-                      tone={poster.status === "active" ? "success" : "warning"}
-                    />
-                    <Text style={profileTabStyles.posterDate}>
-                      {formatDate(poster.created_at)}
-                    </Text>
-                    <TouchableOpacity onPress={() => deletePoster(poster.id)}>
-                      <MaterialCommunityIcons name="delete-outline" size={18} color={colors.error} />
-                    </TouchableOpacity>
+                    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Pill
+                        label={poster.status || "pending"}
+                        tone={poster.status === "active" ? "success" : "warning"}
+                      />
+                      <Text style={profileTabStyles.posterDate}>
+                        {formatDate(poster.created_at)}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                      {poster.status === "pending" && (
+                        <TouchableOpacity
+                          style={{ backgroundColor: colors.primary, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 }}
+                          onPress={() => payAndActivatePoster(poster.id)}
+                        >
+                          <Text style={{ color: colors.onPrimary, fontSize: 11, fontWeight: "bold" }}>Activate</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity onPress={() => deletePoster(poster.id)}>
+                        <MaterialCommunityIcons name="delete-outline" size={18} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               ))
             ) : (
               <Text style={styles.smallText}>
-                No posters yet. Upload banners from the web dashboard to promote your practice.
+                No promotional campaigns active yet. Tap 'Upload New Poster' above to create one.
               </Text>
+            )}
+          </SurfaceCard>
+        </>
+      )}
+
+      {/* ═══════════ REVIEWS TAB ═══════════ */}
+      {activeTab === "reviews" && (
+        <>
+          <SurfaceCard>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.blockTitle}>Patient Feedback</Text>
+                <Text style={styles.smallText}>Reviews and ratings submitted by your patients.</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <MaterialCommunityIcons name="star" size={20} color="#EAB308" />
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: colors.primary }}>
+                    {avgRating}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: colors.outline }}>
+                  {reviewCount} reviews
+                </Text>
+              </View>
+            </View>
+          </SurfaceCard>
+
+          <SurfaceCard>
+            <Text style={[styles.blockTitle, { marginBottom: 12 }]}>All Reviews</Text>
+            {myReviewsLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : myReviews.length > 0 ? (
+              myReviews.map((rev) => (
+                <View key={rev.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.outline + "40" }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <View style={{ flexDirection: "row", gap: 3 }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <MaterialCommunityIcons
+                          key={star}
+                          name={star <= rev.rating ? "star" : "star-outline"}
+                          size={14}
+                          color={star <= rev.rating ? "#EAB308" : colors.outline}
+                        />
+                      ))}
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.outline }}>
+                      {new Date(rev.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: colors.onSurface, fontStyle: rev.comment ? "normal" : "italic" }}>
+                    {rev.comment ? `"${rev.comment}"` : "No written comment left."}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.outline, marginTop: 4, fontWeight: "600" }}>
+                    Verified Patient (Anonymous)
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.smallText}>No reviews received yet.</Text>
             )}
           </SurfaceCard>
         </>
@@ -1068,6 +1941,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
   // Prescription builder
   const [rxForm, setRxForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "" });
   const [savingRx, setSavingRx] = useState(false);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [diagnosis, setDiagnosis] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [finalizing, setFinalizing] = useState(false);
@@ -1075,8 +1949,18 @@ export function DoctorPatientLookupScreen({ navigation }) {
   // Voice recorder
   const [isRecording, setIsRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState(null);
+  const [playbackUri, setPlaybackUri] = useState(null);
   const [uploadingRecording, setUploadingRecording] = useState(false);
   const recordingRef = useRef(null);
+  const soundRef = useRef(new Audio.Sound());
+
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   const startScanning = async () => {
     if (!permission || !permission.granted) {
@@ -1097,9 +1981,21 @@ export function DoctorPatientLookupScreen({ navigation }) {
       const response = await api.doctors.getPatientByCode(scannedCode);
       setResult(response);
       setError("");
+      // Separately fetch active prescriptions for the prescription pad
+      const patId = response?.patient?.id;
+      if (patId) {
+        try {
+          const rxRes = await api.prescriptions.listByPatient(patId);
+          const rxList = Array.isArray(rxRes) ? rxRes : (rxRes?.data || []);
+          setPrescriptions(rxList);
+        } catch (_) {
+          setPrescriptions([]);
+        }
+      }
     } catch (err) {
       setError(err.message);
       setResult(null);
+      setPrescriptions([]);
     } finally {
       setLoading(false);
     }
@@ -1115,17 +2011,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
 
   async function lookup() {
     if (!code.trim()) return;
-    setLoading(true);
-    try {
-      const response = await api.doctors.getPatientByCode(code.trim());
-      setResult(response);
-      setError("");
-    } catch (lookupError) {
-      setError(lookupError.message);
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
+    await lookupWithCode(code.trim());
   }
 
   async function addMedicine() {
@@ -1141,6 +2027,40 @@ export function DoctorPatientLookupScreen({ navigation }) {
       });
       setRxForm({ medicine_name: "", dosage: "", frequency: "", duration: "" });
       Alert.alert("Added", "Medicine added to prescription pad.");
+      // Refresh both patient data and prescriptions
+      await lookupWithCode(code.trim());
+    } catch (err) {
+      Alert.alert("Error", err.message);
+    } finally {
+      setSavingRx(false);
+    }
+  }
+
+  async function copyToPad(med) {
+    setSavingRx(true);
+    try {
+      await api.prescriptions.createManual({
+        patient_id: patient.id,
+        medicine_name: med.medicine_name,
+        dosage: med.dosage,
+        frequency: med.frequency,
+        duration: med.duration,
+      });
+      Alert.alert("Added", `${med.medicine_name} copied to active prescription pad.`);
+      await lookupWithCode(code.trim());
+    } catch (err) {
+      Alert.alert("Error", err.message);
+    } finally {
+      setSavingRx(false);
+    }
+  }
+
+  async function removeFromPad(medicineId) {
+    if (!medicineId) return;
+    setSavingRx(true);
+    try {
+      await api.prescriptions.deleteMedicine(medicineId);
+      Alert.alert("Removed", "Medicine removed from prescription pad.");
       await lookupWithCode(code.trim());
     } catch (err) {
       Alert.alert("Error", err.message);
@@ -1164,7 +2084,10 @@ export function DoctorPatientLookupScreen({ navigation }) {
   async function startVoiceRecording() {
     try {
       await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
       const recording = new Audio.Recording();
       await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await recording.startAsync();
@@ -1183,6 +2106,13 @@ export function DoctorPatientLookupScreen({ navigation }) {
       const uri = recordingRef.current.getURI();
       setRecordedUri(uri);
       setIsRecording(false);
+      
+      // Automatically reset audio mode back to playback mode so speaker works!
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldRouteThroughSpeakerIOS: true,
+      });
     } catch (err) {
       Alert.alert("Stop Error", err.message);
     }
@@ -1205,12 +2135,84 @@ export function DoctorPatientLookupScreen({ navigation }) {
     }
   }
 
+  async function playVoiceRecording() {
+    try {
+      if (!recordedUri) return;
+      if (playbackUri) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        setPlaybackUri(null);
+        return;
+      }
+      
+      // Configure audio mode for loudspeaker playback
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldRouteThroughSpeakerIOS: true,
+      });
+
+      await soundRef.current.loadAsync({ uri: recordedUri });
+      setPlaybackUri(recordedUri);
+      await soundRef.current.playAsync();
+      soundRef.current.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isPlaying) {
+          setPlaybackUri(null);
+          soundRef.current.unloadAsync().catch(() => {});
+        }
+      });
+    } catch (err) {
+      Alert.alert("Playback Error", err.message);
+    }
+  }
+
   const patient = result?.patient;
   const history = result?.ehrHistory || [];
-  const activeMedicines = result?.activePrescriptions || result?.prescriptions || [];
+  const activeMedicines = (prescriptions || []).filter((m) => {
+    const isMyId = m.doctor_id && String(m.doctor_id) === String(user?.id);
+    const localToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+    const medDate = m.created_at ? new Date(m.created_at) : null;
+    const medDateStr = medDate ? new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(medDate) : "";
+    return isMyId && medDateStr === localToday && !m.is_deleted;
+  });
+
+  const previousMedicines = prescriptions || [];
   const sharedSections = result?.allowed_sections || [];
   const sharedReports = result?.reports || [];
-  const latestMetrics = result?.latestMetrics || null;
+  
+  const rawLatestMetrics = result?.latestMetrics || [];
+  const latestRecord = history[0] || null;
+  const latestLegacyMetrics = latestRecord?.ehr || null;
+
+  // Group metrics by type for easy access
+  const latestMetricsMap = {};
+  if (Array.isArray(rawLatestMetrics)) {
+    rawLatestMetrics.forEach((m) => {
+      latestMetricsMap[m.metric_type || m.metricType] = m;
+    });
+  }
+
+  // Construct a merged latestMetrics object that matches the expected keys
+  const latestMetrics = {
+    heartRate: latestMetricsMap.heart_rate?.value ?? latestLegacyMetrics?.heartRate,
+    heart_rate: latestMetricsMap.heart_rate?.value ?? latestLegacyMetrics?.heartRate,
+    bloodPressure: latestMetricsMap.blood_pressure?.value ?? latestLegacyMetrics?.bloodPressure,
+    blood_pressure: latestMetricsMap.blood_pressure?.value ?? latestLegacyMetrics?.bloodPressure,
+    oxygenSaturation: latestMetricsMap.spo2?.value ?? latestLegacyMetrics?.spo2,
+    spo2: latestMetricsMap.spo2?.value ?? latestLegacyMetrics?.spo2,
+    bloodGlucose: latestMetricsMap.glucose?.value ?? latestLegacyMetrics?.glucose,
+    glucose: latestMetricsMap.glucose?.value ?? latestLegacyMetrics?.glucose,
+  };
 
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
@@ -1303,7 +2305,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
           </SurfaceCard>
 
           {/* ═══════════ SHARED HEALTH METRICS ═══════════ */}
-          {latestMetrics && (
+          {latestMetrics && Object.values(latestMetrics).some((v) => v !== undefined && v !== null) && (
             <SurfaceCard>
               <Text style={styles.blockTitle}>Shared Health Metrics</Text>
               <View style={styles.infoGrid}>
@@ -1316,7 +2318,12 @@ export function DoctorPatientLookupScreen({ navigation }) {
                   <View key={m.label} style={lookupStyles.metricMini}>
                     <MaterialCommunityIcons name={m.icon} size={16} color={colors.primary} />
                     <Text style={lookupStyles.metricLabel}>{m.label}</Text>
-                    <Text style={lookupStyles.metricValue}>{String(m.value)}{m.unit ? ` ${m.unit}` : ""}</Text>
+                    <Text style={lookupStyles.metricValue}>
+                      {typeof m.value === "object" && m.value !== null
+                        ? `${m.value.systolic}/${m.value.diastolic}`
+                        : String(m.value)}
+                      {m.unit ? ` ${m.unit}` : ""}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -1340,7 +2347,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
                   </Text>
                   {entry.ehr && (
                     <Text style={[styles.smallText, { marginTop: 4, fontStyle: "italic" }]}>
-                      HR: {entry.ehr.heartRate || "—"} • Glucose: {entry.ehr.glucose || "—"} • BP: {entry.ehr.bloodPressure || "—"}
+                      HR: {entry.ehr.heartRate || "—"} • Glucose: {entry.ehr.glucose || "—"} • BP: {entry.ehr.bloodPressure && typeof entry.ehr.bloodPressure === "object" ? `${entry.ehr.bloodPressure.systolic}/${entry.ehr.bloodPressure.diastolic}` : (entry.ehr.bloodPressure || "—")}
                     </Text>
                   )}
                 </View>
@@ -1413,9 +2420,51 @@ export function DoctorPatientLookupScreen({ navigation }) {
                       {med.dosage || "—"} • {med.frequency || "—"} • {med.duration || "—"}
                     </Text>
                   </View>
-                  <Pill label={med.status || "active"} tone={med.status === "stopped" ? "warning" : "success"} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Pill label={med.status || "active"} tone={med.status === "stopped" ? "warning" : "success"} />
+                    <TouchableOpacity onPress={() => removeFromPad(med.medicine_id || med.id)}>
+                      <MaterialCommunityIcons name="delete-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
+            </SurfaceCard>
+          )}
+
+          {/* ═══════════ PREVIOUS PRESCRIPTION PAD ═══════════ */}
+          {previousMedicines.length > 0 && (
+            <SurfaceCard>
+              <Text style={styles.blockTitle}>Previous Prescription Pad</Text>
+              {previousMedicines.map((med, idx) => {
+                const matchedActiveMed = activeMedicines.find(
+                  (am) => am.medicine_name?.toLowerCase() === med.medicine_name?.toLowerCase()
+                );
+                return (
+                  <View key={med.id || idx} style={lookupStyles.activeMedRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={lookupStyles.medName}>{med.medicine_name}</Text>
+                      <Text style={lookupStyles.medMeta}>
+                        {med.dosage || "—"} • {med.frequency || "—"} • {med.duration || "—"}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: colors.outline, marginTop: 2 }}>
+                        Prescribed on {formatDate(med.created_at)} by {med.doctor_name || "Doctor"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Pill label={med.status || "active"} tone={med.status === "stopped" || med.is_deleted ? "warning" : "success"} />
+                      {matchedActiveMed ? (
+                        <TouchableOpacity onPress={() => removeFromPad(matchedActiveMed.medicine_id || matchedActiveMed.id)}>
+                          <MaterialCommunityIcons name="minus-circle-outline" size={20} color={colors.error} />
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity onPress={() => copyToPad(med)}>
+                          <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
             </SurfaceCard>
           )}
 
@@ -1468,14 +2517,30 @@ export function DoctorPatientLookupScreen({ navigation }) {
                   style={{ flex: 1 }}
                 />
               ) : null}
-              {recordedUri && !isRecording ? (
-                <GradientButton
-                  label={uploadingRecording ? "Uploading..." : "Upload Recording"}
-                  icon="cloud-upload-outline"
-                  onPress={uploadVoiceRecording}
-                  style={{ flex: 1 }}
-                />
-              ) : null}
+              {recordedUri && !isRecording && (
+                <View style={{ flexDirection: "column", gap: spacing.sm, width: "100%" }}>
+                  <View style={{ flexDirection: "row", gap: spacing.md }}>
+                    <SecondaryButton
+                      label={playbackUri ? "Pause" : "Listen"}
+                      icon={playbackUri ? "pause" : "play"}
+                      onPress={playVoiceRecording}
+                      style={{ flex: 0.8 }}
+                    />
+                    <GradientButton
+                      label={uploadingRecording ? "Uploading..." : "Upload"}
+                      icon="cloud-upload-outline"
+                      onPress={uploadVoiceRecording}
+                      style={{ flex: 1.2 }}
+                    />
+                  </View>
+                  <SecondaryButton
+                    label="Record Again"
+                    icon="microphone-outline"
+                    onPress={startVoiceRecording}
+                    style={{ width: "100%" }}
+                  />
+                </View>
+              )}
             </View>
           </SurfaceCard>
 
@@ -1503,31 +2568,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
             </SurfaceCard>
           )}
 
-          {/* Quick Nav */}
-          <View style={styles.buttonRow}>
-            <SecondaryButton
-              label="Manual Rx"
-              icon="pill"
-              onPress={() =>
-                navigation.navigate("DoctorManualPrescription", {
-                  patientId: patient.id,
-                  patientName: patient.name,
-                })
-              }
-              style={{ flex: 1 }}
-            />
-            <SecondaryButton
-              label="Upload Audio"
-              icon="microphone-outline"
-              onPress={() =>
-                navigation.navigate("DoctorRecordingUpload", {
-                  patientId: patient.id,
-                  patientName: patient.name,
-                })
-              }
-              style={{ flex: 1 }}
-            />
-          </View>
+          
         </>
       ) : null}
     </ScreenScroll>
@@ -1854,9 +2895,9 @@ export function DoctorRecordingUploadScreen({ navigation, route }) {
   );
 }
 
-function Stat({ label, value, icon = "calendar-check" }) {
+function Stat({ label, value, icon = "calendar-check", onPress }) {
   return (
-    <SurfaceCard tone="lowest" style={styles.premiumStatCard}>
+    <SurfaceCard tone="lowest" style={styles.premiumStatCard} onPress={onPress}>
       <View style={styles.statIconCircle}>
         <MaterialCommunityIcons name={icon} size={20} color={colors.primary} />
       </View>
@@ -2397,5 +3438,187 @@ const profileTabStyles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     color: colors.onSurfaceVariant,
+  },
+});
+
+const subWallStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+  },
+  card: {
+    alignItems: "center",
+    padding: spacing.xl,
+  },
+  icon: {
+    fontSize: 48,
+    marginBottom: spacing.md,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.onSurface,
+    marginBottom: spacing.sm,
+    textAlign: "center",
+  },
+  message: {
+    fontSize: 15,
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: spacing.md,
+  },
+  detail: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  contact: {
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  trialBanner: {
+    backgroundColor: "rgba(13, 141, 118, 0.1)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radii.lg,
+    alignSelf: "flex-start",
+  },
+  trialText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    height: "80%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.md,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+    paddingBottom: spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  modalScroll: {
+    paddingBottom: spacing.xl,
+  },
+  loadingArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    color: colors.outline,
+    fontSize: 14,
+  },
+  profileSection: {
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceLow,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+  },
+  patientName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  patientMeta: {
+    fontSize: 13,
+    color: colors.outline,
+    marginTop: 2,
+  },
+  sectionBlock: {
+    marginBottom: spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.primary,
+    marginBottom: spacing.sm,
+  },
+  itemCard: {
+    backgroundColor: colors.surfaceLow,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    marginBottom: spacing.sm,
+  },
+  itemHeader: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onSurface,
+    marginBottom: 4,
+  },
+  itemText: {
+    fontSize: 13,
+    color: colors.outline,
+    lineHeight: 18,
+  },
+  itemTime: {
+    fontSize: 11,
+    color: colors.outline,
+    marginTop: 6,
+    textAlign: "right",
+  },
+  vitalsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  vitalCard: {
+    width: "48%",
+    backgroundColor: colors.surfaceLow,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    alignItems: "center",
+    gap: 4,
+  },
+  vitalLabel: {
+    fontSize: 11,
+    color: colors.outline,
+  },
+  vitalValue: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  emptyShare: {
+    paddingVertical: spacing.xl,
+    alignItems: "center",
+    gap: spacing.md,
+    justifyContent: "center",
+  },
+  emptyText: {
+    textAlign: "center",
+    color: colors.outline,
+    fontSize: 13,
+    lineHeight: 20,
+    paddingHorizontal: spacing.md,
   },
 });

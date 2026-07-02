@@ -20,6 +20,20 @@ export async function bookAppointment(data) {
     slot_time,
   });
 
+  // Prevent duplicate: one active appointment per patient per doctor
+  const activeWithSameDoctor = await sql`
+    SELECT id FROM appointments
+    WHERE patient_id = ${patient_id}
+      AND doctor_id = ${doctor_id}
+      AND status NOT IN ('cancelled', 'completed', 'visited')
+      AND is_deleted = FALSE
+    LIMIT 1
+  `;
+
+  if (activeWithSameDoctor.length > 0) {
+    throw new Error("You already have an active appointment with this doctor. Please cancel or complete it before booking again.");
+  }
+
   const result = await sql`
     INSERT INTO appointments
     (
@@ -51,6 +65,7 @@ export async function bookAppointment(data) {
   return result[0];
 }
 
+
 export async function validateAppointmentBookingData(data) {
   const { doctor_id, appointment_date, slot_time } = data;
 
@@ -71,7 +86,7 @@ export async function validateAppointmentBookingData(data) {
     throw new Error("Doctor not available on this day");
   }
 
-  const { start_time, end_time } = schedule[0];
+  const { start_time, end_time, booking_mode = 'slot', max_bookings_per_slot = 1 } = schedule[0];
 
   // Normalize to HH:MM format for safe lexicographical comparison
   const cleanSlot = String(slot_time).slice(0, 5);
@@ -91,8 +106,13 @@ export async function validateAppointmentBookingData(data) {
       AND is_deleted = FALSE
   `;
 
-  if (existing.length > 0) {
+  const bookingMode = booking_mode || "slot";
+  const maxPerSlot = Number(max_bookings_per_slot || 1);
+
+  if (bookingMode === "slot" && existing.length >= 1) {
     throw new Error("Slot already booked");
+  } else if (bookingMode === "limit" && existing.length >= maxPerSlot) {
+    throw new Error("Slot booking limit reached for this hour");
   }
 
   const doctor = await sql`
@@ -115,7 +135,7 @@ export async function validateAppointmentBookingData(data) {
 
 export async function getPatientAppointments(patientId) {
   const rows = await sql`
-    SELECT a.*, d.name as doctor_name,
+    SELECT a.*, d.name as doctor_name, d.clinic_address as clinic_address, d.specialty as doctor_specialty,
            pay.status AS payment_status,
            pay.payment_method,
            pay.id as payment_id
@@ -135,7 +155,29 @@ export async function getPatientAppointments(patientId) {
   }));
 }
 
-export async function getDoctorAppointments(doctorId) {
+export async function getDoctorAppointments(doctorId, date) {
+  if (date) {
+    const rows = await sql`
+      SELECT a.*, p.name as patient_name,
+             pay.status AS payment_status,
+             pay.payment_method,
+             pay.id AS payment_id,
+             pay.amount AS payment_amount
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN payments pay ON pay.appointment_id = a.id AND COALESCE(pay.is_deleted,false)=FALSE
+      WHERE a.doctor_id = ${doctorId}
+        AND a.appointment_date = ${date}
+        AND a.status != 'cancelled'
+        AND a.is_deleted = FALSE
+      ORDER BY slot_time ASC
+    `;
+    return rows.map((r) => ({
+      ...r,
+      status: r.status === 'completed' ? 'visited' : r.status,
+    }));
+  }
+
   const rows = await sql`
     SELECT a.*, p.name as patient_name,
            pay.status AS payment_status,
@@ -148,7 +190,7 @@ export async function getDoctorAppointments(doctorId) {
     WHERE a.doctor_id = ${doctorId}
       AND a.status != 'cancelled'
       AND a.is_deleted = FALSE
-    ORDER BY appointment_date DESC
+    ORDER BY appointment_date DESC, slot_time ASC
   `;
 
   return rows.map((r) => ({
@@ -311,7 +353,7 @@ export async function rescheduleAppointment(appointmentId, newDate, newSlot) {
 
 export async function getAppointmentById(appointmentId) {
   const appointment = await sql`
-    SELECT a.*, d.name as doctor_name, p.name as patient_name, d.consultation_fee
+    SELECT a.*, d.name as doctor_name, d.clinic_address as clinic_address, d.specialty as doctor_specialty, p.name as patient_name, d.consultation_fee
     FROM appointments a
     LEFT JOIN doctors d ON a.doctor_id = d.id
     LEFT JOIN patients p ON a.patient_id = p.id

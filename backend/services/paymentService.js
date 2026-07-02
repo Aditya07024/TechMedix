@@ -703,12 +703,22 @@ export async function getDoctorEarningsSummary(doctorId) {
       AND COALESCE(is_deleted, false) = false
   `;
 
+  const wallet = await sql`
+    SELECT COALESCE(SUM(amount),0) as total
+    FROM payments
+    WHERE doctor_id = ${doctorId}
+    AND status = 'paid'
+    AND payment_method = 'wallet'
+    AND COALESCE(is_deleted, false) = false
+  `;
+
   return {
     total_earnings: Number(total[0].total),
     today_earnings: Number(today[0].total),
     monthly_earnings: Number(monthly[0].total),
     online_earnings: Number(online[0].total),
     cash_earnings: Number(cash[0].total),
+    wallet_earnings: Number(wallet[0].total),
     total_paid_appointments: Number(count[0].total),
   };
 }
@@ -784,6 +794,11 @@ export async function getDoctorRevenueDetails(doctorId) {
       AND COALESCE(is_deleted, false) = false
   `;
 
+  const paymentMethodsObj = {};
+  methodBreakdown.forEach((row) => {
+    paymentMethodsObj[row.payment_method] = Number(row.revenue || 0);
+  });
+
   return {
     ...summary,
     current_month: Number(monthComparison[0]?.current_month || 0),
@@ -798,6 +813,7 @@ export async function getDoctorRevenueDetails(doctorId) {
       payment_count: Number(row.payment_count || 0),
       revenue: Number(row.revenue || 0),
     })),
+    payment_methods: paymentMethodsObj,
     recent_payments: recentPayments.map((row) => ({
       ...row,
       amount: Number(row.amount || 0),

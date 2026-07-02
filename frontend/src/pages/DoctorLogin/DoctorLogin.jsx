@@ -107,6 +107,36 @@ const DoctorLogin = () => {
 
   return (
     <div className="doctor-login-container">
+      <style>{`
+        .doctor-login-container .login-button {
+          background: #0b6656 !important;
+          background: linear-gradient(180deg, #0b7a72 0%, #064e3b 100%) !important;
+          color: #ffffff !important;
+          box-shadow: 0 18px 34px rgba(11, 102, 86, 0.25) !important;
+          display: block !important;
+          width: 100% !important;
+          min-height: 56px !important;
+          border-radius: 16px !important;
+          font-size: 1rem !important;
+          font-weight: 700 !important;
+          border: none !important;
+          cursor: pointer !important;
+          margin-top: 8px !important;
+        }
+        .doctor-login-container .demo-login-button {
+          background: #f0f7f6 !important;
+          color: #0b6656 !important;
+          border: 1.5px solid #0b6656 !important;
+          display: block !important;
+          width: 100% !important;
+          min-height: 56px !important;
+          border-radius: 16px !important;
+          font-size: 1rem !important;
+          font-weight: 700 !important;
+          cursor: pointer !important;
+          margin-top: 12px !important;
+        }
+      `}</style>
       <div className="doctor-auth-shell">
         <section className="doctor-auth-hero">
           <div className="doctor-auth-badge">
@@ -119,10 +149,6 @@ const DoctorLogin = () => {
           </p>
 
           <div className="doctor-auth-hero-card">
-            <div className="doctor-auth-hero-card-top">
-              <img src={assets.logo} alt="TechMedix" className="doctor-auth-logo" />
-              <span>TechMedix</span>
-            </div>
             <div className="doctor-auth-stat-grid">
               <div>
                 <strong>Queue</strong>
@@ -202,9 +228,9 @@ const DoctorLogin = () => {
               New doctor on TechMedix?{" "}
               <span onClick={() => navigate("/doctor/signup")}>Create account</span>
             </p>
-            <Link to="/home" className="doctor-auth-home-link">
-              Return to home
-              <ArrowRight size={16} strokeWidth={2} />
+            <Link to="/" className="doctor-auth-home-link">
+              <ArrowRight size={16} strokeWidth={2.2} style={{ transform: "rotate(180deg)" }} />
+              Back to home
             </Link>
           </div>
         </section>

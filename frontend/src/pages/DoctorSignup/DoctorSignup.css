@@ -266,17 +266,19 @@
 }
 
 .signup-button {
-  min-height: 56px;
-  margin-top: 8px;
-  border: none;
-  border-radius: 16px;
-  background: linear-gradient(180deg, var(--doctor-auth-accent) 0%, var(--doctor-auth-accent-dark) 100%);
-  color: #ffffff;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 18px 34px rgba(11, 122, 114, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 56px !important;
+  margin-top: 8px !important;
+  border: none !important;
+  border-radius: 16px !important;
+  background: #0b7a72 !important;
+  background: linear-gradient(180deg, #0b7a72 0%, #085f59 100%) !important;
+  color: #ffffff !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 18px 34px rgba(11, 122, 114, 0.2) !important;
+  display: block !important;
+  width: 100% !important;
 }
 
 .signup-button:hover {

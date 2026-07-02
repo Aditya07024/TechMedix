@@ -419,6 +419,119 @@ button:hover {
   cursor: pointer;
 }
 
+/* ─── App Download Banner ─── */
+.app-download-banner {
+  position: relative;
+  margin: 14px 12px 6px;
+  padding: 14px 16px 14px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: bannerSlideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes bannerSlideIn {
+  0% { opacity: 0; transform: translateY(12px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.app-banner-close {
+  position: absolute !important;
+  top: 6px;
+  right: 8px;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  border-radius: 50% !important;
+  font-size: 14px;
+  line-height: 20px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.app-banner-close:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  color: #fff !important;
+}
+
+.app-banner-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #00d4aa 0%, #00b4d8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  animation: phonePulse 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes phonePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 212, 170, 0); }
+}
+
+.app-banner-text {
+  text-align: center;
+}
+
+.app-banner-text strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+
+.app-banner-text p {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 2px 0 0;
+  line-height: 1.35;
+}
+
+.app-banner-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 22px !important;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #00d4aa 0%, #00b4d8 100%) !important;
+  color: #fff !important;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  letter-spacing: 0.02em;
+}
+
+.app-banner-download-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.35);
+}
+
+/* Hide banner in left panel on mobile since left panel is hidden */
+@media (max-width: 1040px) {
+  .app-download-banner {
+    display: none;
+  }
+}
+
 .dark-mode .pop {
   --popup-surface: #152131;
   --popup-text: #e8f4ff;
@@ -430,3 +543,4 @@ button:hover {
   --popup-error-text: #ffc4d1;
   --popup-icon-bg: #223244;
 }
+

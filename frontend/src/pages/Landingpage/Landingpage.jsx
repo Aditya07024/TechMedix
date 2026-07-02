@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -38,36 +38,12 @@ const featureCards = [
     icon: CalendarDays,
   },
   {
-    title: "Video consultation flow",
-    description:
-      "Consultation-ready experience with queue status, timeline context, and follow-up flows.",
-    cta: "See consult flow",
-    to: "/home",
-    icon: Video,
-  },
-  {
-    title: "Reminders + notifications",
-    description:
-      "Medicine reminders and timely updates so you never miss what matters.",
-    cta: "View reminders",
-    to: "/home",
-    icon: Bell,
-  },
-  {
     title: "Medicine search + wishlist",
     description:
       "Search medicines, compare options, and save favorites for quick reordering.",
     cta: "Search medicines",
     to: "/home",
     icon: Pill,
-  },
-  {
-    title: "Payments + Health Wallet",
-    description:
-      "Wallet flows with payment support for smoother appointment and follow-up journeys.",
-    cta: "Open Health Wallet",
-    to: "/home",
-    icon: Wallet,
   },
   {
     title: "Health metrics + history",
@@ -320,6 +296,12 @@ const Landingpage = ({ setShowLogin }) => {
             >
               Staff login
             </Link>
+            <Link
+              className="landing-button landing-button--hospital"
+              to="/hospital/login"
+            >
+              Hospital login
+            </Link>
           </div>
         </div>
       </header>
@@ -332,7 +314,7 @@ const Landingpage = ({ setShowLogin }) => {
             </span>
             <h1>Care beyond the clinic. Trust beyond the screen</h1>
             <p>
-              Book appointments, follow real-time queues, upload prescriptions,
+            Book appointments, follow real-time queues, upload prescriptions,
               track health metrics, and access AI-assisted insights built for
               patients, doctors, and admins.
             </p>

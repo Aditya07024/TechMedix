@@ -34,6 +34,44 @@ export default function PatientLoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const handleDemoPatientLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const demoCredentials = {
+        email: "demo@gmail.com",
+        password: "1234589",
+      };
+      
+      try {
+        await signInPatient(demoCredentials);
+      } catch (loginErr) {
+        try {
+          await signUpPatient({
+            name: "Demo Patient",
+            email: "demo@gmail.com",
+            password: "1234589",
+            age: 28,
+            gender: "Male",
+            phone: "9999999999",
+            bloodGroup: "B+",
+            address: "TechMedix Demo Street 10",
+            medicalHistory: "No major medical history",
+          });
+        } catch (signupErr) {
+          // Ignore signup error if already registered
+        }
+        await signInPatient(demoCredentials);
+      }
+    } catch (err) {
+      const msg = err?.message || "Demo patient login failed.";
+      setError(msg);
+      Alert.alert("Demo Login Failed", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError("");
@@ -194,6 +232,17 @@ export default function PatientLoginScreen({ navigation }) {
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        {mode === "login" && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleDemoPatientLogin}
+            disabled={loading}
+            style={styles.demoBtn}
+          >
+            <Text style={styles.demoBtnText}>Demo Patient Login</Text>
+          </TouchableOpacity>
+        )}
       </SurfaceCard>
     </ScreenScroll>
   );
@@ -351,5 +400,19 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.bodySmall,
     lineHeight: 18,
+  },
+  demoBtn: {
+    backgroundColor: colors.surfaceLow,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  demoBtnText: {
+    color: colors.primary,
+    fontSize: typography.body,
+    fontWeight: "800",
   },
 });
