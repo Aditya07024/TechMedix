@@ -31,6 +31,37 @@ export const lightColors = {
   shadow: "rgba(14, 29, 37, 0.06)",
 };
 
+export const darkColors = {
+  surface: "#0f172a", // slate 900
+  surfaceLow: "#1e293b", // slate 800
+  surfaceLowest: "#020617", // slate 950
+  surfaceHigh: "#334155", // slate 700
+  surfaceHighest: "#475569", // slate 600
+  primary: "#2dd4bf", // teal 400
+  primaryContainer: "#0d9488", // teal 600
+  primaryFixed: "#2dd4bf",
+  secondary: "#14b8a6", // teal 500
+  secondaryContainer: "#115e59",
+  secondaryFixed: "#0f766e",
+  tertiary: "#f97316",
+  tertiaryContainer: "#c2410c",
+  tertiaryFixed: "#ea580c",
+  outline: "#94a3b8", // slate 400
+  outlineVariant: "#475569",
+  onSurface: "#f8fafc", // slate 50
+  onSurfaceVariant: "#cbd5e1", // slate 300
+  onPrimary: "#020617",
+  onSecondaryContainer: "#ccfbf1",
+  success: "#22c55e",
+  warning: "#f59e0b",
+  error: "#ef4444",
+  errorContainer: "#7f1d1d",
+  successSoft: "#14532d",
+  warningSoft: "#78350f",
+  infoSoft: "#1e3a8a",
+  shadow: "rgba(0, 0, 0, 0.4)",
+};
+
 let activeColors = lightColors;
 
 export function updateActiveColors(newColors) {
@@ -61,51 +92,59 @@ function normalizeColor(c) {
   return str;
 }
 
-const makeStyleObject = (rawStyle) => {
-  const styleObj = {};
-  for (const prop of Object.keys(rawStyle)) {
-    const val = rawStyle[prop];
+function cloneAndTranslate(obj, toTheme) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => cloneAndTranslate(item, toTheme));
+  }
+  const result = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
     if (typeof val === "string") {
       const valNormalized = normalizeColor(val);
       let matchedKey = null;
-      for (const [key, lightVal] of Object.entries(lightColors)) {
+      for (const [colorKey, lightVal] of Object.entries(lightColors)) {
         if (valNormalized === normalizeColor(lightVal)) {
-          matchedKey = key;
+          matchedKey = colorKey;
           break;
         }
       }
       if (matchedKey) {
-        Object.defineProperty(styleObj, prop, {
-          get() {
-            return activeColors[matchedKey];
-          },
-          enumerable: true,
-          configurable: true
-        });
-        continue;
+        result[key] = toTheme[matchedKey];
+      } else {
+        result[key] = val;
       }
+    } else if (typeof val === "object") {
+      result[key] = cloneAndTranslate(val, toTheme);
+    } else {
+      result[key] = val;
     }
-    
-    Object.defineProperty(styleObj, prop, {
-      value: val,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
   }
-  return styleObj;
-};
+  return result;
+}
+
+const originalCreate = StyleSheet.create;
 
 if (!StyleSheet.create.__isThemeWrapped) {
   const themeWrapper = (obj) => {
+    // Generate compiled light and dark stylesheets
+    const objLight = cloneAndTranslate(obj, lightColors);
+    const objDark = cloneAndTranslate(obj, darkColors);
+
+    const sheetLight = originalCreate ? originalCreate(objLight) : objLight;
+    const sheetDark = originalCreate ? originalCreate(objDark) : objDark;
+
     const proxySheet = {};
     for (const styleName of Object.keys(obj)) {
-      const rawStyle = obj[styleName];
-      if (rawStyle && typeof rawStyle === "object") {
-        proxySheet[styleName] = makeStyleObject(rawStyle);
-      } else {
-        proxySheet[styleName] = rawStyle;
-      }
+      Object.defineProperty(proxySheet, styleName, {
+        get() {
+          const isDark = activeColors !== lightColors;
+          const currentSheet = isDark ? sheetDark : sheetLight;
+          return currentSheet[styleName];
+        },
+        enumerable: true,
+        configurable: true
+      });
     }
     return proxySheet;
   };
