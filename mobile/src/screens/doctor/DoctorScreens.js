@@ -910,8 +910,8 @@ export function DoctorAppointmentsScreen() {
 
       {loading ? <LoadingCard label="Loading appointments..." /> : null}
       {displayList.length ? (
-        displayList.map((appointment) => (
-          <SurfaceCard key={appointment.id}>
+        displayList.map((appointment, idx) => (
+          <SurfaceCard key={`${appointment.id}-${idx}`}>
             <View style={styles.cardHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.listTitle}>{appointment.patient_name}</Text>

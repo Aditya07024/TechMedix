@@ -1344,8 +1344,8 @@ export function BookAppointmentScreen({ navigation }) {
           myApptsLoading ? (
             <LoadingCard label="Loading your appointments..." />
           ) : myAppointments.length ? (
-            myAppointments.map((appt) => (
-              <SurfaceCard key={appt.id}>
+            myAppointments.map((appt, idx) => (
+              <SurfaceCard key={`${appt.id}-${idx}`}>
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.inlineRow}>
                     <AvatarBubble
@@ -1459,8 +1459,8 @@ export function BookAppointmentScreen({ navigation }) {
 
             {loading ? <LoadingCard label="Loading doctors..." /> : null}
 
-            {(filteredDoctors || []).map((doctor) => (
-              <SurfaceCard key={doctor.id}>
+            {(filteredDoctors || []).map((doctor, idx) => (
+              <SurfaceCard key={`${doctor.id}-${idx}`}>
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.inlineRow, { flex: 1, flexWrap: "nowrap" }]}>
                     <AvatarBubble
@@ -4288,21 +4288,7 @@ export function PatientProfileScreen({ navigation }) {
           </View>
         </SurfaceCard>
 
-        {/* Health Tips Card */}
-        <SurfaceCard style={{ gap: 10, borderColor: colors.primaryContainer, borderWidth: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <MaterialCommunityIcons name="lightbulb-on-outline" size={24} color={colors.primary} />
-            <Text style={styles.blockTitle}>Health Tips & Wellness</Text>
-          </View>
-          <Text style={styles.sectionMuted}>
-            Curated clinical wellness guidelines to maintain a healthy lifestyle, stay hydrated, prioritize sleep, and manage stress.
-          </Text>
-          <SecondaryButton
-            label="View Health Tips"
-            icon="arrow-right"
-            onPress={() => setShowTipsModal(true)}
-          />
-        </SurfaceCard>
+       
 
         
 
