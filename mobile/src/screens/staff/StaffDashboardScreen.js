@@ -250,7 +250,7 @@ export default function StaffDashboardScreen() {
             (appt) => appt.status === "arrived"
           ).length;
           const activeQueueCount = (liveQueue || []).filter(
-            (q) => q.status === "waiting" || q.status === "in_progress"
+            (q) => q.status === "waiting" || q.status === "in_progress" || q.status === "in-progress"
           ).length;
 
           return (
@@ -398,66 +398,64 @@ export default function StaffDashboardScreen() {
           </View>
         ) : (
           /* LIVE QUEUE VIEW */
-          <View style={styles.listWrapper}>
-            {liveQueue.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <MaterialCommunityIcons name="clipboard-text-outline" size={32} color={colors.outline} />
-                <Text style={styles.emptyCardText}>No patients in the active queue.</Text>
+          (() => {
+            const filteredQueue = (liveQueue || []).filter(
+              (entry) => entry.status === "waiting" || entry.status === "in-progress" || entry.status === "in_progress"
+            );
+            return (
+              <View style={styles.listWrapper}>
+                {filteredQueue.length === 0 ? (
+                  <View style={styles.emptyCard}>
+                    <MaterialCommunityIcons name="clipboard-text-outline" size={32} color={colors.outline} />
+                    <Text style={styles.emptyCardText}>No patients in the active queue.</Text>
+                  </View>
+                ) : (
+                  filteredQueue.map((entry, index) => (
+                    <View key={entry.id} style={styles.itemCard}>
+                      <View style={styles.itemHeader}>
+                        <View>
+                          <Text style={styles.patientName}>
+                            {index + 1}. {entry.patient_name || "Patient"}
+                          </Text>
+                          <Text style={styles.apptTime}>Token: #{entry.token_number || entry.token_no}</Text>
+                        </View>
+                        <View style={[styles.statusTag, entry.status === "in_progress" ? styles.statusTagWarning : styles.statusTagSuccess]}>
+                          <Text style={[styles.statusTagText, entry.status === "in_progress" ? { color: colors.warning } : { color: colors.success }]}>
+                            {entry.status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.queueActionsRow}>
+                        {entry.status === "in_progress" ? (
+                          <TouchableOpacity
+                            style={[styles.actionBtn, styles.actionBtnSuccess]}
+                            onPress={() => handleUpdateQueueStatus(entry.id, "completed")}
+                          >
+                            <Text style={styles.actionBtnText}>Complete</Text>
+                          </TouchableOpacity>
+                        ) : null}
+
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.actionBtnSecondary]}
+                          onPress={() => handleUpdateQueueStatus(entry.id, "skipped")}
+                        >
+                          <Text style={[styles.actionBtnText, { color: colors.error }]}>Skip</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.actionBtnSecondary]}
+                          onPress={() => handleNotifyDoctor(entry.patient_id, entry.appointment_id, entry.patient_name)}
+                        >
+                          <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
               </View>
-            ) : (
-              liveQueue.map((entry, index) => (
-                <View key={entry.id} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <View>
-                      <Text style={styles.patientName}>
-                        {index + 1}. {entry.patient_name || "Patient"}
-                      </Text>
-                      <Text style={styles.apptTime}>Token: #{entry.token_number || entry.token_no}</Text>
-                    </View>
-                    <View style={[styles.statusTag, entry.status === "in_progress" ? styles.statusTagWarning : styles.statusTagSuccess]}>
-                      <Text style={[styles.statusTagText, entry.status === "in_progress" ? { color: colors.warning } : { color: colors.success }]}>
-                        {entry.status}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.queueActionsRow}>
-                    {/* {entry.status === "waiting" ? (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnPrimary]}
-                        onPress={() => handleUpdateQueueStatus(entry.id, "in_progress")}
-                      >
-                        <Text style={styles.actionBtnText}>Call Patient</Text>
-                      </TouchableOpacity>
-                    ) : null} */}
-
-                    {entry.status === "in_progress" ? (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnSuccess]}
-                        onPress={() => handleUpdateQueueStatus(entry.id, "completed")}
-                      >
-                        <Text style={styles.actionBtnText}>Complete</Text>
-                      </TouchableOpacity>
-                    ) : null}
-
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnSecondary]}
-                      onPress={() => handleUpdateQueueStatus(entry.id, "skipped")}
-                    >
-                      <Text style={[styles.actionBtnText, { color: colors.error }]}>Skip</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnSecondary]}
-                      onPress={() => handleNotifyDoctor(entry.patient_id, entry.appointment_id, entry.patient_name)}
-                    >
-                      <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
+            );
+          })()
         )}
       </>
     );
