@@ -3718,8 +3718,9 @@ export function PatientRecordingsScreen({ navigation }) {
       await newSound.playAsync();
 
       newSound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded || !status.isPlaying) {
+        if (status.didJustFinish) {
           setPlayingId(null);
+          newSound.unloadAsync().catch(() => {});
         }
       });
     } catch (e) {
