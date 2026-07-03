@@ -413,7 +413,7 @@ router.post("/notify-doctor", async (req, res) => {
     };
 
     const io = req.app.get("io");
-    io?.to(`doctor-${effectiveDoctorId}`).emit("staff-notify-doctor", payload);
+    io?.to(`doctor-${String(effectiveDoctorId).toLowerCase()}`).emit("staff-notify-doctor", payload);
 
     try {
       await createNotification(

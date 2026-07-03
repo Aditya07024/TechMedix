@@ -42,13 +42,15 @@ io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
 
   socket.on("join-doctor-room", (doctorId) => {
-    socket.join(`doctor-${doctorId}`);
-    console.log(`Socket joined doctor-${doctorId}`);
+    const room = `doctor-${String(doctorId).toLowerCase()}`;
+    socket.join(room);
+    console.log(`Socket joined ${room}`);
   });
 
   socket.on("join-patient-room", (patientId) => {
-    socket.join(`patient-${patientId}`);
-    console.log(`Socket joined patient-${patientId}`);
+    const room = `patient-${String(patientId).toLowerCase()}`;
+    socket.join(room);
+    console.log(`Socket joined ${room}`);
   });
 
   socket.on("disconnect", () => {

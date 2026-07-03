@@ -228,14 +228,14 @@ export default function DoctorDashboardNew() {
 
     const socket = initQueueSocket();
     const handleQueueUpdate = (payload) => {
-      if (payload?.doctor_id && String(payload.doctor_id) !== String(user.id)) {
+      if (payload?.doctor_id && String(payload.doctor_id).toLowerCase() !== String(user.id).toLowerCase()) {
         return;
       }
 
       loadDoctorData();
     };
     const handleStaffNotifyDoctor = (payload) => {
-      if (payload?.doctor_id && String(payload.doctor_id) !== String(user.id)) {
+      if (payload?.doctor_id && String(payload.doctor_id).toLowerCase() !== String(user.id).toLowerCase()) {
         return;
       }
 
@@ -245,11 +245,19 @@ export default function DoctorDashboardNew() {
       loadDoctorData();
     };
 
-    socket.emit("join-doctor-room", user.id);
+    const joinRoom = () => {
+      socket.emit("join-doctor-room", user.id);
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    }
+    socket.on("connect", joinRoom);
     socket.on("queue-update", handleQueueUpdate);
     socket.on("staff-notify-doctor", handleStaffNotifyDoctor);
 
     return () => {
+      socket.off("connect", joinRoom);
       socket.off("queue-update", handleQueueUpdate);
       socket.off("staff-notify-doctor", handleStaffNotifyDoctor);
     };

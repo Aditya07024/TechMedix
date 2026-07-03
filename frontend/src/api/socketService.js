@@ -46,18 +46,30 @@ export function initNotificationSocket() {
 
 export function subscribeToQueue(doctorId, handler) {
   const socket = initQueueSocket();
-  socket.emit("join-doctor-room", doctorId);
+  const join = () => {
+    socket.emit("join-doctor-room", doctorId);
+  };
+  if (socket.connected) join();
+  socket.on("connect", join);
   socket.on("queue-update", handler);
-  return () => socket.off("queue-update", handler);
+  return () => {
+    socket.off("connect", join);
+    socket.off("queue-update", handler);
+  };
 }
 
 export function subscribeToPatientQueue(appointmentId, patientId, handler) {
   const socket = initQueueSocket();
-  socket.emit("join-patient-room", patientId);
+  const join = () => {
+    socket.emit("join-patient-room", patientId);
+  };
+  if (socket.connected) join();
+  socket.on("connect", join);
   socket.on("queue-position-updated", handler);
   socket.on("your-turn", handler);
   socket.on("queue-joined", handler);
   return () => {
+    socket.off("connect", join);
     socket.off("queue-position-updated", handler);
     socket.off("your-turn", handler);
     socket.off("queue-joined", handler);
@@ -66,9 +78,16 @@ export function subscribeToPatientQueue(appointmentId, patientId, handler) {
 
 export function subscribeToNotifications(userId, handler) {
   const socket = initNotificationSocket();
-  socket.emit("subscribe-user", userId);
+  const join = () => {
+    socket.emit("subscribe-user", userId);
+  };
+  if (socket.connected) join();
+  socket.on("connect", join);
   socket.on("notification", handler);
-  return () => socket.off("notification", handler);
+  return () => {
+    socket.off("connect", join);
+    socket.off("notification", handler);
+  };
 }
 
 export function requestNotificationPermission() {
