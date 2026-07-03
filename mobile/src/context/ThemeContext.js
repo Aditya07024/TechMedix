@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors as lightColors, updateActiveColors } from "../theme/tokens";
+import { lightColors, updateActiveColors } from "../theme/tokens";
 
 const THEME_MODE_KEY = "techmedix.theme.mode";
 

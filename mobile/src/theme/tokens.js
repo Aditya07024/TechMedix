@@ -1,6 +1,6 @@
 import { StyleSheet, Platform } from "react-native";
 
-const lightColors = {
+export const lightColors = {
   surface: "#f4faff",
   surfaceLow: "#e7f6ff",
   surfaceLowest: "#ffffff",
