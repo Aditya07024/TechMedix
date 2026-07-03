@@ -251,6 +251,19 @@ export async function generateQueueToken({ appointmentId, staffId, hospitalId = 
       throw new Error("Token cannot be generated for this appointment");
     }
 
+    // Check if there is a due cash payment
+    const paymentRows = await tx`
+      SELECT id, status, payment_method
+      FROM payments
+      WHERE appointment_id = ${appointmentId}
+        AND COALESCE(is_deleted, false) = false
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `;
+    if (paymentRows.length && paymentRows[0].payment_method === "cash" && paymentRows[0].status === "due") {
+      throw new Error("Cannot generate token. Please collect the cash payment first.");
+    }
+
     const queueDate = appointment.appointment_date || today;
 
     const existingRows = await tx`
@@ -355,7 +368,7 @@ export async function updateQueueStatus({ queueId, status, staffId }) {
 
   return sql.begin(async (tx) => {
     const rows = await tx`
-      SELECT id, appointment_id, patient_id, doctor_id, status
+      SELECT id, appointment_id, patient_id, doctor_id, status, queue_date
       FROM queue
       WHERE id = ${queueId}
       LIMIT 1
@@ -366,12 +379,24 @@ export async function updateQueueStatus({ queueId, status, staffId }) {
       throw new Error("Queue entry not found");
     }
 
+    let newTokenNo = null;
+    if (status === "skipped") {
+      const maxTokenRows = await tx`
+        SELECT COALESCE(MAX(token_no), 0) AS max_token
+        FROM queue
+        WHERE doctor_id = ${queue.doctor_id}
+          AND queue_date = ${queue.queue_date}
+      `;
+      newTokenNo = Number(maxTokenRows[0]?.max_token || 0) + 1;
+    }
+
     const mappedAppointmentStatus =
       normalizedStatus === "waiting" ? "arrived" : normalizedStatus === "in-progress" ? "in_progress" : "visited";
 
     const updatedRows = await tx`
       UPDATE queue
       SET status = ${normalizedStatus},
+          token_no = CASE WHEN ${status === "skipped"}::boolean THEN ${newTokenNo}::int ELSE token_no END,
           started_at = CASE
             WHEN ${normalizedStatus} = 'in-progress' AND started_at IS NULL THEN CURRENT_TIMESTAMP
             ELSE started_at
@@ -389,6 +414,7 @@ export async function updateQueueStatus({ queueId, status, staffId }) {
     await tx`
       UPDATE appointments
       SET status = ${mappedAppointmentStatus},
+          token_number = CASE WHEN ${status === "skipped"}::boolean THEN ${newTokenNo}::int ELSE token_number END,
           handled_by_staff_id = COALESCE(${staffId}, handled_by_staff_id),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${queue.appointment_id}

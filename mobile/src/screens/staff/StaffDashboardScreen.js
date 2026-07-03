@@ -327,15 +327,36 @@ export default function StaffDashboardScreen() {
                         </View>
 
                         <View style={styles.actionRow}>
-                          {!appt.token_no && appt.status !== "completed" && appt.status !== "visited" ? (
-                            <TouchableOpacity
-                              style={[styles.actionBtn, styles.actionBtnPrimary]}
-                              onPress={() => handleGenerateToken(appt.id)}
-                            >
-                              <MaterialCommunityIcons name="ticket-confirmation-outline" size={14} color={colors.onPrimary} />
-                              <Text style={styles.actionBtnText}>Check In & Issue Token</Text>
-                            </TouchableOpacity>
-                          ) : null}
+                          {(() => {
+                            const isCashPaymentDue = appt.payment_method === "cash" && appt.payment_status === "due";
+                            return !appt.token_no && appt.status !== "completed" && appt.status !== "visited" ? (
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtn,
+                                  isCashPaymentDue ? { backgroundColor: colors.surfaceLow, borderWidth: 1, borderColor: colors.outline } : styles.actionBtnPrimary
+                                ]}
+                                onPress={() => {
+                                  if (isCashPaymentDue) {
+                                    Alert.alert(
+                                      "Payment Required",
+                                      "This patient has a pending cash payment. Please click 'Collect Cash' first before issuing a token."
+                                    );
+                                  } else {
+                                    handleGenerateToken(appt.id);
+                                  }
+                                }}
+                              >
+                                <MaterialCommunityIcons 
+                                  name={isCashPaymentDue ? "cash-register" : "ticket-confirmation-outline"} 
+                                  size={14} 
+                                  color={isCashPaymentDue ? colors.outline : colors.onPrimary} 
+                                />
+                                <Text style={[styles.actionBtnText, isCashPaymentDue && { color: colors.outline }]}>
+                                  {isCashPaymentDue ? "Collect Cash First" : "Check In & Issue Token"}
+                                </Text>
+                              </TouchableOpacity>
+                            ) : null;
+                          })()}
 
                           {appt.token_no ? (
                             <View style={styles.tokenIndicator}>
