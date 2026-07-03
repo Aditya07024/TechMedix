@@ -150,7 +150,7 @@ async function appendMultipartField(formData, fieldName, asset, fallbackType = "
     return;
   }
 
-  if (typeof window !== "undefined" && typeof fetch === "function") {
+  if (typeof window !== "undefined" && typeof window.document !== "undefined" && typeof fetch === "function") {
     const response = await fetch(asset.uri);
     const blob = await response.blob();
     formData.append(fieldName, blob, name);
