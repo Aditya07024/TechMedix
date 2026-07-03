@@ -1696,41 +1696,25 @@ export function DoctorProfileScreen() {
             />
           </SurfaceCard>
 
-          {/* App Theme Selector */}
-          <SurfaceCard style={{ gap: 8 }}>
-            <Text style={styles.blockTitle}>App Theme</Text>
-            <Text style={styles.smallText}>
-              Switch between Light, Dark, or System theme preferences.
-            </Text>
-            <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
-              {["system", "light", "dark"].map((t) => {
-                const isActive = mode === t;
-                return (
-                  <TouchableOpacity
-                    key={t}
-                    activeOpacity={0.9}
-                    onPress={() => setMode(t)}
-                    style={{
-                      flex: 1,
-                      borderRadius: radii.pill,
-                      paddingVertical: 10,
-                      alignItems: "center",
-                      backgroundColor: isActive ? colors.surfaceLowest : "transparent",
-                      borderWidth: isActive ? 1 : 0,
-                      borderColor: colors.outline,
-                    }}
-                  >
-                    <Text style={{
-                      color: isActive ? colors.primary : colors.onSurfaceVariant,
-                      fontWeight: "700",
-                      fontSize: typography.bodySmall,
-                    }}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          {/* Health Tips Card */}
+          <SurfaceCard style={{ gap: 10, borderColor: colors.primaryContainer, borderWidth: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <MaterialCommunityIcons name="lightbulb-on-outline" size={24} color={colors.primary} />
+              <Text style={styles.blockTitle}>Clinical Health Guidelines</Text>
             </View>
+            <Text style={styles.smallText}>
+              Review standard preventive medicine recommendations, hydration protocols, and stress management guides.
+            </Text>
+            <SecondaryButton
+              label="Open Guidelines"
+              icon="open-in-new"
+              onPress={() => {
+                Alert.alert(
+                  "Clinical Wellness Guidelines",
+                  "1. Drink at least 8-10 glasses of water daily to maintain proper body hydration.\n\n2. Aim for 7-9 hours of quality sleep each night to boost immunity.\n\n3. Get at least 30 minutes of moderate exercise, such as brisk walking, daily.\n\n4. Incorporate fresh vegetables, fruits, whole grains, and lean proteins.\n\n5. Practice deep breathing, meditation, or take short outdoor breaks."
+                );
+              }}
+            />
           </SurfaceCard>
 
           <SecondaryButton label="Sign Out" icon="logout" onPress={signOut} />

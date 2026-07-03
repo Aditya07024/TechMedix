@@ -19,7 +19,7 @@ import { useTheme } from "../../context/ThemeContext";
 
 export default function StaffDashboardScreen() {
   const { user, signOut } = useAuth();
-  const { mode, setMode } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -189,6 +189,17 @@ export default function StaffDashboardScreen() {
           <Text style={styles.headerSubtitle}>{user?.name || "Clinic Coordinator"}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: spacing.xs, alignItems: "center" }}>
+          {/* Theme Toggle Button */}
+          <TouchableOpacity 
+            style={[styles.logoutBtn, { backgroundColor: colors.surfaceLow }]} 
+            onPress={toggleTheme}
+          >
+            <MaterialCommunityIcons 
+              name={isDark ? "weather-sunny" : "weather-night"} 
+              size={20} 
+              color={colors.primary} 
+            />
+          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.logoutBtn, { backgroundColor: colors.surfaceLow }]} 
             onPress={handleRefresh}
@@ -472,44 +483,32 @@ export default function StaffDashboardScreen() {
     );
   })()}
 
-        {/* App Theme Selector */}
-        <View style={styles.sectionCard}>
+        {/* Health Tips Card */}
+        <View style={[styles.sectionCard, { borderColor: colors.primaryContainer, borderWidth: 1 }]}>
           <View style={styles.sectionHeaderRow}>
-            <MaterialCommunityIcons name="theme-light-dark" size={20} color={colors.primary} />
-            <Text style={styles.sectionCardTitle}>App Theme Mode</Text>
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color={colors.primary} />
+            <Text style={styles.sectionCardTitle}>Clinic Operational Guidelines</Text>
           </View>
           <Text style={styles.sectionCardSubtitle}>
-            Switch between Light, Dark, or System theme preferences.
+            Operational health guidelines for patient consultation processing and sanitation maintenance.
           </Text>
-          <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 12 }}>
-            {["system", "light", "dark"].map((t) => {
-              const isActive = mode === t;
-              return (
-                <TouchableOpacity
-                  key={t}
-                  activeOpacity={0.9}
-                  onPress={() => setMode(t)}
-                  style={{
-                    flex: 1,
-                    borderRadius: radii.pill,
-                    paddingVertical: 10,
-                    alignItems: "center",
-                    backgroundColor: isActive ? colors.surfaceLowest : "transparent",
-                    borderWidth: isActive ? 1 : 0,
-                    borderColor: colors.outline,
-                  }}
-                >
-                  <Text style={{
-                    color: isActive ? colors.primary : colors.onSurfaceVariant,
-                    fontWeight: "700",
-                    fontSize: typography.bodySmall,
-                  }}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </Text>
-                </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ 
+              marginTop: 12, 
+              backgroundColor: colors.surfaceLow, 
+              paddingVertical: 10, 
+              borderRadius: radii.pill, 
+              alignItems: "center" 
+            }}
+            onPress={() => {
+              Alert.alert(
+                "Clinic Operational Guidelines",
+                "1. Confirm patient cash collection prior to token generation.\n\n2. Clean reception counters every 2 hours.\n\n3. Maintain safe distance guidelines in waiting lounge.\n\n4. Assist elderly patients with queue lookup."
               );
-            })}
-          </View>
+            }}
+          >
+            <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>View Guidelines</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>

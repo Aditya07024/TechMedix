@@ -4288,41 +4288,20 @@ export function PatientProfileScreen({ navigation }) {
           </View>
         </SurfaceCard>
 
-        {/* App Theme Selector */}
-        <SurfaceCard style={{ gap: 8 }}>
-          <Text style={styles.blockTitle}>App Theme</Text>
-          <Text style={styles.sectionMuted}>
-            Switch between Light, Dark, or System theme preferences.
-          </Text>
-          <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
-            {["system", "light", "dark"].map((t) => {
-              const isActive = mode === t;
-              return (
-                <TouchableOpacity
-                  key={t}
-                  activeOpacity={0.9}
-                  onPress={() => setMode(t)}
-                  style={{
-                    flex: 1,
-                    borderRadius: radii.pill,
-                    paddingVertical: 10,
-                    alignItems: "center",
-                    backgroundColor: isActive ? colors.surfaceLowest : "transparent",
-                    borderWidth: isActive ? 1 : 0,
-                    borderColor: colors.outline,
-                  }}
-                >
-                  <Text style={{
-                    color: isActive ? colors.primary : colors.onSurfaceVariant,
-                    fontWeight: "700",
-                    fontSize: typography.bodySmall,
-                  }}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Health Tips Card */}
+        <SurfaceCard style={{ gap: 10, borderColor: colors.primaryContainer, borderWidth: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={24} color={colors.primary} />
+            <Text style={styles.blockTitle}>Health Tips & Wellness</Text>
           </View>
+          <Text style={styles.sectionMuted}>
+            Curated clinical wellness guidelines to maintain a healthy lifestyle, stay hydrated, prioritize sleep, and manage stress.
+          </Text>
+          <SecondaryButton
+            label="View Health Tips"
+            icon="arrow-right"
+            onPress={() => setShowTipsModal(true)}
+          />
         </SurfaceCard>
 
         

@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radii, spacing, typography } from "../theme/tokens";
+import { useTheme } from "../context/ThemeContext";
 
 export const getCardShadow = (tone) => {
   const isWhite = tone === "lowest";
@@ -69,6 +70,19 @@ export function ScreenScroll({
         content
       )}
     </Container>
+  );
+}
+
+function ThemeToggleHeaderButton() {
+  const { isDark, toggleTheme } = useTheme();
+  return (
+    <TouchableOpacity onPress={toggleTheme} style={styles.iconButton}>
+      <MaterialCommunityIcons
+        name={isDark ? "weather-sunny" : "weather-night"}
+        size={22}
+        color={colors.primary}
+      />
+    </TouchableOpacity>
   );
 }
 
@@ -162,38 +176,45 @@ export function TopBar({
           <Text style={styles.topTitle}>{title}</Text>
         </View>
       </View>
-      {brandOnly ? null : rightIcon ? (
-        <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
-          <MaterialCommunityIcons
-            name={rightIcon}
-            size={22}
-            color={colors.primary}
-          />
-        </TouchableOpacity>
-      ) : onBell ? (
-        <TouchableOpacity onPress={onBell} style={styles.iconButton}>
-          <View style={{ position: "relative" }}>
-            <MaterialCommunityIcons
-              name="bell-outline"
-              size={22}
-              color={colors.primary}
-            />
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                width: 7,
-                height: 7,
-                borderRadius: 3.5,
-                backgroundColor: colors.primary,
-                borderWidth: 1.5,
-                borderColor: colors.surfaceLowest,
-              }}
-            />
-          </View>
-        </TouchableOpacity>
-      ) : null}
+      {brandOnly ? null : (
+        <View style={{ flexDirection: "row", gap: spacing.xs, alignItems: "center" }}>
+          {/* Header Theme Switcher Icon */}
+          <ThemeToggleHeaderButton />
+          
+          {rightIcon ? (
+            <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
+              <MaterialCommunityIcons
+                name={rightIcon}
+                size={22}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          ) : onBell ? (
+            <TouchableOpacity onPress={onBell} style={styles.iconButton}>
+              <View style={{ position: "relative" }}>
+                <MaterialCommunityIcons
+                  name="bell-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: 7,
+                    height: 7,
+                    borderRadius: 3.5,
+                    backgroundColor: colors.primary,
+                    borderWidth: 1.5,
+                    borderColor: colors.surfaceLowest,
+                  }}
+                />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }

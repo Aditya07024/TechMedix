@@ -615,41 +615,32 @@ export default function AdminDashboardScreen() {
                 )}
               </View>
             )}
-            {/* App Theme Selector */}
-            <SurfaceCard style={{ gap: 8, marginTop: spacing.md }}>
-              <Text style={{ fontSize: typography.title, fontWeight: "800", color: colors.onSurface }}>App Theme</Text>
-              <Text style={{ fontSize: typography.bodySmall, color: colors.onSurfaceVariant }}>
-                Switch between Light, Dark, or System theme preferences.
-              </Text>
-              <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
-                {["system", "light", "dark"].map((t) => {
-                  const isActive = mode === t;
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      activeOpacity={0.9}
-                      onPress={() => setMode(t)}
-                      style={{
-                        flex: 1,
-                        borderRadius: radii.pill,
-                        paddingVertical: 10,
-                        alignItems: "center",
-                        backgroundColor: isActive ? colors.surfaceLowest : "transparent",
-                        borderWidth: isActive ? 1 : 0,
-                        borderColor: colors.outline,
-                      }}
-                    >
-                      <Text style={{
-                        color: isActive ? colors.primary : colors.onSurfaceVariant,
-                        fontWeight: "700",
-                        fontSize: typography.bodySmall,
-                      }}>
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            {/* System Guidelines & Health Tips */}
+            <SurfaceCard style={{ gap: 10, marginTop: spacing.md, borderColor: colors.primaryContainer, borderWidth: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <MaterialCommunityIcons name="lightbulb-on-outline" size={22} color={colors.primary} />
+                <Text style={{ fontSize: typography.title, fontWeight: "800", color: colors.onSurface }}>System Health Guidelines</Text>
               </View>
+              <Text style={{ fontSize: typography.bodySmall, color: colors.onSurfaceVariant }}>
+                Operational checklists and statistics validation guidelines for managing the telemedicine network.
+              </Text>
+              <TouchableOpacity 
+                style={{ 
+                  marginTop: 4, 
+                  backgroundColor: colors.surfaceLow, 
+                  paddingVertical: 10, 
+                  borderRadius: radii.pill, 
+                  alignItems: "center" 
+                }}
+                onPress={() => {
+                  Alert.alert(
+                    "System Health Guidelines",
+                    "1. Monitor server logs daily for API transaction latencies.\n\n2. Perform financial reconciliations for payout processing weekly.\n\n3. Review open tickets and resolve unresolved queries within 24 hours."
+                  );
+                }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>View Checklist</Text>
+              </TouchableOpacity>
             </SurfaceCard>
 
           </>
