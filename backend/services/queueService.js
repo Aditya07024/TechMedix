@@ -87,7 +87,7 @@ function parseSlotDateTime(appointmentDate, slotTime) {
   }
 
   const normalizedTime = String(slotTime || "00:00").slice(0, 5);
-  const parsed = new Date(`${dateStr}T${normalizedTime}:00`);
+  const parsed = new Date(`${dateStr}T${normalizedTime}:00+05:30`);
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

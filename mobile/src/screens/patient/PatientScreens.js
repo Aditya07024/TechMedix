@@ -116,6 +116,17 @@ function InlineError({ message }) {
   return <Text style={styles.errorText}>{message}</Text>;
 }
 
+function formatWaitTime(totalMinutes) {
+  const mins = Number(totalMinutes || 0);
+  if (mins <= 0) return "0 mins";
+  const hrs = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  if (hrs > 0) {
+    return `${hrs} hr ${remainingMins} min`;
+  }
+  return `${remainingMins} mins`;
+}
+
 function LoadingCard({ label = "Loading..." }) {
   return (
     <SurfaceCard tone="low" style={styles.loadingCard}>
@@ -4911,7 +4922,7 @@ export function PatientQueueScreen({ navigation }) {
               <DetailRow
                 icon="clock-outline"
                 label="Estimated Wait"
-                value={`${queueState.estimated_wait_minutes || 0} mins`}
+                value={formatWaitTime(queueState.estimated_wait_minutes)}
               />
             </>
           ) : null}

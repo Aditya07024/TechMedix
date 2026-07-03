@@ -107,6 +107,39 @@ export default function StaffDashboardScreen() {
     }
   };
 
+  const handleMarkCashPaid = async (paymentId) => {
+    try {
+      await api.payments.markCashPaid(paymentId);
+      Alert.alert("Success", "Cash payment marked as collected.");
+      loadDashboardData();
+    } catch (err) {
+      Alert.alert("Payment Error", err.message || "Failed to mark payment as paid.");
+    }
+  };
+
+  const handleCancelAppointment = async (appointmentId) => {
+    Alert.alert(
+      "Cancel Appointment",
+      "Are you sure you want to cancel this appointment?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.appointments.cancel(appointmentId);
+              Alert.alert("Cancelled", "Appointment has been cancelled successfully.");
+              loadDashboardData();
+            } catch (err) {
+              Alert.alert("Cancellation Failed", err.message || "Failed to cancel appointment.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleGenerateToken = async (appointmentId) => {
     try {
       const res = await api.staff.generateQueueToken(appointmentId);
@@ -271,51 +304,74 @@ export default function StaffDashboardScreen() {
                     activeAppts.map((appt) => (
                       <View key={appt.id} style={styles.itemCard}>
                         <View style={styles.itemHeader}>
-                    <View>
-                      <Text style={styles.patientName}>{appt.patient_name || "Patient Profile"}</Text>
-                      <Text style={styles.apptTime}>Slot: {appt.slot_time || appt.appointment_time || "Scheduled"}</Text>
-                    </View>
-                    <View style={[styles.statusTag, appt.status === "arrived" ? styles.statusTagSuccess : styles.statusTagInfo]}>
-                      <Text style={[styles.statusTagText, appt.status === "arrived" ? { color: colors.success } : { color: colors.primary }]}>
-                        {appt.status}
-                      </Text>
-                    </View>
-                  </View>
+                          <View>
+                            <Text style={styles.patientName}>{appt.patient_name || "Patient Profile"}</Text>
+                            <Text style={styles.apptTime}>Slot: {appt.slot_time || appt.appointment_time || "Scheduled"}</Text>
+                            {appt.payment_status ? (
+                              <Text style={{ 
+                                marginTop: 4, 
+                                fontSize: 11, 
+                                fontWeight: "600", 
+                                color: appt.payment_status === "paid" ? colors.success : colors.warning 
+                              }}>
+                                Payment: {appt.payment_status === "paid" ? "✅ Paid" : `⚠️ ${String(appt.payment_status).toUpperCase()}`}
+                                {appt.payment_amount ? ` (₹${appt.payment_amount})` : ""}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={[styles.statusTag, appt.status === "arrived" ? styles.statusTagSuccess : styles.statusTagInfo]}>
+                            <Text style={[styles.statusTagText, appt.status === "arrived" ? { color: colors.success } : { color: colors.primary }]}>
+                              {appt.status}
+                            </Text>
+                          </View>
+                        </View>
 
-                  <View style={styles.actionRow}>
-                    {appt.status !== "arrived" && appt.status !== "completed" ? (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnPrimary]}
-                        onPress={() => handleMarkArrived(appt.id)}
-                      >
-                        <Text style={styles.actionBtnText}>Arrived</Text>
-                      </TouchableOpacity>
-                    ) : null}
+                        <View style={styles.actionRow}>
+                          {!appt.token_no && appt.status !== "completed" && appt.status !== "visited" ? (
+                            <TouchableOpacity
+                              style={[styles.actionBtn, styles.actionBtnPrimary]}
+                              onPress={() => handleGenerateToken(appt.id)}
+                            >
+                              <MaterialCommunityIcons name="ticket-confirmation-outline" size={14} color={colors.onPrimary} />
+                              <Text style={styles.actionBtnText}>Check In & Issue Token</Text>
+                            </TouchableOpacity>
+                          ) : null}
 
-                    {appt.status === "arrived" && !appt.token_no ? (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnAccent]}
-                        onPress={() => handleGenerateToken(appt.id)}
-                      >
-                        <Text style={styles.actionBtnText}>Issue Token</Text>
-                      </TouchableOpacity>
-                    ) : null}
+                          {appt.token_no ? (
+                            <View style={styles.tokenIndicator}>
+                              <Text style={styles.tokenText}>Token: #{appt.token_no}</Text>
+                            </View>
+                          ) : null}
 
-                    {appt.token_no ? (
-                      <View style={styles.tokenIndicator}>
-                        <Text style={styles.tokenText}>Token: #{appt.token_no}</Text>
+                          {appt.payment_status === "due" && appt.payment_method === "cash" ? (
+                            <TouchableOpacity
+                              style={[styles.actionBtn, { backgroundColor: colors.success }]}
+                              onPress={() => handleMarkCashPaid(appt.payment_id)}
+                            >
+                              <MaterialCommunityIcons name="cash" size={14} color={colors.onPrimary} />
+                              <Text style={styles.actionBtnText}>Collect Cash</Text>
+                            </TouchableOpacity>
+                          ) : null}
+
+                          <TouchableOpacity
+                            style={[styles.actionBtn, styles.actionBtnSecondary]}
+                            onPress={() => handleNotifyDoctor(appt.patient_id, appt.id, appt.patient_name)}
+                          >
+                            <MaterialCommunityIcons name="bell-ring" size={16} color={colors.primary} />
+                            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping Doc</Text>
+                          </TouchableOpacity>
+
+                          {appt.status !== "completed" && appt.status !== "visited" ? (
+                            <TouchableOpacity
+                              style={[styles.actionBtn, { backgroundColor: colors.errorContainer, borderWidth: 1, borderColor: colors.error }]}
+                              onPress={() => handleCancelAppointment(appt.id)}
+                            >
+                              <MaterialCommunityIcons name="close-circle-outline" size={14} color={colors.error} />
+                              <Text style={[styles.actionBtnText, { color: colors.error }]}>Cancel</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                       </View>
-                    ) : null}
-
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnSecondary]}
-                      onPress={() => handleNotifyDoctor(appt.patient_id, appt.id, appt.patient_name)}
-                    >
-                      <MaterialCommunityIcons name="bell-ring" size={16} color={colors.primary} />
-                      <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping Doc</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
               ))
             )}
           </View>
@@ -634,7 +690,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+    rowGap: spacing.xs,
     marginTop: spacing.xs,
+    flexWrap: "wrap",
   },
   queueActionsRow: {
     flexDirection: "row",
