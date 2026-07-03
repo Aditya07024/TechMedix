@@ -250,6 +250,7 @@ export async function markPatientInProgress(queueId, doctorId, io) {
 
   const appointment = updated[0];
 
+  // Send real-time socket updates
   if (io) {
     io.to(`doctor-${doctorId}`).emit("patient-called", {
       appointment_id: queueId,
@@ -258,6 +259,21 @@ export async function markPatientInProgress(queueId, doctorId, io) {
     io.to(`patient-${appointment.patient_id}`).emit("your-turn", {
       message: "Your turn to see the doctor",
     });
+  }
+
+  // Create persistent database and socket notification for patient
+  try {
+    const { createNotification } = await import("./smartNotificationService.js");
+    await createNotification(
+      appointment.patient_id,
+      "patient_called",
+      "Your Turn!",
+      "Doctor is ready to see you now. Please proceed to the cabin.",
+      queueId,
+      "appointment"
+    );
+  } catch (notifErr) {
+    console.warn("Failed to create patient call notification:", notifErr.message);
   }
 
   await logAudit({

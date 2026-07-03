@@ -241,7 +241,7 @@ export default function DoctorDashboardNew() {
 
       const msg = payload?.message || `${payload?.staff_name || "Staff"} marked a patient ready.`;
       setStatusMessage(msg);
-      window.alert(`🔔 Notification from Reception:\n\n${msg}`);
+      // window.alert(`🔔 Notification from Reception:\n\n${msg}`);
       loadDoctorData();
     };
 
@@ -1559,6 +1559,13 @@ export default function DoctorDashboardNew() {
                     >
                       <QrCode size={16} />
                       {scannerVisible ? "Close Scanner" : "Open QR Scanner"}
+                    </button>
+                    <button
+                      type="button"
+                      className="doctor-secondary-button"
+                      onClick={() => setActiveView("queue")}
+                    >
+                      Go to Queue
                     </button>
                   </div>
 
