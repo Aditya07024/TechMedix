@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi, doctorApi } from "../../api";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import "./ProfileManager.css";
 
 const getInitialForm = (role, profile = {}) => ({
@@ -31,6 +32,7 @@ export default function ProfileManager({
 }) {
   const navigate = useNavigate();
   const { user, login, logout } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
   const role = roleOverride || user?.role || "patient";
 
   const [profile, setProfile] = useState(null);
@@ -348,6 +350,48 @@ export default function ProfileManager({
             />
           </label>
         ) : null}
+
+        {/* App Theme Preference Toggle */}
+        <div className="profile-manager-full" style={{ marginTop: "18px", borderTop: "1px solid rgba(15, 23, 42, 0.08)", paddingTop: "18px" }}>
+          <span className="profile-manager-kicker" style={{ display: "block", marginBottom: "8px" }}>
+            App Theme Preference
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "0.95rem", color: "#415164", fontWeight: "600" }}>
+              Theme Mode:
+            </span>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 16px",
+                borderRadius: "999px",
+                border: "1px solid rgba(15, 23, 42, 0.12)",
+                background: isDarkMode ? "#1e293b" : "#f1f5f9",
+                color: isDarkMode ? "#f8fafc" : "#0f172a",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.85rem",
+                transition: "all 0.2s ease"
+              }}
+            >
+              {isDarkMode ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                  <span>Switch to Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                  <span>Switch to Dark Mode</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
         <div className="profile-manager-actions profile-manager-full">
           <button type="submit" className="profile-primary-btn" disabled={saving}>
