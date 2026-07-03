@@ -1482,7 +1482,7 @@ export function DoctorProfileScreen() {
 
   return (
     <ScreenScroll contentContainerStyle={styles.screenContent}>
-      <TopBar title="Doctor Profile" avatar={getInitials(profile.name)} />
+      <TopBar title="Doctor Profile" avatar={getInitials(profile.name)} showThemeToggle={true} />
       <InlineError message={error} />
 
       {/* Tab Switcher */}

@@ -189,17 +189,6 @@ export default function StaffDashboardScreen() {
           <Text style={styles.headerSubtitle}>{user?.name || "Clinic Coordinator"}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: spacing.xs, alignItems: "center" }}>
-          {/* Theme Toggle Button */}
-          <TouchableOpacity 
-            style={[styles.logoutBtn, { backgroundColor: colors.surfaceLow }]} 
-            onPress={toggleTheme}
-          >
-            <MaterialCommunityIcons 
-              name={isDark ? "weather-sunny" : "weather-night"} 
-              size={20} 
-              color={colors.primary} 
-            />
-          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.logoutBtn, { backgroundColor: colors.surfaceLow }]} 
             onPress={handleRefresh}

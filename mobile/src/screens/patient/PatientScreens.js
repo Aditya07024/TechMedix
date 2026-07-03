@@ -4241,6 +4241,7 @@ export function PatientProfileScreen({ navigation }) {
           title="Profile"
           avatar={getInitials(profile.name)}
           onMenuPress={() => setDrawerVisible(true)}
+          showThemeToggle={true}
         />
         <InlineError message={error} />
         {savingMessage ? (

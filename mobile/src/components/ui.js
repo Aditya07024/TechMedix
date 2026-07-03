@@ -98,6 +98,7 @@ export function TopBar({
   menuIcon,
   rightIcon,
   onRightPress,
+  showThemeToggle = false,
 }) {
   const navigation = useNavigation();
   return (
@@ -179,7 +180,7 @@ export function TopBar({
       {brandOnly ? null : (
         <View style={{ flexDirection: "row", gap: spacing.xs, alignItems: "center" }}>
           {/* Header Theme Switcher Icon */}
-          <ThemeToggleHeaderButton />
+          {showThemeToggle && <ThemeToggleHeaderButton />}
           
           {rightIcon ? (
             <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
