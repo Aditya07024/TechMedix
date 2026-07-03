@@ -83,10 +83,13 @@ const makeStyleObject = (rawStyle) => {
   return styleObj;
 };
 
+const originalCreate = StyleSheet.create;
+
 StyleSheet.create = (obj) => {
+  const sheet = originalCreate ? originalCreate(obj) : obj;
   const proxySheet = {};
-  for (const styleName of Object.keys(obj)) {
-    const rawStyle = obj[styleName];
+  for (const styleName of Object.keys(sheet)) {
+    const rawStyle = sheet[styleName];
     if (rawStyle && typeof rawStyle === "object") {
       proxySheet[styleName] = makeStyleObject(rawStyle);
     } else {
