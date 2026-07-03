@@ -2317,7 +2317,7 @@ export function AnalyzePrescriptionScreen({ navigation }) {
         transparent={false}
         onRequestClose={() => setViewingRxPad(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }}>
           {/* Header */}
           <View style={styles.padNavHeader}>
             <TouchableOpacity onPress={() => setViewingRxPad(false)} style={styles.padBackButton}>
@@ -4803,11 +4803,11 @@ export function NotificationsScreen({ navigation }) {
       {loading ? <LoadingCard label="Loading notifications..." /> : null}
 
       {filteredNotifications.length ? (
-        filteredNotifications.map((item) => {
+        filteredNotifications.map((item, idx) => {
           const badge = getNotificationIcon(item.title);
           return (
             <SurfaceCard
-              key={item.id}
+              key={`${item.id}-${idx}`}
               tone={item.is_read ? "lowest" : "low"}
               style={{
                 paddingLeft: 12,

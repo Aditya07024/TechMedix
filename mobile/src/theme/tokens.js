@@ -48,15 +48,28 @@ for (const key of Object.keys(lightColors)) {
   });
 }
 
+function normalizeColor(c) {
+  if (!c || typeof c !== "string") return c;
+  let str = c.trim().toLowerCase();
+  if (str === "white") return "#ffffff";
+  if (str === "black") return "#000000";
+  if (str.startsWith("#")) {
+    if (str.length === 4) {
+      return "#" + str[1] + str[1] + str[2] + str[2] + str[3] + str[3];
+    }
+  }
+  return str;
+}
+
 const makeStyleObject = (rawStyle) => {
   const styleObj = {};
   for (const prop of Object.keys(rawStyle)) {
     const val = rawStyle[prop];
     if (typeof val === "string") {
-      const valLower = val.toLowerCase();
+      const valNormalized = normalizeColor(val);
       let matchedKey = null;
       for (const [key, lightVal] of Object.entries(lightColors)) {
-        if (valLower === lightVal.toLowerCase()) {
+        if (valNormalized === normalizeColor(lightVal)) {
           matchedKey = key;
           break;
         }
@@ -84,13 +97,10 @@ const makeStyleObject = (rawStyle) => {
 };
 
 if (!StyleSheet.create.__isThemeWrapped) {
-  const originalCreate = StyleSheet.create;
-
   const themeWrapper = (obj) => {
-    const sheet = originalCreate ? originalCreate(obj) : obj;
     const proxySheet = {};
-    for (const styleName of Object.keys(sheet)) {
-      const rawStyle = sheet[styleName];
+    for (const styleName of Object.keys(obj)) {
+      const rawStyle = obj[styleName];
       if (rawStyle && typeof rawStyle === "object") {
         proxySheet[styleName] = makeStyleObject(rawStyle);
       } else {
