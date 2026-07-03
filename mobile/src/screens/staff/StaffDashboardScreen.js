@@ -345,14 +345,14 @@ export default function StaffDashboardScreen() {
                   </View>
 
                   <View style={styles.queueActionsRow}>
-                    {entry.status === "waiting" ? (
+                    {/* {entry.status === "waiting" ? (
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.actionBtnPrimary]}
                         onPress={() => handleUpdateQueueStatus(entry.id, "in_progress")}
                       >
                         <Text style={styles.actionBtnText}>Call Patient</Text>
                       </TouchableOpacity>
-                    ) : null}
+                    ) : null} */}
 
                     {entry.status === "in_progress" ? (
                       <TouchableOpacity

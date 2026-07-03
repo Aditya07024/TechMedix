@@ -76,8 +76,18 @@ function isSameDay(value, isoDate) {
 function parseSlotDateTime(appointmentDate, slotTime) {
   if (!appointmentDate) return null;
 
+  let dateStr;
+  if (appointmentDate instanceof Date) {
+    const yyyy = appointmentDate.getFullYear();
+    const mm = String(appointmentDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(appointmentDate.getDate()).padStart(2, "0");
+    dateStr = `${yyyy}-${mm}-${dd}`;
+  } else {
+    dateStr = String(appointmentDate).split("T")[0];
+  }
+
   const normalizedTime = String(slotTime || "00:00").slice(0, 5);
-  const parsed = new Date(`${appointmentDate}T${normalizedTime}:00`);
+  const parsed = new Date(`${dateStr}T${normalizedTime}:00`);
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -364,27 +374,10 @@ function buildQueueStatus(row, predictedMap, activeRows, inputs, now) {
   const expectedConsultationTime = prediction?.predicted_start_at || scheduledAt;
   
   let estimatedWaitMinutes = 0;
-  if (checkedIn) {
-    const avgDuration = inputs.avgConsultationMinutes || 30;
-    const inProgressAppt = activeRows.find(entry => entry.normalized_status === "in_progress");
-    let remainingInProgress = 0;
-    if (inProgressAppt) {
-      const startedAt = inProgressAppt.started_at ? new Date(inProgressAppt.started_at) : now;
-      const elapsed = diffMinutes(now, startedAt);
-      remainingInProgress = Math.max(0, Math.ceil(avgDuration - elapsed));
-    }
-
-    if (normalizedStatus === "in_progress") {
-      estimatedWaitMinutes = 0;
-    } else {
-      const hasInProgressAhead = inProgressAppt && activeRows.findIndex(r => String(r.appointment_id) === String(inProgressAppt.appointment_id)) < targetIndex;
-      const waitingAhead = hasInProgressAhead ? Math.max(0, peopleAhead - 1) : peopleAhead;
-      estimatedWaitMinutes = (waitingAhead * avgDuration) + (hasInProgressAhead ? remainingInProgress : 0);
-    }
-  } else {
-    estimatedWaitMinutes = expectedConsultationTime
-      ? diffMinutes(expectedConsultationTime, now)
-      : 0;
+  if (normalizedStatus === "in_progress") {
+    estimatedWaitMinutes = 0;
+  } else if (expectedConsultationTime) {
+    estimatedWaitMinutes = diffMinutes(expectedConsultationTime, now);
   }
 
   const leaveForClinicAt = expectedConsultationTime

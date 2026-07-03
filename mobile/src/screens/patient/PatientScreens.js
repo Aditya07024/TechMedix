@@ -1187,6 +1187,7 @@ export function BookAppointmentScreen({ navigation }) {
   );
 
   async function selectDoctor(doctor) {
+    setError("");
     setSelectedDoctor(doctor);
     setBookingSheetVisible(true);
     setSelectedDate("");
@@ -1253,6 +1254,7 @@ export function BookAppointmentScreen({ navigation }) {
     }
 
     setBooking(true);
+    setError("");
     try {
       const response = await api.appointments.book({
         patient_id: user.id,
@@ -1269,6 +1271,11 @@ export function BookAppointmentScreen({ navigation }) {
       setBookingSheetVisible(false);
     } catch (bookError) {
       setError(bookError.message);
+      if (Platform.OS === "web") {
+        window.alert(`Booking Error: ${bookError.message}`);
+      } else {
+        Alert.alert("Booking Error", bookError.message);
+      }
     } finally {
       setBooking(false);
     }
@@ -1520,6 +1527,8 @@ export function BookAppointmentScreen({ navigation }) {
                     />
                   </TouchableOpacity>
                 </View>
+
+                <InlineError message={error} />
 
                 <Text style={styles.sectionValue}>{selectedDoctor?.name}</Text>
                 <Text style={styles.sectionMuted}>
@@ -5395,12 +5404,12 @@ export function AppointmentPaymentScreen({ navigation, route }) {
                 onPress={payByWallet}
               />
               <SecondaryButton
-                label="Mark Cash Payment"
+                label="Pay via Cash"
                 icon="cash"
                 onPress={payByCash}
               />
               <SecondaryButton
-                label="Pay Online (Cashfree)"
+                label="Pay Online"
                 icon="credit-card-outline"
                 onPress={prepareOnline}
               />

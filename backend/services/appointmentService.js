@@ -143,7 +143,6 @@ export async function getPatientAppointments(patientId) {
     JOIN doctors d ON a.doctor_id = d.id
     LEFT JOIN payments pay ON pay.appointment_id = a.id AND COALESCE(pay.is_deleted,false)=FALSE
     WHERE a.patient_id = ${patientId}
-      AND a.status != 'cancelled'
       AND a.is_deleted = FALSE
     ORDER BY appointment_date DESC
   `;
