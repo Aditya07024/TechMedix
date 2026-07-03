@@ -83,21 +83,26 @@ const makeStyleObject = (rawStyle) => {
   return styleObj;
 };
 
-const originalCreate = StyleSheet.create;
+if (!StyleSheet.create.__isThemeWrapped) {
+  const originalCreate = StyleSheet.create;
 
-StyleSheet.create = (obj) => {
-  const sheet = originalCreate ? originalCreate(obj) : obj;
-  const proxySheet = {};
-  for (const styleName of Object.keys(sheet)) {
-    const rawStyle = sheet[styleName];
-    if (rawStyle && typeof rawStyle === "object") {
-      proxySheet[styleName] = makeStyleObject(rawStyle);
-    } else {
-      proxySheet[styleName] = rawStyle;
+  const themeWrapper = (obj) => {
+    const sheet = originalCreate ? originalCreate(obj) : obj;
+    const proxySheet = {};
+    for (const styleName of Object.keys(sheet)) {
+      const rawStyle = sheet[styleName];
+      if (rawStyle && typeof rawStyle === "object") {
+        proxySheet[styleName] = makeStyleObject(rawStyle);
+      } else {
+        proxySheet[styleName] = rawStyle;
+      }
     }
-  }
-  return proxySheet;
-};
+    return proxySheet;
+  };
+
+  themeWrapper.__isThemeWrapped = true;
+  StyleSheet.create = themeWrapper;
+}
 
 export const spacing = {
   xs: 6,
