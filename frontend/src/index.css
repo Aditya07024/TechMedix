@@ -312,3 +312,25 @@ html {
     padding-right: 8px;
   }
 }
+
+/* Global Theme Transition Animations */
+body, 
+.profile-manager-card,
+.card,
+.card-title,
+.navbar-brand,
+.navbar-menu,
+input,
+textarea,
+button,
+a,
+span,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease !important;
+}

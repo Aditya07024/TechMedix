@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, LayoutAnimation, UIManager, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { lightColors, darkColors, updateActiveColors } from "../theme/tokens";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const THEME_MODE_KEY = "techmedix.theme.mode";
 
@@ -22,9 +26,14 @@ export function ThemeProvider({ children }) {
   }, []);
 
   const changeMode = async (nextMode) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMode(nextMode);
     await AsyncStorage.setItem(THEME_MODE_KEY, nextMode);
   };
+
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [systemScheme]);
 
   const isDark = mode === "system" ? systemScheme === "dark" : mode === "dark";
   const colors = isDark ? darkColors : lightColors;
