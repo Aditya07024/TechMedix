@@ -37,50 +37,58 @@ export function updateActiveColors(newColors) {
   activeColors = newColors;
 }
 
-export const colors = new Proxy(lightColors, {
-  get(target, prop) {
-    if (typeof prop === "symbol" || prop === "prototype" || prop === "__proto__") {
-      return Reflect.get(target, prop);
-    }
-    return activeColors[prop] || target[prop];
-  }
-});
+export const colors = {};
+for (const key of Object.keys(lightColors)) {
+  Object.defineProperty(colors, key, {
+    get() {
+      return activeColors[key];
+    },
+    enumerable: true,
+    configurable: true
+  });
+}
 
-const originalCreate = StyleSheet.create;
-
-const makeStyleProxy = (target) => {
-  return new Proxy(target, {
-    get(t, prop) {
-      if (typeof prop === "symbol" || prop === "prototype" || prop === "__proto__") {
-        return Reflect.get(t, prop);
-      }
-      const val = t[prop];
-      if (typeof val === "string") {
-        const valLower = val.toLowerCase();
-        for (const [key, lightVal] of Object.entries(lightColors)) {
-          if (valLower === lightVal.toLowerCase()) {
-            return activeColors[key] || val;
-          }
+const makeStyleObject = (rawStyle) => {
+  const styleObj = {};
+  for (const prop of Object.keys(rawStyle)) {
+    const val = rawStyle[prop];
+    if (typeof val === "string") {
+      const valLower = val.toLowerCase();
+      let matchedKey = null;
+      for (const [key, lightVal] of Object.entries(lightColors)) {
+        if (valLower === lightVal.toLowerCase()) {
+          matchedKey = key;
+          break;
         }
       }
-      return val;
-    },
-    ownKeys(t) {
-      return Reflect.ownKeys(t);
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      return Reflect.getOwnPropertyDescriptor(t, prop);
+      if (matchedKey) {
+        Object.defineProperty(styleObj, prop, {
+          get() {
+            return activeColors[matchedKey];
+          },
+          enumerable: true,
+          configurable: true
+        });
+        continue;
+      }
     }
-  });
+    
+    Object.defineProperty(styleObj, prop, {
+      value: val,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  }
+  return styleObj;
 };
 
 StyleSheet.create = (obj) => {
-  const sheet = originalCreate ? originalCreate(obj) : obj;
   const proxySheet = {};
-  for (const styleName of Object.keys(sheet)) {
-    const rawStyle = sheet[styleName];
+  for (const styleName of Object.keys(obj)) {
+    const rawStyle = obj[styleName];
     if (rawStyle && typeof rawStyle === "object") {
-      proxySheet[styleName] = makeStyleProxy(rawStyle);
+      proxySheet[styleName] = makeStyleObject(rawStyle);
     } else {
       proxySheet[styleName] = rawStyle;
     }
