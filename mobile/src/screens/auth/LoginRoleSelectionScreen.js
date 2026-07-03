@@ -94,6 +94,20 @@ export default function LoginRoleSelectionScreen({ route }) {
     }
   }
 
+  async function handleDemoDoctorLogin() {
+    setLoading(true);
+    setError("");
+    try {
+      await signInDoctor({ email: "singh@gmail.com", password: "123456789" });
+    } catch (submitError) {
+      const message = submitError?.message || "Unable to authenticate demo doctor.";
+      setError(message);
+      Alert.alert("Authentication failed", message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <ScreenScroll contentContainerStyle={styles.content}>
       <TopBar title="TechMedix" brandOnly />
@@ -179,6 +193,17 @@ export default function LoginRoleSelectionScreen({ route }) {
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        {!isPatient && mode === "login" ? (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handleDemoDoctorLogin}
+            disabled={loading}
+            style={styles.demoButton}
+          >
+            <Text style={styles.demoText}>Demo Doctor Login</Text>
+          </TouchableOpacity>
+        ) : null}
       </SurfaceCard>
     </ScreenScroll>
   );
@@ -395,5 +420,19 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.bodySmall,
     lineHeight: 20,
+  },
+  demoButton: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: spacing.md,
+    backgroundColor: colors.surfaceLow,
+  },
+  demoText: {
+    color: colors.primary,
+    fontSize: typography.title,
+    fontWeight: "800",
   },
 });

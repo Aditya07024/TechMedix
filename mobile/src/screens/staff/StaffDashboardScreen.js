@@ -328,69 +328,78 @@ export default function StaffDashboardScreen() {
 
                         <View style={styles.actionRow}>
                           {(() => {
+                            const hasToken = appt.token_no || appt.token_number;
                             const isCashPaymentDue = appt.payment_method === "cash" && appt.payment_status === "due";
-                            return !appt.token_no && appt.status !== "completed" && appt.status !== "visited" ? (
-                              <TouchableOpacity
-                                style={[
-                                  styles.actionBtn,
-                                  isCashPaymentDue ? { backgroundColor: colors.surfaceLow, borderWidth: 1, borderColor: colors.outline } : styles.actionBtnPrimary
-                                ]}
-                                onPress={() => {
-                                  if (isCashPaymentDue) {
-                                    Alert.alert(
-                                      "Payment Required",
-                                      "This patient has a pending cash payment. Please click 'Collect Cash' first before issuing a token."
-                                    );
-                                  } else {
-                                    handleGenerateToken(appt.id);
-                                  }
-                                }}
-                              >
-                                <MaterialCommunityIcons 
-                                  name={isCashPaymentDue ? "cash-register" : "ticket-confirmation-outline"} 
-                                  size={14} 
-                                  color={isCashPaymentDue ? colors.outline : colors.onPrimary} 
-                                />
-                                <Text style={[styles.actionBtnText, isCashPaymentDue && { color: colors.outline }]}>
-                                  {isCashPaymentDue ? "Collect Cash First" : "Check In & Issue Token"}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null;
+                            const isInactive = ["completed", "visited", "cancelled", "cancel"].includes(appt.status);
+
+                            return (
+                              <>
+                                {!hasToken && !isInactive ? (
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.actionBtn,
+                                      isCashPaymentDue ? { backgroundColor: colors.surfaceLow, borderWidth: 1, borderColor: colors.outline } : styles.actionBtnPrimary
+                                    ]}
+                                    onPress={() => {
+                                      if (isCashPaymentDue) {
+                                        Alert.alert(
+                                          "Payment Required",
+                                          "This patient has a pending cash payment. Please click 'Collect Cash' first before issuing a token."
+                                        );
+                                      } else {
+                                        handleGenerateToken(appt.id);
+                                      }
+                                    }}
+                                  >
+                                    <MaterialCommunityIcons 
+                                      name={isCashPaymentDue ? "cash-register" : "ticket-confirmation-outline"} 
+                                      size={14} 
+                                      color={isCashPaymentDue ? colors.outline : colors.onPrimary} 
+                                    />
+                                    <Text style={[styles.actionBtnText, isCashPaymentDue && { color: colors.outline }]}>
+                                      {isCashPaymentDue ? "Collect Cash First" : "Check In & Issue Token"}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ) : null}
+
+                                {hasToken ? (
+                                  <View style={styles.tokenIndicator}>
+                                    <Text style={styles.tokenText}>Token: #{hasToken}</Text>
+                                  </View>
+                                ) : null}
+
+                                {isCashPaymentDue && !isInactive ? (
+                                  <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: colors.success }]}
+                                    onPress={() => handleMarkCashPaid(appt.payment_id)}
+                                  >
+                                    <MaterialCommunityIcons name="cash" size={14} color={colors.onPrimary} />
+                                    <Text style={styles.actionBtnText}>Collect Cash</Text>
+                                  </TouchableOpacity>
+                                ) : null}
+
+                                {hasToken && !isInactive ? (
+                                  <TouchableOpacity
+                                    style={[styles.actionBtn, styles.actionBtnSecondary]}
+                                    onPress={() => handleNotifyDoctor(appt.patient_id, appt.id, appt.patient_name)}
+                                  >
+                                    <MaterialCommunityIcons name="bell-ring" size={16} color={colors.primary} />
+                                    <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping Doc</Text>
+                                  </TouchableOpacity>
+                                ) : null}
+
+                                {!isInactive ? (
+                                  <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: colors.errorContainer, borderWidth: 1, borderColor: colors.error }]}
+                                    onPress={() => handleCancelAppointment(appt.id)}
+                                  >
+                                    <MaterialCommunityIcons name="close-circle-outline" size={14} color={colors.error} />
+                                    <Text style={[styles.actionBtnText, { color: colors.error }]}>Cancel</Text>
+                                  </TouchableOpacity>
+                                ) : null}
+                              </>
+                            );
                           })()}
-
-                          {appt.token_no ? (
-                            <View style={styles.tokenIndicator}>
-                              <Text style={styles.tokenText}>Token: #{appt.token_no}</Text>
-                            </View>
-                          ) : null}
-
-                          {appt.payment_status === "due" && appt.payment_method === "cash" ? (
-                            <TouchableOpacity
-                              style={[styles.actionBtn, { backgroundColor: colors.success }]}
-                              onPress={() => handleMarkCashPaid(appt.payment_id)}
-                            >
-                              <MaterialCommunityIcons name="cash" size={14} color={colors.onPrimary} />
-                              <Text style={styles.actionBtnText}>Collect Cash</Text>
-                            </TouchableOpacity>
-                          ) : null}
-
-                          <TouchableOpacity
-                            style={[styles.actionBtn, styles.actionBtnSecondary]}
-                            onPress={() => handleNotifyDoctor(appt.patient_id, appt.id, appt.patient_name)}
-                          >
-                            <MaterialCommunityIcons name="bell-ring" size={16} color={colors.primary} />
-                            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Ping Doc</Text>
-                          </TouchableOpacity>
-
-                          {appt.status !== "completed" && appt.status !== "visited" ? (
-                            <TouchableOpacity
-                              style={[styles.actionBtn, { backgroundColor: colors.errorContainer, borderWidth: 1, borderColor: colors.error }]}
-                              onPress={() => handleCancelAppointment(appt.id)}
-                            >
-                              <MaterialCommunityIcons name="close-circle-outline" size={14} color={colors.error} />
-                              <Text style={[styles.actionBtnText, { color: colors.error }]}>Cancel</Text>
-                            </TouchableOpacity>
-                          ) : null}
                         </View>
                       </View>
               ))

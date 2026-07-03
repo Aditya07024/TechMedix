@@ -46,6 +46,20 @@ export default function DoctorLoginScreen({ navigation }) {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await signInDoctor({ email: "singh@gmail.com", password: "123456789" });
+    } catch (err) {
+      const msg = err?.message || "Failed to authenticate demo doctor.";
+      setError(msg);
+      Alert.alert("Authentication Failed", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScreenScroll contentContainerStyle={styles.content}>
       <TopBar title="Doctor Portal" showBack onBack={() => navigation.goBack()} brandOnly />
@@ -145,6 +159,12 @@ export default function DoctorLoginScreen({ navigation }) {
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        {mode === "login" ? (
+          <TouchableOpacity activeOpacity={0.9} onPress={handleDemoLogin} disabled={loading} style={styles.demoBtn}>
+            <Text style={styles.demoBtnText}>Demo Doctor Login</Text>
+          </TouchableOpacity>
+        ) : null}
       </SurfaceCard>
     </ScreenScroll>
   );
@@ -263,5 +283,19 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.bodySmall,
     lineHeight: 18,
+  },
+  demoBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: spacing.md,
+    backgroundColor: colors.surfaceLow,
+  },
+  demoBtnText: {
+    color: colors.primary,
+    fontSize: typography.body,
+    fontWeight: "800",
   },
 });
