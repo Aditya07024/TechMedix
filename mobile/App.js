@@ -6,6 +6,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import * as Notifications from "expo-notifications";
 import AppNavigator from "./src/navigation/AppNavigator";
 import { AuthProvider } from "./src/context/AuthContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { theme } from "./src/theme/tokens";
 
 LogBox.ignoreLogs([
@@ -22,13 +23,36 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function AppContent() {
+  const { colors, isDark } = useTheme();
+
+  const dynamicNavTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.primary,
+      background: colors.surface,
+      card: colors.surfaceLowest,
+      text: colors.onSurface,
+      border: colors.surfaceLow,
+      notification: colors.tertiary,
+    },
+    fonts: theme.navigationTheme.fonts,
+  };
+
+  return (
+    <NavigationContainer theme={dynamicNavTheme}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer theme={theme.navigationTheme}>
-        <StatusBar style="dark" />
-        <AppNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

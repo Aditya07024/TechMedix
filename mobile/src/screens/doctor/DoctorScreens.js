@@ -37,6 +37,7 @@ import {
   getCardShadow,
 } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { api, toAbsoluteUrl } from "../../lib/api";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
 import { Platform } from "react-native";
@@ -1131,6 +1132,7 @@ export function DoctorScheduleScreen() {
 
 export function DoctorProfileScreen() {
   const { user, refreshDoctorProfile, signOut } = useAuth();
+  const { mode, setMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1693,6 +1695,44 @@ export function DoctorProfileScreen() {
               onPress={saveProfile}
             />
           </SurfaceCard>
+
+          {/* App Theme Selector */}
+          <SurfaceCard style={{ gap: 8 }}>
+            <Text style={styles.blockTitle}>App Theme</Text>
+            <Text style={styles.smallText}>
+              Switch between Light, Dark, or System theme preferences.
+            </Text>
+            <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
+              {["system", "light", "dark"].map((t) => {
+                const isActive = mode === t;
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    activeOpacity={0.9}
+                    onPress={() => setMode(t)}
+                    style={{
+                      flex: 1,
+                      borderRadius: radii.pill,
+                      paddingVertical: 10,
+                      alignItems: "center",
+                      backgroundColor: isActive ? colors.surfaceLowest : "transparent",
+                      borderWidth: isActive ? 1 : 0,
+                      borderColor: colors.outline,
+                    }}
+                  >
+                    <Text style={{
+                      color: isActive ? colors.primary : colors.onSurfaceVariant,
+                      fontWeight: "700",
+                      fontSize: typography.bodySmall,
+                    }}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </SurfaceCard>
+
           <SecondaryButton label="Sign Out" icon="logout" onPress={signOut} />
         </>
       )}

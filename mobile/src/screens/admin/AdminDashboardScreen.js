@@ -18,10 +18,12 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { DetailRow, SurfaceCard, TopBar } from "../../components/ui";
 
 export default function AdminDashboardScreen() {
   const { user, signOut } = useAuth();
+  const { mode, setMode } = useTheme();
   const [activeTab, setActiveTab] = useState("overview"); // overview, payments, payouts, users, tickets
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -613,6 +615,43 @@ export default function AdminDashboardScreen() {
                 )}
               </View>
             )}
+            {/* App Theme Selector */}
+            <SurfaceCard style={{ gap: 8, marginTop: spacing.md }}>
+              <Text style={{ fontSize: typography.title, fontWeight: "800", color: colors.onSurface }}>App Theme</Text>
+              <Text style={{ fontSize: typography.bodySmall, color: colors.onSurfaceVariant }}>
+                Switch between Light, Dark, or System theme preferences.
+              </Text>
+              <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
+                {["system", "light", "dark"].map((t) => {
+                  const isActive = mode === t;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      activeOpacity={0.9}
+                      onPress={() => setMode(t)}
+                      style={{
+                        flex: 1,
+                        borderRadius: radii.pill,
+                        paddingVertical: 10,
+                        alignItems: "center",
+                        backgroundColor: isActive ? colors.surfaceLowest : "transparent",
+                        borderWidth: isActive ? 1 : 0,
+                        borderColor: colors.outline,
+                      }}
+                    >
+                      <Text style={{
+                        color: isActive ? colors.primary : colors.onSurfaceVariant,
+                        fontWeight: "700",
+                        fontSize: typography.bodySmall,
+                      }}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </SurfaceCard>
+
           </>
         )}
       </ScrollView>

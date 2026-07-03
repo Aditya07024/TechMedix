@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 
-export const colors = {
+const lightColors = {
   surface: "#f4faff",
   surfaceLow: "#e7f6ff",
   surfaceLowest: "#ffffff",
@@ -29,6 +29,63 @@ export const colors = {
   warningSoft: "#fff1e6",
   infoSoft: "#eaf8ff",
   shadow: "rgba(14, 29, 37, 0.06)",
+};
+
+let activeColors = lightColors;
+
+export function updateActiveColors(newColors) {
+  activeColors = newColors;
+}
+
+export const colors = new Proxy(lightColors, {
+  get(target, prop) {
+    if (typeof prop === "symbol" || prop === "prototype" || prop === "__proto__") {
+      return Reflect.get(target, prop);
+    }
+    return activeColors[prop] || target[prop];
+  }
+});
+
+const originalCreate = StyleSheet.create;
+
+const makeStyleProxy = (target) => {
+  return new Proxy(target, {
+    get(t, prop) {
+      if (typeof prop === "symbol" || prop === "prototype" || prop === "__proto__") {
+        return Reflect.get(t, prop);
+      }
+      const val = t[prop];
+      if (typeof val === "string") {
+        const valLower = val.toLowerCase();
+        for (const [key, lightVal] of Object.entries(lightColors)) {
+          if (valLower === lightVal.toLowerCase()) {
+            return activeColors[key] || val;
+          }
+        }
+      }
+      return val;
+    },
+    ownKeys(t) {
+      return Reflect.ownKeys(t);
+    },
+    getOwnPropertyDescriptor(t, prop) {
+      return Reflect.getOwnPropertyDescriptor(t, prop);
+    }
+  });
+};
+
+StyleSheet.create = (obj) => {
+  const sheet = originalCreate ? originalCreate(obj) : obj;
+  const proxySheet = {};
+  for (const styleName of Object.keys(sheet)) {
+    const rawStyle = sheet[styleName];
+    if (rawStyle && typeof rawStyle === "object") {
+      proxySheet[styleName] = makeStyleProxy(rawStyle);
+    } else {
+      proxySheet[styleName] = rawStyle;
+    }
+  }
+  return proxySheet;
 };
 
 export const spacing = {

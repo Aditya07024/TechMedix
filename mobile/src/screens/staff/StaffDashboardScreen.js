@@ -15,9 +15,11 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function StaffDashboardScreen() {
   const { user, signOut } = useAuth();
+  const { mode, setMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -469,6 +471,46 @@ export default function StaffDashboardScreen() {
       </>
     );
   })()}
+
+        {/* App Theme Selector */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <MaterialCommunityIcons name="theme-light-dark" size={20} color={colors.primary} />
+            <Text style={styles.sectionCardTitle}>App Theme Mode</Text>
+          </View>
+          <Text style={styles.sectionCardSubtitle}>
+            Switch between Light, Dark, or System theme preferences.
+          </Text>
+          <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 12 }}>
+            {["system", "light", "dark"].map((t) => {
+              const isActive = mode === t;
+              return (
+                <TouchableOpacity
+                  key={t}
+                  activeOpacity={0.9}
+                  onPress={() => setMode(t)}
+                  style={{
+                    flex: 1,
+                    borderRadius: radii.pill,
+                    paddingVertical: 10,
+                    alignItems: "center",
+                    backgroundColor: isActive ? colors.surfaceLowest : "transparent",
+                    borderWidth: isActive ? 1 : 0,
+                    borderColor: colors.outline,
+                  }}
+                >
+                  <Text style={{
+                    color: isActive ? colors.primary : colors.onSurfaceVariant,
+                    fontWeight: "700",
+                    fontSize: typography.bodySmall,
+                  }}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
