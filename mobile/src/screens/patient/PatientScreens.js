@@ -4288,6 +4288,43 @@ export function PatientProfileScreen({ navigation }) {
           </View>
         </SurfaceCard>
 
+        {/* App Theme Selector */}
+        <SurfaceCard style={{ gap: 8 }}>
+          <Text style={styles.blockTitle}>App Theme</Text>
+          <Text style={styles.sectionMuted}>
+            Switch between Light, Dark, or System theme preferences.
+          </Text>
+          <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6, marginTop: 4 }}>
+            {["system", "light", "dark"].map((t) => {
+              const isActive = mode === t;
+              return (
+                <TouchableOpacity
+                  key={t}
+                  activeOpacity={0.9}
+                  onPress={() => setMode(t)}
+                  style={{
+                    flex: 1,
+                    borderRadius: radii.pill,
+                    paddingVertical: 10,
+                    alignItems: "center",
+                    backgroundColor: isActive ? colors.surfaceLowest : "transparent",
+                    borderWidth: isActive ? 1 : 0,
+                    borderColor: colors.outline,
+                  }}
+                >
+                  <Text style={{
+                    color: isActive ? colors.primary : colors.onSurfaceVariant,
+                    fontWeight: "700",
+                    fontSize: typography.bodySmall,
+                  }}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </SurfaceCard>
+
         
 
         {/* Edit Profile Form */}
@@ -4334,45 +4371,6 @@ export function PatientProfileScreen({ navigation }) {
               <LocalCheckboxRow label="Recordings" checked={qrShareRecordings} onChange={setQrShareRecordings} />
               <LocalCheckboxRow label="Reports & Files" checked={qrShareReports} onChange={setQrShareReports} />
               <LocalCheckboxRow label="Health Metrics" checked={qrShareMetrics} onChange={setQrShareMetrics} />
-            </View>
-
-            {/* App Theme Selector */}
-            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: colors.outline, paddingTop: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: colors.primary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
-                App Theme
-              </Text>
-              <Text style={[styles.sectionMuted, { marginBottom: 10 }]}>
-                Switch between Light, Dark, or System theme preferences.
-              </Text>
-              <View style={{ flexDirection: "row", backgroundColor: colors.surfaceLow, borderRadius: radii.pill, padding: 4, alignItems: "center", gap: 6 }}>
-                {["system", "light", "dark"].map((t) => {
-                  const isActive = mode === t;
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      activeOpacity={0.9}
-                      onPress={() => setMode(t)}
-                      style={{
-                        flex: 1,
-                        borderRadius: radii.pill,
-                        paddingVertical: 10,
-                        alignItems: "center",
-                        backgroundColor: isActive ? colors.surfaceLowest : "transparent",
-                        borderWidth: isActive ? 1 : 0,
-                        borderColor: colors.outline,
-                      }}
-                    >
-                      <Text style={{
-                        color: isActive ? colors.primary : colors.onSurfaceVariant,
-                        fontWeight: "700",
-                        fontSize: typography.bodySmall,
-                      }}>
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
             </View>
 
             {/* Actions */}
