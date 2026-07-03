@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Image,
+  KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -38,18 +39,35 @@ export function ScreenScroll({
   children,
   contentContainerStyle,
   safe = true,
+  keyboardAvoiding = true,
+  keyboardVerticalOffset = 0,
   ...scrollProps
 }) {
   const Container = safe ? SafeAreaView : View;
+
+  const content = (
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+      {...scrollProps}
+    >
+      {children}
+    </ScrollView>
+  );
+
   return (
     <Container style={styles.safeArea}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-        {...scrollProps}
-      >
-        {children}
-      </ScrollView>
+      {keyboardAvoiding ? (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={keyboardVerticalOffset}
+        >
+          {content}
+        </KeyboardAvoidingView>
+      ) : (
+        content
+      )}
     </Container>
   );
 }
