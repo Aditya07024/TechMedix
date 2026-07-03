@@ -510,6 +510,12 @@ export async function handleAppointmentCancellationCleanup(appointmentId) {
     // Update doctor analytics
     await recordAppointmentCancellation(appointmentId, doctorId, refundAmount);
 
+    // Clean up live queue entry if exists
+    await sql`
+      DELETE FROM queue
+      WHERE appointment_id = ${appointmentId}
+    `;
+
   } catch (err) {
     console.error("Failed to run appointment cancellation cleanup:", err.message);
   }
