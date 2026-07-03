@@ -348,6 +348,7 @@ export async function getLiveQueue({ doctorId, date = getTodayIsoDate(), hospita
     LEFT JOIN appointments a ON a.id = q.appointment_id
     WHERE q.doctor_id = ${doctorId}
       AND q.queue_date = ${date}
+      AND q.status <> 'completed'
       AND (${hospitalId}::int IS NULL OR d.branch_id = ${hospitalId})
     ORDER BY q.token_no ASC
   `;
