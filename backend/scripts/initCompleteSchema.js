@@ -253,6 +253,11 @@ export async function initializeCompletSchema() {
 
     await sql`
       ALTER TABLE payments
+      ALTER COLUMN patient_id DROP NOT NULL;
+    `;
+
+    await sql`
+      ALTER TABLE payments
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS gst_charges NUMERIC DEFAULT 0,
       ADD COLUMN IF NOT EXISTS platform_fees NUMERIC DEFAULT 0,
@@ -324,7 +329,8 @@ export async function initializeCompletSchema() {
         patient_consent VARCHAR(20) DEFAULT 'approved',
         doctor_consent VARCHAR(20) DEFAULT 'approved',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_deleted BOOLEAN DEFAULT FALSE
+        is_deleted BOOLEAN DEFAULT FALSE,
+        title VARCHAR(255)
       );
     `;
     // Ensure columns exist even if table was created earlier without them
@@ -332,7 +338,8 @@ export async function initializeCompletSchema() {
       ALTER TABLE recordings
       ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS patient_consent VARCHAR(20) DEFAULT 'approved',
-      ADD COLUMN IF NOT EXISTS doctor_consent VARCHAR(20) DEFAULT 'approved';
+      ADD COLUMN IF NOT EXISTS doctor_consent VARCHAR(20) DEFAULT 'approved',
+      ADD COLUMN IF NOT EXISTS title VARCHAR(255);
     `;
 
     // 7️⃣ PATIENT DATA (EHR)

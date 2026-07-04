@@ -424,7 +424,7 @@ const PrescriptionDetails = () => {
           </section>
         )}
 
-        {!!extractedText && (
+        {/* {!!extractedText && (
           <section className="ocr-preview-card">
             <div className="ocr-preview-header">
               <h2>OCR text preview</h2>
@@ -432,7 +432,7 @@ const PrescriptionDetails = () => {
             </div>
             <pre>{extractedText}</pre>
           </section>
-        )}
+        )} */}
       </div>
     </div>
   );

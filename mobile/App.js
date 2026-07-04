@@ -3,6 +3,7 @@ import React from "react";
 import { LogBox } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import AppNavigator from "./src/navigation/AppNavigator";
 import { AuthProvider } from "./src/context/AuthContext";
@@ -13,6 +14,7 @@ LogBox.ignoreLogs([
   "SafeAreaView has been deprecated",
   "`expo-notifications` functionality is not fully supported in Expo Go",
   "[expo-av]: Expo AV has been deprecated",
+  "expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go",
 ]);
 
 Notifications.setNotificationHandler({
@@ -49,10 +51,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

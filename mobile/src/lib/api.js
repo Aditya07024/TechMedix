@@ -491,20 +491,23 @@ export const api = {
       apiRequest(`/api/recordings/patient/${patientId}`, { unwrap: true }),
     listForDoctor: (doctorId) =>
       apiRequest(`/api/recordings/doctor/${doctorId}`, { unwrap: true }),
-    upload: async ({ audio, appointmentId, patientId }) => {
+    upload: async ({ audio, appointmentId, patientId, title }) => {
       const formData = new FormData();
       await appendMultipartField(formData, "audio", audio, audio.mimeType || "audio/mpeg");
       formData.append("patient_id", String(patientId));
       if (appointmentId) {
         formData.append("appointment_id", String(appointmentId));
       }
+      if (title) {
+        formData.append("title", String(title));
+      }
       return apiRequest("/api/recordings", {
         method: "POST",
         body: formData,
       });
     },
-    uploadDoctor: ({ audio, appointmentId, patientId }) =>
-      api.recordings.upload({ audio, appointmentId, patientId }),
+    uploadDoctor: ({ audio, appointmentId, patientId, title }) =>
+      api.recordings.upload({ audio, appointmentId, patientId, title }),
   },
 
   staff: {

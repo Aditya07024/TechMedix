@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  Linking,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
@@ -472,34 +473,14 @@ export default function StaffDashboardScreen() {
     );
   })()}
 
-        {/* Health Tips Card */}
-        <View style={[styles.sectionCard, { borderColor: colors.primaryContainer, borderWidth: 1 }]}>
-          <View style={styles.sectionHeaderRow}>
-            <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color={colors.primary} />
-            <Text style={styles.sectionCardTitle}>Clinic Operational Guidelines</Text>
-          </View>
-          <Text style={styles.sectionCardSubtitle}>
-            Operational health guidelines for patient consultation processing and sanitation maintenance.
-          </Text>
-          <TouchableOpacity 
-            style={{ 
-              marginTop: 12, 
-              backgroundColor: colors.surfaceLow, 
-              paddingVertical: 10, 
-              borderRadius: radii.pill, 
-              alignItems: "center" 
-            }}
-            onPress={() => {
-              Alert.alert(
-                "Clinic Operational Guidelines",
-                "1. Confirm patient cash collection prior to token generation.\n\n2. Clean reception counters every 2 hours.\n\n3. Maintain safe distance guidelines in waiting lounge.\n\n4. Assist elderly patients with queue lookup."
-              );
-            }}
-          >
-            <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 13 }}>View Guidelines</Text>
-          </TouchableOpacity>
-        </View>
+       
       </ScrollView>
+      <TouchableOpacity 
+        style={styles.fabHelp} 
+        onPress={() => Linking.openURL("mailto:techmedixcare@gmail.com?subject=Staff%20Support%20-%20TechMedix")}
+      >
+        <MaterialCommunityIcons name="help-circle" size={24} color="#ffffff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -797,5 +778,21 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontSize: 11,
     fontWeight: "800",
+  },
+  fabHelp: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
 });

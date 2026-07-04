@@ -191,7 +191,6 @@ export function DoctorDashboardScreen({ navigation }) {
         <TopBar
           title="Doctor Workspace"
           avatar={getInitials(user?.name)}
-          onBell={() => navigation.navigate("DoctorProfile")}
         />
         <View style={subWallStyles.container}>
           <SurfaceCard style={subWallStyles.card}>
@@ -223,11 +222,11 @@ export function DoctorDashboardScreen({ navigation }) {
   }
 
   return (
-    <ScreenScroll contentContainerStyle={styles.screenContent}>
+    <>
+      <ScreenScroll contentContainerStyle={styles.screenContent}>
       <TopBar
         title="Doctor Workspace"
         avatar={getInitials(user?.name)}
-        onBell={() => navigation.navigate("DoctorProfile")}
       />
       <SectionHeader
         title={`Welcome back, ${user?.name || "Doctor"}`}
@@ -566,7 +565,15 @@ export function DoctorDashboardScreen({ navigation }) {
       </Modal>
 
       
-    </ScreenScroll>
+      </ScreenScroll>
+
+      <TouchableOpacity 
+        style={styles.fabHelp} 
+        onPress={() => Linking.openURL("mailto:techmedixcare@gmail.com?subject=Doctor%20Support%20-%20TechMedix")}
+      >
+        <MaterialCommunityIcons name="help-circle" size={24} color="#ffffff" />
+      </TouchableOpacity>
+    </>
   );
 }
 
@@ -1976,6 +1983,7 @@ export function DoctorPatientLookupScreen({ navigation }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState(null);
   const [playbackUri, setPlaybackUri] = useState(null);
+  const [recordingTitle, setRecordingTitle] = useState("");
   const [uploadingRecording, setUploadingRecording] = useState(false);
   const recordingRef = useRef(null);
   const soundRef = useRef(null);
@@ -2151,8 +2159,10 @@ export function DoctorPatientLookupScreen({ navigation }) {
       await api.recordings.upload({
         audio: { uri: recordedUri, type: "audio/m4a", name: `consult_${Date.now()}.m4a` },
         patientId: patient.id,
+        title: recordingTitle.trim() || undefined,
       });
       setRecordedUri(null);
+      setRecordingTitle("");
       Alert.alert("Uploaded", "Voice recording uploaded successfully.");
     } catch (err) {
       Alert.alert("Upload Failed", err.message);
@@ -2553,6 +2563,13 @@ export function DoctorPatientLookupScreen({ navigation }) {
               ) : null}
               {recordedUri && !isRecording && (
                 <View style={{ flexDirection: "column", gap: spacing.sm, width: "100%" }}>
+                  <TextInput
+                    value={recordingTitle}
+                    onChangeText={setRecordingTitle}
+                    placeholder="Enter recording title/name (optional)"
+                    placeholderTextColor={colors.outline}
+                    style={[styles.input, { marginBottom: spacing.xs }]}
+                  />
                   <View style={{ flexDirection: "row", gap: spacing.md }}>
                     <SecondaryButton
                       label={playbackUri ? "Pause" : "Listen"}
@@ -2961,6 +2978,23 @@ function Stat({ label, value, icon = "calendar-check", onPress }) {
 }
 
 const styles = StyleSheet.create({
+  fabHelp: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    zIndex: 999,
+  },
   screenContent: {
     gap: spacing.lg,
   },

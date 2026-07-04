@@ -44,11 +44,11 @@
       "expo-asset",
       "expo-font"
     ],
+    "owner": "adityagla",
     "extra": {
       "eas": {
-        "projectId": "bf1a03a2-4b0c-4263-b6a4-df9a80154fbc"
+        "projectId": "ee2e83f3-024a-4233-a9d6-fac8f8aed46b"
       }
-    },
-    "owner": "aditya07024"
+    }
   }
 }

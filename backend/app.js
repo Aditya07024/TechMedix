@@ -654,6 +654,14 @@ async function testConnection() {
       console.warn("Could not alter payments doctor_id:", e.message);
     }
 
+    // Ensure patient_id is nullable in payments table for doctor payments
+    try {
+      await sql`ALTER TABLE payments ALTER COLUMN patient_id DROP NOT NULL`;
+      console.log("✓ Ensured patient_id is nullable in payments table");
+    } catch (e) {
+      console.warn("Could not alter payments patient_id:", e.message);
+    }
+
     // Ensure clinic_address column exists in doctors table
     try {
       await sql`ALTER TABLE doctors ADD COLUMN IF NOT EXISTS clinic_address TEXT`;

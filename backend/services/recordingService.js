@@ -7,6 +7,7 @@ export async function saveRecording(data) {
     doctor_id,
     file_url,
     duration = 0,
+    title = null,
   } = data;
 
   // Validate input (appointment_id optional)
@@ -39,7 +40,8 @@ export async function saveRecording(data) {
       doctor_id,
       audio_url,
       duration,
-      created_at
+      created_at,
+      title
     )
     VALUES (
       ${appointment_id || null},
@@ -47,7 +49,8 @@ export async function saveRecording(data) {
       ${doctor_id},
       ${file_url},
       ${duration},
-      NOW()
+      NOW(),
+      ${title}
     )
     RETURNING *
   `;
@@ -64,6 +67,7 @@ export async function getPatientRecordings(patientId) {
       r.created_at,
       r.patient_consent,
       r.doctor_consent,
+      r.title,
       d.name as doctor_name,
       a.appointment_date,
       a.slot_time
@@ -86,6 +90,7 @@ export async function getDoctorRecordings(doctorId) {
       r.created_at,
       r.patient_consent,
       r.doctor_consent,
+      r.title,
       p.name as patient_name,
       a.appointment_date,
       a.slot_time
@@ -101,7 +106,7 @@ export async function getDoctorRecordings(doctorId) {
 
 export async function getRecordingById(id) {
   const rows = await sql`
-    SELECT id, doctor_id, patient_id, audio_url, duration, patient_consent, doctor_consent, created_at
+    SELECT id, doctor_id, patient_id, audio_url, duration, patient_consent, doctor_consent, created_at, title
     FROM recordings
     WHERE id = ${id}
       AND COALESCE(is_deleted, FALSE) = FALSE

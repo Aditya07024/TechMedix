@@ -302,6 +302,10 @@ export function PatientDashboardScreen({ navigation }) {
     activePosters: [],
   });
 
+  const [posterPopupVisible, setPosterPopupVisible] = useState(false);
+  const [currentPoster, setCurrentPoster] = useState(null);
+  const posterShownRef = useRef(false);
+
   const [reminders, setReminders] = useState({});
   const [timePickerState, setTimePickerState] = useState({
     visible: false,
@@ -596,6 +600,15 @@ export function PatientDashboardScreen({ navigation }) {
       loadDashboard();
     }, [user?.id, hasLoadedDashboard]),
   );
+
+  // Show poster popup once per session on mount
+  useEffect(() => {
+    if (!posterShownRef.current && homeData.activePosters?.length > 0) {
+      posterShownRef.current = true;
+      setCurrentPoster(homeData.activePosters[0]);
+      setPosterPopupVisible(true);
+    }
+  }, [homeData.activePosters]);
 
   const appointments = homeData.appointments || [];
   const activeAppointments = appointments
@@ -1009,11 +1022,60 @@ export function PatientDashboardScreen({ navigation }) {
         )
       ) : null}
 
+      <Modal
+        visible={posterPopupVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPosterPopupVisible(false)}
+      >
+        <View style={modalStyles.backdrop}>
+          {currentPoster && (
+            <View style={modalStyles.posterModalContent}>
+              <TouchableOpacity
+                style={modalStyles.posterCloseButton}
+                onPress={() => setPosterPopupVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={22} color={colors.onPrimary} />
+              </TouchableOpacity>
+              
+              <Image
+                source={{ uri: toAbsoluteUrl(currentPoster.image_url) }}
+                style={modalStyles.posterModalImage}
+                resizeMode="cover"
+              />
+              
+              <View style={modalStyles.posterModalDetails}>
+                <Text style={modalStyles.posterModalDocName}>
+                  {currentPoster.doctor_name?.startsWith("Dr.")
+                    ? currentPoster.doctor_name
+                    : `Dr. ${currentPoster.doctor_name || "Doctor"}`}
+                </Text>
+                <Text style={modalStyles.posterModalDocSpecialty}>
+                  {currentPoster.specialty || "Specialist"}
+                </Text>
+                
+                <TouchableOpacity
+                  style={modalStyles.posterModalBookingBtn}
+                  onPress={() => {
+                    setPosterPopupVisible(false);
+                    navigation.navigate("Appointments");
+                  }}
+                >
+                  <Text style={modalStyles.posterModalBookingText}>Book Appointment</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       <PatientMenuDrawer
         visible={drawerVisible}
         onClose={() => setDrawerVisible(false)}
         navigation={navigation}
       />
+
+
     </>
   );
 }
@@ -5675,6 +5737,23 @@ export function MedicineSearchScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  fabHelp: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    zIndex: 999,
+  },
   timePickerModalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(18, 20, 43, 0.4)",
@@ -6818,5 +6897,64 @@ const modalStyles = StyleSheet.create({
   },
   scroll: {
     maxHeight: 400,
-  }
+  },
+  posterModalContent: {
+    width: "90%",
+    backgroundColor: colors.surfaceLowest,
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    position: "relative",
+  },
+  posterCloseButton: {
+    position: "absolute",
+    top: spacing.md,
+    right: spacing.md,
+    backgroundColor: "rgba(18, 20, 43, 0.6)",
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  posterModalImage: {
+    width: "100%",
+    height: 300,
+  },
+  posterModalDetails: {
+    width: "100%",
+    padding: spacing.lg,
+    backgroundColor: colors.surfaceLowest,
+  },
+  posterModalDocName: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.onSurface,
+    marginBottom: spacing.xs,
+  },
+  posterModalDocSpecialty: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+    marginBottom: spacing.md,
+  },
+  posterModalBookingBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  posterModalBookingText: {
+    color: colors.onPrimary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
 });

@@ -80,9 +80,9 @@ router.post(
         .toString(36)
         .slice(2, 7)}`;
       console.log(`[RecordingUpload ${reqId}] POST /api/recordings`);
-      const { appointment_id, patient_id } = req.body;
+      const { appointment_id, patient_id, title } = req.body;
       console.log(
-        `[RecordingUpload ${reqId}] by user=${req.user?.id} role=${req.user?.role} patient_id=${patient_id} appointment_id=${appointment_id}`,
+        `[RecordingUpload ${reqId}] by user=${req.user?.id} role=${req.user?.role} patient_id=${patient_id} appointment_id=${appointment_id} title=${title}`,
       );
 
       if (!patient_id) {
@@ -145,6 +145,7 @@ router.post(
         doctor_id: req.user.id,
         file_url: fileUrl,
         duration: 0,
+        title: title || null,
       };
 
       console.log(`[RecordingUpload ${reqId}] Saving to DB...`);

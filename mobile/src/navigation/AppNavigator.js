@@ -1,5 +1,6 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View, Platform, TouchableOpacity, PanResponder } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -50,6 +51,7 @@ const PatientTab = createBottomTabNavigator();
 const DoctorTab = createBottomTabNavigator();
 
 function CustomTabBar({ state, descriptors, navigation, isDoctor = false }) {
+  const insets = useSafeAreaInsets();
   const panResponder = React.useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
@@ -82,7 +84,7 @@ function CustomTabBar({ state, descriptors, navigation, isDoctor = false }) {
   ).current;
 
   return (
-    <View style={navStyles.tabContainer} {...panResponder.panHandlers}>
+    <View style={[navStyles.tabContainer, { bottom: Math.max(insets.bottom, 16) }]} {...panResponder.panHandlers}>
       <View style={navStyles.tabBar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
