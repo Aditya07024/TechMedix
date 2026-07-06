@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { scheduleAPI, appointmentAPI } from "../../api/techmedixAPI";
+import { healthWalletApi } from "../../api";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Files,
+  FolderOpen,
   ShieldCheck,
 } from "lucide-react";
 import { assets } from "../../assets/assets";
@@ -36,6 +39,11 @@ export default function AppointmentBooking({
   const [shareHistoryScope, setShareHistoryScope] = useState(
     SHARE_OPTIONS.map((option) => option.id),
   );
+  // File sharing mode for "reports" scope
+  const [shareAllFiles, setShareAllFiles] = useState(true); // true = all, false = selective
+  const [savedDocuments, setSavedDocuments] = useState([]);
+  const [selectedFileIds, setSelectedFileIds] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -77,6 +85,29 @@ export default function AppointmentBooking({
 
     fetchAvailableDates();
   }, [doctorId]);
+
+  /* ============================
+     FETCH PATIENT SAVED FILES
+  ============================ */
+  useEffect(() => {
+    if (shareHistory && shareHistoryScope.includes("reports")) {
+      const loadDocs = async () => {
+        try {
+          setDocsLoading(true);
+          const res = await healthWalletApi.listDocuments();
+          setSavedDocuments(res.data?.data || []);
+        } catch {
+          setSavedDocuments([]);
+        } finally {
+          setDocsLoading(false);
+        }
+      };
+      loadDocs();
+    } else {
+      setSavedDocuments([]);
+      setSelectedFileIds([]);
+    }
+  }, [shareHistory, shareHistoryScope]);
 
   /* ============================
      FETCH SLOTS
@@ -148,6 +179,8 @@ export default function AppointmentBooking({
         slot_time: selectedSlot.start_time.slice(0, 5),
         share_history: shareHistory,
         share_history_scope: shareHistory ? shareHistoryScope : [],
+        share_all_files: shareHistoryScope.includes("reports") ? shareAllFiles : true,
+        shared_file_ids: (!shareAllFiles && shareHistoryScope.includes("reports")) ? selectedFileIds : [],
         doctorName,
         doctorSpecialty,
         consultationFee: Number(consultationFee || 0),
@@ -416,6 +449,90 @@ export default function AppointmentBooking({
                       <span>{option.label}</span>
                     </label>
                   ))}
+
+                  {/* File sharing mode (only when reports scope is selected) */}
+                  {shareHistoryScope.includes("reports") && (
+                    <div className="booking-file-share-section">
+                      <p className="booking-file-share-label">
+                        <Files size={15} strokeWidth={2} />
+                        How would you like to share your saved reports &amp; files?
+                      </p>
+                      <div className="booking-file-share-modes">
+                        <label className={`booking-file-mode-btn${shareAllFiles ? " active" : ""}`}>
+                          <input
+                            type="radio"
+                            name="fileShareMode"
+                            checked={shareAllFiles}
+                            onChange={() => { setShareAllFiles(true); setSelectedFileIds([]); }}
+                          />
+                          <FolderOpen size={16} strokeWidth={2} />
+                          <div>
+                            <strong>Share all saved files</strong>
+                            <span>Doctor can see all your reports and health wallet documents</span>
+                          </div>
+                        </label>
+                        <label className={`booking-file-mode-btn${!shareAllFiles ? " active" : ""}`}>
+                          <input
+                            type="radio"
+                            name="fileShareMode"
+                            checked={!shareAllFiles}
+                            onChange={() => setShareAllFiles(false)}
+                          />
+                          <Files size={16} strokeWidth={2} />
+                          <div>
+                            <strong>Select specific files</strong>
+                            <span>Choose exactly which files to share with this doctor</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Specific file picker */}
+                      {!shareAllFiles && (
+                        <div className="booking-file-picker">
+                          {docsLoading ? (
+                            <p className="booking-file-picker-empty">Loading your saved files…</p>
+                          ) : savedDocuments.length === 0 ? (
+                            <p className="booking-file-picker-empty">No saved files found in your Health Wallet.</p>
+                          ) : (
+                            <>
+                              <p className="booking-file-picker-hint">
+                                {selectedFileIds.length === 0
+                                  ? "Select the files you want to share:"
+                                  : `${selectedFileIds.length} file${selectedFileIds.length > 1 ? "s" : ""} selected`}
+                              </p>
+                              <div className="booking-file-list">
+                                {savedDocuments.map((doc) => {
+                                  const isSelected = selectedFileIds.includes(String(doc.id));
+                                  return (
+                                    <label
+                                      key={doc.id}
+                                      className={`booking-file-item${isSelected ? " selected" : ""}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                          setSelectedFileIds((prev) =>
+                                            isSelected
+                                              ? prev.filter((id) => id !== String(doc.id))
+                                              : [...prev, String(doc.id)]
+                                          );
+                                        }}
+                                      />
+                                      <span className="booking-file-name">{doc.file_name}</span>
+                                      <span className="booking-file-type">
+                                        {doc.mime_type?.startsWith("image/") ? "Image" : "PDF"}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

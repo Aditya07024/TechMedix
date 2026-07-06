@@ -10,6 +10,8 @@ export async function bookAppointment(data) {
     slot_time,
     share_history = false,
     share_history_scope = [],
+    share_all_files = true,
+    shared_file_ids = [],
     recording_consent_patient = false,
   } = data;
 
@@ -43,6 +45,8 @@ export async function bookAppointment(data) {
       slot_time,
       share_history,
       share_history_scope,
+      share_all_files,
+      shared_file_ids,
       recording_consent_patient,
       branch_id,
       status
@@ -55,6 +59,8 @@ export async function bookAppointment(data) {
       ${slot_time},
       ${share_history},
       ${sql.json(Array.isArray(share_history_scope) ? share_history_scope : [])},
+      ${share_all_files !== false},
+      ${sql.json(Array.isArray(shared_file_ids) ? shared_file_ids : [])},
       ${recording_consent_patient},
       ${preparedBooking.branch_id},
       'booked'

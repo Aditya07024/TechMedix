@@ -177,6 +177,10 @@ export default function PaymentPage() {
           share_history_scope: Array.isArray(bookingIntent.share_history_scope)
             ? bookingIntent.share_history_scope
             : [],
+          share_all_files: bookingIntent.share_all_files !== false,
+          shared_file_ids: Array.isArray(bookingIntent.shared_file_ids)
+            ? bookingIntent.shared_file_ids
+            : [],
         },
       }
     : {

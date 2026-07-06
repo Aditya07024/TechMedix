@@ -1055,6 +1055,8 @@ app.get(
           a.slot_time,
           a.share_history,
           a.share_history_scope,
+          a.share_all_files,
+          a.shared_file_ids,
           p.id AS patient_row_id,
           p.name,
           p.email,
@@ -1177,6 +1179,16 @@ app.get(
               (rec) => rec.patient_consent === "approved" && rec.doctor_consent === "approved"
             )
           : [];
+      let rawWalletDocs = walletRows.status === "fulfilled" ? walletRows.value : [];
+      const apptShareAll = appointment.share_all_files !== false;
+      const apptSharedFileIds = Array.isArray(appointment.shared_file_ids) ? appointment.shared_file_ids : [];
+
+      if (!apptShareAll) {
+        rawWalletDocs = rawWalletDocs.filter((doc) =>
+          apptSharedFileIds.includes(String(doc.id))
+        );
+      }
+
       responsePayload.reports = [
         ...((reportRows.status === "fulfilled" ? reportRows.value : []).map((report) => ({
           id: `report-${report.id}`,
@@ -1186,7 +1198,7 @@ app.get(
           source: "report",
           created_at: report.created_at,
         }))),
-        ...((walletRows.status === "fulfilled" ? walletRows.value : []).map((doc) => ({
+        ...(rawWalletDocs.map((doc) => ({
           id: `wallet-${doc.id}`,
           file_name: doc.file_name,
           file_type: doc.mime_type,

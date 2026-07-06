@@ -18,6 +18,8 @@ export async function createAppointment(req, res) {
       slot_time,
       share_history,
       share_history_scope,
+      share_all_files,
+      shared_file_ids,
       recording_consent_patient,
     } = req.body;
 
@@ -28,6 +30,8 @@ export async function createAppointment(req, res) {
       slot_time,
       share_history,
       share_history_scope,
+      share_all_files,
+      shared_file_ids,
       recording_consent_patient,
     });
 

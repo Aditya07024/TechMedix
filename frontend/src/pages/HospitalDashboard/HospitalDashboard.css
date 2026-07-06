@@ -503,3 +503,249 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Hospital Payment Modal ──────────────────────────────────────────────── */
+.hosp-pay-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 24, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeInOverlay 0.22s ease;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.hosp-pay-modal {
+  background: var(--hospital-card-bg-strong);
+  border: 1px solid var(--hospital-line);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255,255,255,0.04);
+  width: 100%;
+  max-width: 480px;
+  padding: 36px 32px 28px;
+  position: relative;
+  animation: slideUpModal 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideUpModal {
+  from { opacity: 0; transform: translateY(30px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.hosp-pay-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--hospital-accent-soft);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hospital-accent);
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s;
+}
+.hosp-pay-close:hover { background: rgba(46, 74, 174, 0.22); transform: rotate(90deg); }
+.hosp-pay-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hosp-pay-header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+.hosp-pay-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2e4aae, #4f72f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin: 0 auto 14px;
+  box-shadow: 0 8px 24px rgba(46, 74, 174, 0.32);
+}
+.hosp-pay-header h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--hospital-text);
+  margin: 0 0 5px;
+}
+.hosp-pay-header p {
+  font-size: 0.84rem;
+  color: var(--hospital-muted);
+  margin: 0;
+}
+
+/* Plan summary card */
+.hosp-pay-plan-card {
+  background: linear-gradient(135deg, rgba(46, 74, 174, 0.08), rgba(79, 114, 240, 0.05));
+  border: 1px solid rgba(46, 74, 174, 0.18);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.hosp-pay-plan-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--hospital-accent);
+  margin-bottom: 12px;
+}
+.hosp-pay-plan-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.hosp-pay-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hosp-pay-detail span {
+  font-size: 0.73rem;
+  color: var(--hospital-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.hosp-pay-detail strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--hospital-text);
+}
+.hosp-pay-amount {
+  color: var(--hospital-accent) !important;
+  font-size: 1rem !important;
+}
+.hosp-pay-features {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hosp-pay-features li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  background: rgba(46, 74, 174, 0.08);
+  color: var(--hospital-accent);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+/* Phone field */
+.hosp-pay-field {
+  margin-bottom: 16px;
+}
+.hosp-pay-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--hospital-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.hosp-pay-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--hospital-card-bg);
+  border: 1px solid var(--hospital-line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: border-color 0.18s;
+}
+.hosp-pay-input-wrap:focus-within {
+  border-color: var(--hospital-accent);
+  box-shadow: 0 0 0 3px var(--hospital-accent-soft);
+}
+.hosp-pay-input-wrap svg { color: var(--hospital-muted); flex-shrink: 0; }
+.hosp-pay-input-wrap input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  color: var(--hospital-text);
+  outline: none;
+  font-family: inherit;
+}
+.hosp-pay-field-hint {
+  font-size: 0.73rem;
+  color: var(--hospital-muted);
+  margin: 6px 0 0;
+}
+
+/* Error */
+.hosp-pay-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.24);
+  color: #dc2626;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  margin-bottom: 16px;
+}
+
+/* CTA button */
+.hosp-pay-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #2e4aae, #4f72f0);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.15s, box-shadow 0.18s;
+  box-shadow: 0 6px 20px rgba(46, 74, 174, 0.35);
+  margin-bottom: 12px;
+}
+.hosp-pay-cta:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(46, 74, 174, 0.45);
+}
+.hosp-pay-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Spinning loader icon */
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+.hosp-pay-secure {
+  text-align: center;
+  font-size: 0.73rem;
+  color: var(--hospital-muted);
+  margin: 0;
+}
+

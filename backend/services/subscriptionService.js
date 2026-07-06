@@ -90,6 +90,19 @@ export async function ensureSubscriptionTables() {
       )
     `;
 
+    // 6. Hospital Link Requests (pending approval from doctors)
+    await sql`
+      CREATE TABLE IF NOT EXISTS hospital_link_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        hospital_id UUID NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+        doctor_id UUID NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',  -- pending | accepted | rejected
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(hospital_id, doctor_id)
+      )
+    `;
+
     console.log("✓ Subscription and Hospital tables ready");
   } catch (err) {
     console.error("Failed to ensure subscription tables:", err.message);
@@ -481,6 +494,159 @@ export async function linkDoctorToHospital(hospitalId, doctorEmail) {
 }
 
 /**
+ * Send a pending link request from hospital to doctor (by email).
+ * Does NOT link immediately — the doctor must accept.
+ */
+export async function sendHospitalLinkRequest(hospitalId, doctorEmail) {
+  // Find doctor
+  const doctorRows = await sql`
+    SELECT id, name, email, hospital_id
+    FROM doctors
+    WHERE email = ${doctorEmail.toLowerCase().trim()} AND is_deleted = FALSE
+    LIMIT 1
+  `;
+
+  if (!doctorRows.length) {
+    throw new Error("Doctor with this email not found on TechMedix.");
+  }
+  const doc = doctorRows[0];
+
+  if (doc.hospital_id === hospitalId) {
+    throw new Error("Doctor is already linked to this hospital.");
+  }
+
+  if (doc.hospital_id) {
+    throw new Error("Doctor is already linked to another hospital.");
+  }
+
+  // Check hospital has active subscription and slot capacity
+  const hs = await getHospitalSubscription(hospitalId);
+  if (!hs || hs.status !== "active") {
+    throw new Error("Your hospital does not have an active subscription package.");
+  }
+  const now = new Date();
+  if (hs.end_date && now > new Date(hs.end_date)) {
+    throw new Error("Your subscription has expired. Please renew to link doctors.");
+  }
+  const countRes = await sql`
+    SELECT COUNT(*) AS count FROM doctors WHERE hospital_id = ${hospitalId} AND is_deleted = FALSE
+  `;
+  if (Number(countRes[0].count) >= hs.max_doctors) {
+    throw new Error(`Limit reached. Your plan allows up to ${hs.max_doctors} doctors.`);
+  }
+
+  // Check for an already-pending request
+  const existing = await sql`
+    SELECT id, status FROM hospital_link_requests
+    WHERE hospital_id = ${hospitalId} AND doctor_id = ${doc.id}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  if (existing.length && existing[0].status === "pending") {
+    throw new Error("A link request is already pending for this doctor.");
+  }
+
+  // Upsert a pending request
+  const req = await sql`
+    INSERT INTO hospital_link_requests (hospital_id, doctor_id, status)
+    VALUES (${hospitalId}, ${doc.id}, 'pending')
+    ON CONFLICT (hospital_id, doctor_id)
+    DO UPDATE SET status = 'pending', updated_at = NOW()
+    RETURNING *
+  `;
+
+  return { request: req[0], doctor: { id: doc.id, name: doc.name, email: doc.email } };
+}
+
+/**
+ * Doctor responds to a hospital link request: 'accepted' or 'rejected'.
+ * On accept, sets doctor.hospital_id and returns the updated doctor.
+ */
+export async function respondToLinkRequest(requestId, doctorId, response) {
+  if (!['accepted', 'rejected'].includes(response)) {
+    throw new Error("response must be 'accepted' or 'rejected'");
+  }
+
+  // Verify request belongs to this doctor
+  const reqRows = await sql`
+    SELECT r.*, h.name AS hospital_name
+    FROM hospital_link_requests r
+    JOIN hospitals h ON h.id = r.hospital_id
+    WHERE r.id = ${requestId} AND r.doctor_id = ${doctorId} AND r.status = 'pending'
+    LIMIT 1
+  `;
+  if (!reqRows.length) {
+    throw new Error("Link request not found or already resolved.");
+  }
+  const linkReq = reqRows[0];
+
+  // Update request status
+  await sql`
+    UPDATE hospital_link_requests
+    SET status = ${response}, updated_at = NOW()
+    WHERE id = ${requestId}
+  `;
+
+  if (response === 'accepted') {
+    // Re-check slot capacity before accepting
+    const hs = await getHospitalSubscription(linkReq.hospital_id);
+    if (hs && hs.status === 'active') {
+      const countRes = await sql`
+        SELECT COUNT(*) AS count FROM doctors WHERE hospital_id = ${linkReq.hospital_id} AND is_deleted = FALSE
+      `;
+      if (Number(countRes[0].count) >= hs.max_doctors) {
+        // Reject instead — hospital ran out of slots since the request was sent
+        await sql`
+          UPDATE hospital_link_requests SET status = 'rejected', updated_at = NOW()
+          WHERE id = ${requestId}
+        `;
+        throw new Error("Hospital's doctor slots are now full. Cannot accept.");
+      }
+    }
+
+    // Set hospital_id on doctor record
+    await sql`
+      UPDATE doctors SET hospital_id = ${linkReq.hospital_id}, updated_at = NOW()
+      WHERE id = ${doctorId}
+    `;
+  }
+
+  return {
+    status: response,
+    hospital_name: linkReq.hospital_name,
+    hospital_id: linkReq.hospital_id,
+  };
+}
+
+/**
+ * Get all pending link requests for a doctor.
+ */
+export async function getPendingLinkRequestsForDoctor(doctorId) {
+  return sql`
+    SELECT r.id, r.status, r.created_at,
+           h.id AS hospital_id, h.name AS hospital_name, h.email AS hospital_email
+    FROM hospital_link_requests r
+    JOIN hospitals h ON h.id = r.hospital_id
+    WHERE r.doctor_id = ${doctorId} AND r.status = 'pending'
+    ORDER BY r.created_at DESC
+  `;
+}
+
+/**
+ * Get all link requests sent by a hospital (with status).
+ */
+export async function getHospitalLinkRequests(hospitalId) {
+  return sql`
+    SELECT r.id, r.status, r.created_at, r.updated_at,
+           d.id AS doctor_id, d.name AS doctor_name, d.email AS doctor_email, d.specialty
+    FROM hospital_link_requests r
+    JOIN doctors d ON d.id = r.doctor_id
+    WHERE r.hospital_id = ${hospitalId}
+    ORDER BY r.created_at DESC
+  `;
+}
+
+/**
  * Unlink a doctor from a hospital
  */
 export async function unlinkDoctorFromHospital(hospitalId, doctorId) {
@@ -597,3 +763,108 @@ export async function getAllHospitalsWithSubscription() {
     return { ...row, computed_status };
   });
 }
+
+/**
+ * Get aggregated and doctor-by-doctor performance stats for a hospital
+ */
+export async function getHospitalDoctorsPerformance(hospitalId) {
+  // 1. Get linked doctors
+  const doctors = await sql`
+    SELECT id, name, email, specialty, consultation_fee
+    FROM doctors
+    WHERE hospital_id = ${hospitalId} AND is_deleted = FALSE
+  `;
+
+  if (doctors.length === 0) {
+    return {
+      aggregate: {
+        total_appointments: 0,
+        total_earnings: 0,
+        average_rating: 0,
+        doctors_count: 0
+      },
+      doctors: []
+    };
+  }
+
+  const doctorIds = doctors.map(d => d.id);
+
+  // 2. Fetch appointments count for each doctor
+  const appointmentsCount = await sql`
+    SELECT doctor_id, COUNT(*) as count
+    FROM appointments
+    WHERE doctor_id IN (${doctorIds})
+    GROUP BY doctor_id
+  `;
+  const apptMap = {};
+  appointmentsCount.forEach(row => {
+    apptMap[row.doctor_id] = Number(row.count);
+  });
+
+  // 3. Fetch earnings for each doctor from payments table where status = 'paid'
+  const earnings = await sql`
+    SELECT doctor_id, COALESCE(SUM(amount), 0) as total
+    FROM payments
+    WHERE doctor_id IN (${doctorIds}) AND status = 'paid' AND COALESCE(is_deleted, false) = false
+    GROUP BY doctor_id
+  `;
+  const earningsMap = {};
+  earnings.forEach(row => {
+    earningsMap[row.doctor_id] = Number(row.total);
+  });
+
+  // 4. Fetch average rating for each doctor from doctor_reviews table
+  const ratings = await sql`
+    SELECT doctor_id, COALESCE(AVG(rating), 0) as avg_rating
+    FROM doctor_reviews
+    WHERE doctor_id IN (${doctorIds})
+    GROUP BY doctor_id
+  `;
+  const ratingsMap = {};
+  ratings.forEach(row => {
+    ratingsMap[row.doctor_id] = Number(row.avg_rating);
+  });
+
+  // 5. Construct detailed list
+  let totalEarnings = 0;
+  let totalAppointments = 0;
+  let ratingSum = 0;
+  let ratedDoctorsCount = 0;
+
+  const doctorStats = doctors.map(doc => {
+    const docEarnings = earningsMap[doc.id] || 0;
+    const docAppts = apptMap[doc.id] || 0;
+    const docRating = ratingsMap[doc.id] || 0;
+
+    totalEarnings += docEarnings;
+    totalAppointments += docAppts;
+    if (docRating > 0) {
+      ratingSum += docRating;
+      ratedDoctorsCount++;
+    }
+
+    return {
+      id: doc.id,
+      name: doc.name,
+      email: doc.email,
+      specialty: doc.specialty || "General",
+      consultation_fee: Number(doc.consultation_fee) || 0,
+      total_appointments: docAppts,
+      total_earnings: docEarnings,
+      average_rating: Number(Number(docRating).toFixed(1))
+    };
+  });
+
+  const avgRating = ratedDoctorsCount > 0 ? Number((ratingSum / ratedDoctorsCount).toFixed(1)) : 0;
+
+  return {
+    aggregate: {
+      total_appointments: totalAppointments,
+      total_earnings: totalEarnings,
+      average_rating: avgRating,
+      doctors_count: doctors.length
+    },
+    doctors: doctorStats
+  };
+}
+

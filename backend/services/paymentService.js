@@ -53,6 +53,10 @@ export async function createPayment({
           share_history_scope: Array.isArray(bookingDetails.share_history_scope)
             ? bookingDetails.share_history_scope
             : [],
+          share_all_files: bookingDetails.share_all_files !== false,
+          shared_file_ids: Array.isArray(bookingDetails.shared_file_ids)
+            ? bookingDetails.shared_file_ids
+            : [],
           recording_consent_patient: Boolean(
             bookingDetails.recording_consent_patient,
           ),

@@ -1,6 +1,7 @@
 import express from "express";
 import sql from "../config/database.js";
 import { authenticate, authorizeRoles } from "../middleware/auth.js";
+import { getHealthWalletDocumentsByPatientId } from "../models-pg/healthWalletDocument.js";
 
 const router = express.Router();
 
@@ -190,4 +191,94 @@ router.put(
   },
 );
 
+router.get(
+  "/patients/:patientId/reports",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+      const { appointmentId } = req.query;
+
+      // If an appointmentId is provided, check the file-sharing preference
+      let shareAllFiles = true;
+      let sharedFileIds = [];
+
+      if (appointmentId) {
+        const apptRows = await sql`
+          SELECT share_all_files, shared_file_ids
+          FROM appointments
+          WHERE id = ${appointmentId}::uuid
+            AND patient_id = ${patientId}::uuid
+          LIMIT 1
+        `;
+        if (apptRows.length > 0) {
+          shareAllFiles = apptRows[0].share_all_files !== false;
+          sharedFileIds = Array.isArray(apptRows[0].shared_file_ids) ? apptRows[0].shared_file_ids : [];
+        }
+      }
+
+      const reports = await sql`
+        SELECT id, patient_id, appointment_id, file_name, file_type, file_path, secure_url, storage_provider, created_at
+        FROM reports
+        WHERE patient_id = ${patientId}::uuid
+          AND COALESCE(is_deleted, false) = false
+        ORDER BY created_at DESC
+      `;
+      res.json({ success: true, data: reports, share_all_files: shareAllFiles, shared_file_ids: sharedFileIds });
+    } catch (error) {
+      console.error("Error fetching patient reports for doctor:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
+router.get(
+  "/patients/:patientId/wallet-documents",
+  authenticate,
+  authorizeRoles("doctor"),
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+      const { appointmentId } = req.query;
+
+      // Check file-sharing preference from the appointment
+      let shareAllFiles = true;
+      let sharedFileIds = [];
+
+      if (appointmentId) {
+        const apptRows = await sql`
+          SELECT share_all_files, shared_file_ids
+          FROM appointments
+          WHERE id = ${appointmentId}::uuid
+            AND patient_id = ${patientId}::uuid
+          LIMIT 1
+        `;
+        if (apptRows.length > 0) {
+          shareAllFiles = apptRows[0].share_all_files !== false;
+          sharedFileIds = Array.isArray(apptRows[0].shared_file_ids) ? apptRows[0].shared_file_ids : [];
+        }
+      }
+
+      let allDocuments = await getHealthWalletDocumentsByPatientId(patientId);
+
+      // Filter to only selected files if patient chose specific sharing
+      if (!shareAllFiles && sharedFileIds.length > 0) {
+        allDocuments = allDocuments.filter((doc) =>
+          sharedFileIds.includes(String(doc.id))
+        );
+      } else if (!shareAllFiles && sharedFileIds.length === 0) {
+        // No files explicitly selected — share nothing
+        allDocuments = [];
+      }
+
+      res.json({ success: true, data: allDocuments });
+    } catch (error) {
+      console.error("Error fetching patient wallet documents for doctor:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+);
+
 export default router;
+

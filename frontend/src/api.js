@@ -215,7 +215,21 @@ export const hospitalApi = {
   linkDoctor: (email) => api.post("/api/v2/hospitals/link", { email }),
   unlinkDoctor: (doctorId) => api.post("/api/v2/hospitals/unlink", { doctor_id: doctorId }),
   getHospitalPlans: () => api.get("/api/v2/hospitals/plans"),
+  // Legacy / admin direct-activate (kept for backward compat)
   subscribe: (planId) => api.post("/api/v2/hospitals/subscribe", { plan_id: planId }),
+  // Payment-gateway flow
+  initiateSubscriptionPayment: (planId, customerPhone) =>
+    api.post("/api/v2/hospitals/subscribe/initiate", { plan_id: planId, customer_phone: customerPhone }),
+  verifySubscriptionPayment: (cashfreeOrderId, planId) =>
+    api.post("/api/v2/hospitals/subscribe/verify", { cashfree_order_id: cashfreeOrderId, plan_id: planId }),
+  
+  // Link request flow
+  getSentLinkRequests: () => api.get("/api/v2/hospitals/link-requests"),
+  getPendingLinkRequests: () => api.get("/api/v2/hospitals/doctor/link-requests"),
+  respondToLinkRequest: (requestId, response) =>
+    api.post(`/api/v2/hospitals/doctor/link-requests/${requestId}/respond`, { response }),
+  getDoctorsPerformance: () => api.get("/api/v2/hospitals/performance"),
 };
 
 export default api;
+

@@ -156,6 +156,35 @@
   color: #0b7a72;
 }
 
+.upload-warning-banner {
+  max-width: 860px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 24px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffcf0 0%, #fff7d6 100%);
+  border: 1px solid #ffd043;
+  box-shadow: 0 10px 30px rgba(212, 163, 0, 0.06);
+}
+
+.upload-warning-banner .warning-icon {
+  color: #c48600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.upload-warning-banner .warning-content {
+  color: #614400;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.upload-warning-banner .warning-content strong {
+  color: #8c5d00;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .upload-content {
     padding: 96px 22px 24px;

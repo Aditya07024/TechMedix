@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { uploadPrescription } from "../../api/prescriptionApi";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import { FileText, ShieldCheck, UploadCloud } from "lucide-react";
+import { AlertTriangle, FileText, ShieldCheck, UploadCloud } from "lucide-react";
 import "./UploadPrescription.css";
 
 const UploadPrescription = () => {
@@ -65,6 +65,13 @@ const UploadPrescription = () => {
           <div className="upload-hero-badge">
             <ShieldCheck size={18} strokeWidth={2} />
             <span>Secure patient processing</span>
+          </div>
+        </div>
+
+        <div className="upload-warning-banner">
+          <AlertTriangle className="warning-icon" size={20} strokeWidth={2} />
+          <div className="warning-content">
+            <strong>Important Notice:</strong> If possible, please manually fill the medicine details for now. We are currently working on optimizing the prescription upload and extraction system.
           </div>
         </div>
 

@@ -26,7 +26,7 @@ import { initQueueSocket } from "../../api/socketService";
 import DoctorScheduleManager from "../../components/DoctorScheduleManager/DoctorScheduleManager";
 import ProfileManager from "../../components/ProfileManager/ProfileManager";
 import DoctorPromotions from "../../components/DoctorPromotions/DoctorPromotions";
-import { doctorApi, paymentApi } from "../../api";
+import { doctorApi, paymentApi, hospitalApi } from "../../api";
 import { formatTime12Hour } from "../../utils/dateTime";
 import "./DoctorDashboardNew.css";
 import DigitalPrescription from "../../components/Prescription/DigitalPrescription";
@@ -102,6 +102,16 @@ export default function DoctorDashboardNew() {
   const [subChecked, setSubChecked] = useState(false);
   const [detailedSub, setDetailedSub] = useState(null);
   const [detailedSubLoading, setDetailedSubLoading] = useState(false);
+
+  // Doctor self-subscription (plans + payment modal)
+  const [doctorPlans, setDoctorPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [subPayModal, setSubPayModal] = useState(null); // selected plan object | null
+  const [subPayPhone, setSubPayPhone] = useState("");
+  const [subPayLoading, setSubPayLoading] = useState(false);
+  const [subPayError, setSubPayError] = useState("");
+
+  const [hospitalRequests, setHospitalRequests] = useState([]);
 
   const [uniqueCode, setUniqueCode] = useState("");
   const [scannerVisible, setScannerVisible] = useState(false);
@@ -189,6 +199,7 @@ export default function DoctorDashboardNew() {
     loadStaffData();
     fetchProfile();
     checkSubscription();
+    loadHospitalRequests();
   }, [user?.id, selectedDate]);
 
   async function checkSubscription() {
@@ -208,8 +219,21 @@ export default function DoctorDashboardNew() {
   useEffect(() => {
     if (activeView === "subscription" && user?.id) {
       loadDetailedSubscription();
+      loadDoctorPlans();
+      loadHospitalRequests();
     }
   }, [activeView, user?.id]);
+
+  // Inject Cashfree SDK once
+  useEffect(() => {
+    if (!document.getElementById("cashfree-sdk")) {
+      const s = document.createElement("script");
+      s.id = "cashfree-sdk";
+      s.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+      s.async = true;
+      document.head.appendChild(s);
+    }
+  }, []);
 
   async function loadDetailedSubscription() {
     try {
@@ -220,6 +244,80 @@ export default function DoctorDashboardNew() {
       console.error("Failed to load detailed subscription:", err);
     } finally {
       setDetailedSubLoading(false);
+    }
+  }
+
+  async function loadDoctorPlans() {
+    try {
+      setPlansLoading(true);
+      const res = await subscriptionAPI.getPlans();
+      const all = res.data?.data || [];
+      // Show only individual / doctor type plans (not hospital)
+      const doctorOnly = all.filter(
+        (p) => !p.plan_type || p.plan_type === "individual" || p.plan_type === "doctor"
+      );
+      setDoctorPlans(doctorOnly);
+    } catch (err) {
+      console.error("Failed to load plans:", err);
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  async function loadHospitalRequests() {
+    if (!user?.id) return;
+    try {
+      const res = await hospitalApi.getPendingLinkRequests();
+      setHospitalRequests(res.data?.data || []);
+    } catch (err) {
+      console.error("Failed to load hospital requests:", err);
+    }
+  }
+
+  async function handleResolveHospitalRequest(requestId, responseStatus) {
+    await withBusy(`hosp-request-${requestId}`, async () => {
+      try {
+        await hospitalApi.respondToLinkRequest(requestId, responseStatus);
+        setStatusMessage(`Invite from hospital successfully ${responseStatus}.`);
+        await loadHospitalRequests();
+        await checkSubscription();
+        await loadDetailedSubscription();
+      } catch (err) {
+        setError(err.response?.data?.error || err.message || "Failed to respond to request.");
+      }
+    });
+  }
+
+  async function handleDoctorSubscribePay() {
+    if (!subPayModal) return;
+    setSubPayLoading(true);
+    setSubPayError("");
+    try {
+      // Step 1: Create Cashfree order
+      const initRes = await subscriptionAPI.initiatePayment(subPayModal.id, subPayPhone);
+      const { payment_session_id, cashfree_order_id, cashfree_mode } = initRes.data;
+      if (!payment_session_id) throw new Error("Failed to create payment session.");
+
+      // Step 2: Launch Cashfree checkout modal
+      const cfMode = cashfree_mode === "production" ? "production" : "sandbox";
+      const cashfree = window.Cashfree({ mode: cfMode });
+      const result = await cashfree.checkout({
+        paymentSessionId: payment_session_id,
+        redirectTarget: "_modal",
+      });
+      if (result?.error) throw new Error(result.error.message || "Payment was not completed.");
+
+      // Step 3: Verify + activate
+      await subscriptionAPI.verifyPayment(cashfree_order_id, subPayModal.id);
+
+      setStatusMessage(`Subscribed to ${subPayModal.name}! Your subscription is now active.`);
+      setSubPayModal(null);
+      await checkSubscription();
+      await loadDetailedSubscription();
+    } catch (err) {
+      setSubPayError(err?.response?.data?.error || err.message || "Payment failed.");
+    } finally {
+      setSubPayLoading(false);
     }
   }
 
@@ -506,14 +604,15 @@ export default function DoctorDashboardNew() {
     }
   }
 
-  async function loadPatientReports(patientId) {
+  async function loadPatientReports(patientId, appointmentId = null) {
     try {
+      const apptQuery = appointmentId ? `?appointmentId=${appointmentId}` : "";
       const [reportsResponse, walletResponse] = await Promise.allSettled([
-        fetch(`/api/staff/patients/${patientId}/reports`, {
+        fetch(`/api/doctor/patients/${patientId}/reports${apptQuery}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           credentials: "include",
         }),
-        fetch(`/api/health-wallet/documents`, {
+        fetch(`/api/doctor/patients/${patientId}/wallet-documents${apptQuery}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           credentials: "include",
         }),
@@ -524,6 +623,8 @@ export default function DoctorDashboardNew() {
       const walletPayload =
         walletResponse.status === "fulfilled" ? await walletResponse.value.json() : null;
 
+      // If the backend says share_all_files=false and provides shared_file_ids,
+      // the wallet-documents endpoint already pre-filters. For reports, we pass through all.
       const reports =
         reportsResponse.status === "fulfilled" && reportsResponse.value.ok
           ? (reportsPayload?.data || []).map((report) => ({
@@ -608,7 +709,7 @@ export default function DoctorDashboardNew() {
       if (patient?.id) {
         await Promise.all([
           loadPatientPrescriptions(patient.id),
-          loadPatientReports(patient.id),
+          loadPatientReports(patient.id, appointmentId),
           loadPatientRecordings(patient.id),
         ]);
       }
@@ -2394,6 +2495,44 @@ export default function DoctorDashboardNew() {
                       </div>
                     )}
 
+                    {/* Pending Hospital link requests */}
+                    {hospitalRequests.length > 0 && (
+                      <div className="sub-info-card hospital-invites-card">
+                        <h3>Hospital Coverage Invites</h3>
+                        <p className="sub-info-row-desc" style={{ fontSize: "0.82rem", color: "var(--doctor-muted)", marginBottom: "14px" }}>
+                          Invited hospitals offer to include your practice under their subscription plan.
+                        </p>
+                        <div className="invite-items-list" style={{ display: "grid", gap: "10px" }}>
+                          {hospitalRequests.map((req) => (
+                            <div key={req.id} className="invite-item" style={{ background: "#f4f8f6", padding: "12px", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div>
+                                <strong style={{ display: "block", fontSize: "0.9rem" }}>{req.hospital_name}</strong>
+                                <span style={{ fontSize: "0.78rem", color: "var(--doctor-muted)" }}>{req.hospital_email}</span>
+                              </div>
+                              <div className="invite-actions" style={{ display: "flex", gap: "6px" }}>
+                                <button
+                                  type="button"
+                                  className="sub-plan-card__btn"
+                                  style={{ padding: "6px 12px", fontSize: "0.78rem", background: "linear-gradient(135deg, #0d8d76, #0b6152)" }}
+                                  onClick={() => handleResolveHospitalRequest(req.id, "accepted")}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  className="sub-plan-card__btn"
+                                  style={{ padding: "6px 12px", fontSize: "0.78rem", background: "none", border: "1.5px solid #c83f5f", color: "#c83f5f", boxShadow: "none" }}
+                                  onClick={() => handleResolveHospitalRequest(req.id, "rejected")}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Standard details card */}
                     <div className="sub-info-card">
                       <h3>Active Coverage</h3>
@@ -2458,6 +2597,75 @@ export default function DoctorDashboardNew() {
                         </div>
                       </div>
                     )}
+                    {/* ── Available Plans ──────────────────────────────── */}
+                    {subStatus?.status !== "hospital_covered" && (
+                      <div className="sub-plans-section">
+                        <div className="sub-plans-header">
+                          <h3>Available Plans</h3>
+                          <p>Upgrade your practice coverage by subscribing to a plan below.</p>
+                        </div>
+
+                        {plansLoading ? (
+                          <div className="doctor-loading-panel">
+                            <span className="doctor-loading-spinner" />
+                            <p>Loading plans...</p>
+                          </div>
+                        ) : doctorPlans.length === 0 ? (
+                          <EmptyState
+                            title="No plans available"
+                            text="Contact TechMedix admin to configure subscription plans."
+                          />
+                        ) : (
+                          <div className="sub-plans-grid">
+                            {doctorPlans.map((plan) => {
+                              const isCurrent =
+                                detailedSub?.plan_id === plan.id &&
+                                (subStatus?.status === "active");
+                              return (
+                                <div
+                                  key={plan.id}
+                                  className={`sub-plan-card ${
+                                    isCurrent ? "sub-plan-card--active" : ""
+                                  }`}
+                                >
+                                  <div className="sub-plan-card__head">
+                                    <h4>{plan.name}</h4>
+                                    <span className="sub-plan-price">
+                                      ₹{Number(plan.price).toLocaleString("en-IN")}
+                                      <small>/mo</small>
+                                    </span>
+                                  </div>
+                                  <div className="sub-plan-card__meta">
+                                    <span>⏱ {plan.duration_days} days</span>
+                                  </div>
+                                  {Array.isArray(plan.features) &&
+                                    plan.features.length > 0 && (
+                                      <ul className="sub-plan-card__features">
+                                        {plan.features.map((f, i) => (
+                                          <li key={i}>✓ {f}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  <button
+                                    className={`sub-plan-card__btn ${
+                                      isCurrent ? "sub-plan-card__btn--active" : ""
+                                    }`}
+                                    disabled={isCurrent}
+                                    onClick={() => {
+                                      setSubPayModal(plan);
+                                      setSubPayPhone("");
+                                      setSubPayError("");
+                                    }}
+                                  >
+                                    {isCurrent ? "✓ Current Plan" : "Subscribe Now"}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -2465,6 +2673,93 @@ export default function DoctorDashboardNew() {
           </main>
         </div>
       </div>
+
+      {/* ── Doctor Subscription Payment Modal ─────────── */}
+      {subPayModal && (
+        <div
+          className="hosp-pay-overlay"
+          onClick={() => !subPayLoading && setSubPayModal(null)}
+        >
+          <div
+            className="hosp-pay-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="hosp-pay-close"
+              onClick={() => !subPayLoading && setSubPayModal(null)}
+              disabled={subPayLoading}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <div className="hosp-pay-header">
+              <div className="hosp-pay-icon">💳</div>
+              <h2>Activate Practice Plan</h2>
+              <p>Secured payment via Cashfree</p>
+            </div>
+
+            {/* Plan summary */}
+            <div className="hosp-pay-plan-card">
+              <div className="hosp-pay-plan-name">
+                <span>⚡ {subPayModal.name}</span>
+              </div>
+              <div className="hosp-pay-plan-details">
+                <div className="hosp-pay-detail">
+                  <span>Duration</span>
+                  <strong>{subPayModal.duration_days} Days</strong>
+                </div>
+                <div className="hosp-pay-detail">
+                  <span>Amount</span>
+                  <strong className="hosp-pay-amount">
+                    ₹{Number(subPayModal.price).toLocaleString("en-IN")}
+                  </strong>
+                </div>
+              </div>
+              {Array.isArray(subPayModal.features) && subPayModal.features.length > 0 && (
+                <ul className="hosp-pay-features">
+                  {subPayModal.features.map((f, i) => (
+                    <li key={i}>✓ {f}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Phone */}
+            <div className="hosp-pay-field">
+              <label htmlFor="doc-sub-phone">Phone for Payment OTP</label>
+              <div className="hosp-pay-input-wrap">
+                <span style={{ fontSize: "0.9rem" }}>📞</span>
+                <input
+                  id="doc-sub-phone"
+                  type="tel"
+                  placeholder="10-digit mobile number"
+                  value={subPayPhone}
+                  maxLength={10}
+                  onChange={(e) => setSubPayPhone(e.target.value)}
+                  disabled={subPayLoading}
+                />
+              </div>
+              <p className="hosp-pay-field-hint">Leave blank to use your registered number.</p>
+            </div>
+
+            {subPayError && (
+              <div className="hosp-pay-error">⚠ {subPayError}</div>
+            )}
+
+            <button
+              className="hosp-pay-cta"
+              onClick={handleDoctorSubscribePay}
+              disabled={subPayLoading}
+            >
+              {subPayLoading
+                ? "Processing..."
+                : `Pay ₹${Number(subPayModal.price).toLocaleString("en-IN")} via Cashfree`}
+            </button>
+            <p className="hosp-pay-secure">🔒 Secured by Cashfree. No card data stored.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

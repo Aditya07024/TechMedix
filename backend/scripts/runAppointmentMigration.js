@@ -8,6 +8,8 @@ export async function runAppointmentMigration() {
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS follow_up_date DATE`,
     `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE payments ALTER COLUMN appointment_id DROP NOT NULL`,
+    `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS share_all_files BOOLEAN DEFAULT TRUE`,
+    `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS shared_file_ids JSONB DEFAULT '[]'::jsonb`,
   ];
 
   for (const statement of statements) {

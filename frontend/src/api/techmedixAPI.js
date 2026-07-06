@@ -463,5 +463,21 @@ export const subscriptionAPI = {
     apiClient.post(`${API_BASE}/subscriptions/admin/hospitals/activate`, data, {
       headers: authHeaders(),
     }),
+
+  // Doctor: initiate self-subscription payment via Cashfree
+  initiatePayment: (planId, customerPhone) =>
+    apiClient.post(
+      `${API_BASE}/subscriptions/doctor/subscribe/initiate`,
+      { plan_id: planId, customer_phone: customerPhone },
+      { headers: authHeaders() }
+    ),
+
+  // Doctor: verify payment and activate subscription
+  verifyPayment: (cashfreeOrderId, planId) =>
+    apiClient.post(
+      `${API_BASE}/subscriptions/doctor/subscribe/verify`,
+      { cashfree_order_id: cashfreeOrderId, plan_id: planId },
+      { headers: authHeaders() }
+    ),
 };
 

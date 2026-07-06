@@ -16,7 +16,11 @@ import {
   Briefcase,
   Layers,
   MapPin,
-  Phone
+  Phone,
+  X,
+  Loader2,
+  Shield,
+  Zap
 } from "lucide-react";
 import "./HospitalDashboard.css";
 
@@ -33,44 +37,27 @@ const HospitalDashboard = () => {
   const [doctorEmail, setDoctorEmail] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [linkRequests, setLinkRequests] = useState([]);
+  const [performance, setPerformance] = useState(null);
+
+  // ── Payment modal state ──────────────────────────────
+  const [paymentModal, setPaymentModal] = useState(null); // { plan } | null
+  const [payPhone, setPayPhone] = useState("");
+  const [payLoading, setPayLoading] = useState(false);
+  const [payError, setPayError] = useState("");
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setErrorMessage("");
 
-      const [profileRes, subRes, doctorsRes, plansRes] = await Promise.allSettled([
+      const [profileRes, subRes, doctorsRes, plansRes, reqsRes, perfRes] = await Promise.allSettled([
         hospitalApi.getProfile(),
-        hospitalApi.getProfile().then(() =>
-          // Call the custom subscription details endpoint we mapped in backend
-          // We can call getProfile or custom hospital API
-          // Let's use getProfile response or dedicated request:
-          // In hospitalRoutes: GET /api/v2/hospitals/subscription
-          // Let's check how we mapped it: hospitalApi.getProfile or custom:
-          // In frontend/src/api.js: hospitalApi.getLinkedDoctors, hospitalApi.getProfile, etc.
-          // Wait! In api.js we mapped: getProfile, getLinkedDoctors, linkDoctor, unlinkDoctor, getHospitalPlans, subscribe.
-          // Let's add a custom getHospitalSubscription call in api.js?
-          // No need! We can call `api.get("/api/v2/hospitals/subscription")` directly or map it.
-          // Wait! In frontend/src/api.js, hospitalApi has:
-          // getProfile: () => api.get("/auth/hospital/profile"),
-          // So let's look at what we put in hospitalApi in frontend/src/api.js.
-          // We put:
-          //   getProfile: () => api.get("/auth/hospital/profile"),
-          //   updateProfile: (data) => api.patch("/auth/hospital/profile", data),
-          //   getLinkedDoctors: () => api.get("/api/v2/hospitals/doctors"),
-          //   linkDoctor: (email) => api.post("/api/v2/hospitals/link", { email }),
-          //   unlinkDoctor: (doctorId) => api.post("/api/v2/hospitals/unlink", { doctor_id: doctorId }),
-          //   getHospitalPlans: () => api.get("/api/v2/hospitals/plans"),
-          //   subscribe: (planId) => api.post("/api/v2/hospitals/subscribe", { plan_id: planId }),
-          // Ah! Let's check hospital subscription by calling a direct api request or modifying hospitalApi in api.js.
-          // To fetch it cleanly, let's call api.get("/api/v2/hospitals/subscription") using the base api client:
-          // since api is exported as default, we can do: import api from "../../api";
-          // and call api.get("/api/v2/hospitals/subscription") directly! This is very clean and powerful.
-          // Let's import it and use it.
-          import("../../api").then((module) => module.default.get("/api/v2/hospitals/subscription"))
-        ),
+        import("../../api").then((module) => module.default.get("/api/v2/hospitals/subscription")),
         hospitalApi.getLinkedDoctors(),
-        hospitalApi.getHospitalPlans()
+        hospitalApi.getHospitalPlans(),
+        hospitalApi.getSentLinkRequests(),
+        hospitalApi.getDoctorsPerformance()
       ]);
 
       if (profileRes.status === "fulfilled") {
@@ -85,6 +72,12 @@ const HospitalDashboard = () => {
       if (plansRes.status === "fulfilled") {
         setPlans(plansRes.value.data?.data || []);
       }
+      if (reqsRes.status === "fulfilled") {
+        setLinkRequests(reqsRes.value.data?.data || []);
+      }
+      if (perfRes.status === "fulfilled") {
+        setPerformance(perfRes.value.data?.data || null);
+      }
     } catch (err) {
       console.error("Dashboard load failed:", err);
       setErrorMessage("Failed to load dashboard data. Please try again.");
@@ -95,6 +88,17 @@ const HospitalDashboard = () => {
 
   useEffect(() => {
     loadDashboardData();
+  }, []);
+
+  // Inject Cashfree SDK if not already present
+  useEffect(() => {
+    if (!document.getElementById("cashfree-sdk")) {
+      const script = document.createElement("script");
+      script.id = "cashfree-sdk";
+      script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
   }, []);
 
   const handleLinkDoctor = async (e) => {
@@ -138,22 +142,62 @@ const HospitalDashboard = () => {
     }
   };
 
-  const handleSelectPlan = async (planId, planName) => {
-    if (!window.confirm(`Select the plan "${planName}"? This will activate this package for your hospital.`)) {
-      return;
-    }
+  // Open payment modal for a plan
+  const handleSelectPlan = (plan) => {
+    setPaymentModal(plan);
+    setPayPhone(profile?.phone || "");
+    setPayError("");
+  };
 
-    setErrorMessage("");
-    setStatusMessage("");
-
+  // Execute Cashfree payment flow
+  const handleInitiatePayment = async () => {
+    if (!paymentModal) return;
+    setPayLoading(true);
+    setPayError("");
     try {
-      const res = await hospitalApi.subscribe(planId);
-      setStatusMessage(res.data?.message || `Subscribed to ${planName}!`);
+      // Step 1: Create Cashfree order
+      const initRes = await hospitalApi.initiateSubscriptionPayment(
+        paymentModal.id,
+        payPhone
+      );
+      const { payment_session_id, cashfree_order_id, cashfree_mode } =
+        initRes.data;
+
+      if (!payment_session_id) {
+        throw new Error("Failed to create payment session.");
+      }
+
+      // Step 2: Launch Cashfree checkout modal
+      const cashfreeMode =
+        cashfree_mode === "production" ? "production" : "sandbox";
+      const cashfree = window.Cashfree({ mode: cashfreeMode });
+
+      const result = await cashfree.checkout({
+        paymentSessionId: payment_session_id,
+        redirectTarget: "_modal",
+      });
+
+      if (result?.error) {
+        throw new Error(result.error.message || "Payment was not completed.");
+      }
+
+      // Step 3: Verify and activate subscription
+      const verifyRes = await hospitalApi.verifySubscriptionPayment(
+        cashfree_order_id,
+        paymentModal.id
+      );
+
+      const msg =
+        verifyRes.data?.message || `Subscribed to ${paymentModal.name}!`;
+      setStatusMessage(msg);
+      setPaymentModal(null);
       await loadDashboardData();
     } catch (err) {
-      setErrorMessage(
-        err.response?.data?.error || err.message || "Subscription failed."
-      );
+      const msg =
+        err?.response?.data?.error || err.message || "Payment failed.";
+      setPayError(msg);
+    } finally {
+      setPayLoading(false);
     }
   };
 
@@ -247,6 +291,44 @@ const HospitalDashboard = () => {
           </div>
         </section>
 
+        {/* METRICS AGGREGATE PANEL (Task 7) */}
+        {isSubActive && performance && (
+          <section className="stats-row mt-4" style={{ marginTop: "24px" }}>
+            <div className="stat-card" style={{ background: "linear-gradient(135deg, rgba(79, 114, 240, 0.05), rgba(79, 114, 240, 0.02))", border: "1px solid rgba(79, 114, 240, 0.15)" }}>
+              <div className="stat-icon blue-icon" style={{ background: "rgba(79, 114, 240, 0.1)", color: "#4f72f0" }}>
+                <Calendar size={20} />
+              </div>
+              <div className="stat-data">
+                <span>Total Consultations</span>
+                <h3>{performance.aggregate?.total_appointments || 0}</h3>
+                <p>Across all linked practitioners</p>
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ background: "linear-gradient(135deg, rgba(16, 124, 65, 0.05), rgba(16, 124, 65, 0.02))", border: "1px solid rgba(16, 124, 65, 0.15)" }}>
+              <div className="stat-icon green-icon">
+                <CreditCard size={20} />
+              </div>
+              <div className="stat-data">
+                <span>Total Doctor Revenue</span>
+                <h3>₹{Number(performance.aggregate?.total_earnings || 0).toLocaleString("en-IN")}</h3>
+                <p>Aggregated fees earnings</p>
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ background: "linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.02))", border: "1px solid rgba(245, 158, 11, 0.15)" }}>
+              <div className="stat-icon yellow-icon" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" }}>
+                <CheckCircle2 size={20} />
+              </div>
+              <div className="stat-data">
+                <span>Average Review Rating</span>
+                <h3>{performance.aggregate?.average_rating ? `${performance.aggregate.average_rating} ★` : "N/A"}</h3>
+                <p>Aggregated patient feedback</p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* MAIN PANEL GRID */}
         <div className="dashboard-grid">
           {/* LEFT: DOCTOR LINKING & LIST */}
@@ -301,27 +383,95 @@ const HospitalDashboard = () => {
                     <thead>
                       <tr>
                         <th>Doctor</th>
-                        <th>Email</th>
                         <th>Specialty</th>
+                        <th style={{ textAlign: "center" }}>Appointments</th>
+                        <th style={{ textAlign: "right" }}>Total Earnings</th>
+                        <th style={{ textAlign: "center" }}>Avg Rating</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {doctors.map((doc) => (
-                        <tr key={doc.id}>
-                          <td><strong>Dr. {doc.name}</strong></td>
-                          <td>{doc.email}</td>
-                          <td><span className="specialty-badge">{doc.specialty || "General"}</span></td>
+                      {doctors.map((doc) => {
+                        const perf = performance?.doctors?.find((p) => p.id === doc.id) || {};
+                        return (
+                          <tr key={doc.id}>
+                            <td>
+                              <strong>Dr. {doc.name}</strong>
+                              <span style={{ display: "block", fontSize: "0.78rem", color: "var(--hospital-muted)", fontWeight: "normal" }}>
+                                {doc.email}
+                              </span>
+                            </td>
+                            <td><span className="specialty-badge">{doc.specialty || "General"}</span></td>
+                            <td style={{ textAlign: "center", fontWeight: "600" }}>{perf.total_appointments || 0}</td>
+                            <td style={{ textAlign: "right", fontWeight: "600", color: "var(--hospital-success)" }}>
+                              ₹{Number(perf.total_earnings || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <span style={{
+                                background: perf.average_rating ? "rgba(245, 158, 11, 0.12)" : "transparent",
+                                color: "#d97706",
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                fontSize: "0.82rem",
+                                fontWeight: "600"
+                              }}>
+                                {perf.average_rating ? `${perf.average_rating} ★` : "—"}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => handleUnlinkDoctor(doc.id, doc.name)}
+                                className="unlink-btn-icon"
+                                title="Unlink Doctor"
+                              >
+                                <Trash2 size={16} />
+                                Unlink
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {/* SENT LINK REQUESTS CARD */}
+            <div className="hospital-panel mt-4">
+              <div className="panel-title">
+                <Users size={20} />
+                <h2>Sent Link Requests ({linkRequests.length})</h2>
+              </div>
+              <p className="panel-hint" style={{ marginTop: "6px" }}>
+                Pending doctor approvals. Doctors must log into their TechMedix dashboards to accept or reject hospital coverage invites.
+              </p>
+              {linkRequests.length === 0 ? (
+                <div className="empty-doctors-state" style={{ padding: "20px" }}>
+                  <p>No sent requests found.</p>
+                </div>
+              ) : (
+                <div className="doctors-table-container">
+                  <table className="doctors-table">
+                    <thead>
+                      <tr>
+                        <th>Doctor Name</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Sent On</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {linkRequests.map((req) => (
+                        <tr key={req.id}>
+                          <td><strong>Dr. {req.doctor_name}</strong></td>
+                          <td>{req.doctor_email}</td>
                           <td>
-                            <button
-                              onClick={() => handleUnlinkDoctor(doc.id, doc.name)}
-                              className="unlink-btn-icon"
-                              title="Unlink Doctor"
-                            >
-                              <Trash2 size={16} />
-                              Unlink
-                            </button>
+                            <span className={`status-badge-val ${req.status}`}>
+                              {req.status === "pending" ? "Pending Approval" :
+                               req.status === "accepted" ? "Accepted" : "Rejected"}
+                            </span>
                           </td>
+                          <td>{new Date(req.created_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -366,11 +516,11 @@ const HospitalDashboard = () => {
                           </ul>
                         )}
                         <button
-                          onClick={() => handleSelectPlan(p.id, p.name)}
+                          onClick={() => handleSelectPlan(p)}
                           disabled={isCurrent}
                           className={`plan-select-btn ${isCurrent ? "current-btn" : ""}`}
                         >
-                          {isCurrent ? "Active Package" : "Activate Package"}
+                          {isCurrent ? "✓ Active Package" : "Activate Package"}
                         </button>
                       </div>
                     );
@@ -423,6 +573,100 @@ const HospitalDashboard = () => {
           </aside>
         </div>
       </div>
+
+      {/* ── PAYMENT MODAL ────────────────────────────── */}
+      {paymentModal && (
+        <div className="hosp-pay-overlay" onClick={() => !payLoading && setPaymentModal(null)}>
+          <div className="hosp-pay-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="hosp-pay-close"
+              onClick={() => !payLoading && setPaymentModal(null)}
+              disabled={payLoading}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Header */}
+            <div className="hosp-pay-header">
+              <div className="hosp-pay-icon">
+                <Shield size={28} />
+              </div>
+              <h2>Activate Hospital Package</h2>
+              <p>Secure your institutional subscription via Cashfree</p>
+            </div>
+
+            {/* Plan Summary */}
+            <div className="hosp-pay-plan-card">
+              <div className="hosp-pay-plan-name">
+                <Zap size={16} />
+                <span>{paymentModal.name}</span>
+              </div>
+              <div className="hosp-pay-plan-details">
+                <div className="hosp-pay-detail">
+                  <span>Doctor Slots</span>
+                  <strong>{paymentModal.max_doctors} Doctors</strong>
+                </div>
+                <div className="hosp-pay-detail">
+                  <span>Duration</span>
+                  <strong>{paymentModal.duration_days} Days</strong>
+                </div>
+                <div className="hosp-pay-detail">
+                  <span>Total Amount</span>
+                  <strong className="hosp-pay-amount">₹{Number(paymentModal.price).toLocaleString("en-IN")}</strong>
+                </div>
+              </div>
+              {Array.isArray(paymentModal.features) && paymentModal.features.length > 0 && (
+                <ul className="hosp-pay-features">
+                  {paymentModal.features.map((f, i) => (
+                    <li key={i}><CheckCircle2 size={13} /> {f}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Phone number */}
+            <div className="hosp-pay-field">
+              <label htmlFor="hosp-pay-phone">Contact Phone for Payment</label>
+              <div className="hosp-pay-input-wrap">
+                <Phone size={16} />
+                <input
+                  id="hosp-pay-phone"
+                  type="tel"
+                  placeholder="10-digit mobile number"
+                  value={payPhone}
+                  onChange={(e) => setPayPhone(e.target.value)}
+                  maxLength={10}
+                  disabled={payLoading}
+                />
+              </div>
+              <p className="hosp-pay-field-hint">Used for payment OTP and receipt. Leave blank to use registered number.</p>
+            </div>
+
+            {/* Error */}
+            {payError && (
+              <div className="hosp-pay-error">
+                <ShieldAlert size={16} />
+                <span>{payError}</span>
+              </div>
+            )}
+
+            {/* CTA */}
+            <button
+              className="hosp-pay-cta"
+              onClick={handleInitiatePayment}
+              disabled={payLoading}
+            >
+              {payLoading ? (
+                <><Loader2 size={18} className="spin-icon" /> Processing...</>
+              ) : (
+                <><CreditCard size={18} /> Pay ₹{Number(paymentModal.price).toLocaleString("en-IN")} via Cashfree</>
+              )}
+            </button>
+
+            <p className="hosp-pay-secure">🔒 Secured & encrypted payment by Cashfree. No card data stored on TechMedix servers.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
