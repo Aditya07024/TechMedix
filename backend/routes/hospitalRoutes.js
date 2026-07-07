@@ -351,4 +351,51 @@ router.get("/performance", verifyHospital, async (req, res) => {
   }
 });
 
+/**
+ * GET hospital linked doctors' invoices/payments ledger (CA Tax / Invoices)
+ */
+router.get("/invoices", verifyHospital, async (req, res) => {
+  try {
+    const hospitalId = req.user.id;
+    // 1. Get linked doctors
+    const doctors = await sql`
+      SELECT id, name FROM doctors
+      WHERE hospital_id = ${hospitalId} AND is_deleted = FALSE
+    `;
+    if (doctors.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+    const doctorIds = doctors.map(d => d.id);
+    
+    // 2. Fetch payments for all linked doctors
+    const payments = await sql`
+      SELECT
+        p.id,
+        p.amount,
+        p.gst_charges,
+        p.platform_fees,
+        p.total_amount,
+        p.payment_method,
+        p.status,
+        p.created_at,
+        p.appointment_id,
+        pt.name AS patient_name,
+        d.name AS doctor_name,
+        d.reg_no AS doctor_reg_no,
+        d.specialty AS doctor_specialty
+      FROM payments p
+      LEFT JOIN patients pt ON p.patient_id = pt.id
+      LEFT JOIN doctors d ON p.doctor_id = d.id
+      WHERE p.doctor_id IN (${doctorIds})
+        AND p.status = 'paid'
+        AND COALESCE(p.is_deleted, false) = false
+      ORDER BY p.created_at DESC
+    `;
+    
+    res.json({ success: true, data: payments });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

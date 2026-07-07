@@ -17,6 +17,7 @@ import {
   Megaphone,
   Menu,
   CreditCard,
+  FileText,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../context/AuthContext";
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Activity },
   { id: "queue", label: "Queue", icon: Stethoscope },
   { id: "revenue", label: "Revenue", icon: Landmark },
+  { id: "ca_billing", label: "CA Tax & Invoices", icon: FileText },
   { id: "patients", label: "Patient Workspace", icon: UserRound },
   { id: "staff", label: "Staff Hub", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
@@ -109,6 +111,11 @@ export default function DoctorDashboardNew() {
   const [subPayModal, setSubPayModal] = useState(null); // selected plan object | null
   const [subPayPhone, setSubPayPhone] = useState("");
   const [subPayLoading, setSubPayLoading] = useState(false);
+
+  // CA Invoices states
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [invoiceFilterMethod, setInvoiceFilterMethod] = useState("all");
   const [subPayError, setSubPayError] = useState("");
 
   const [hospitalRequests, setHospitalRequests] = useState([]);
@@ -1103,6 +1110,32 @@ export default function DoctorDashboardNew() {
     );
   }
 
+  const handleExportCSV = (payments) => {
+    const headers = ["Invoice ID", "Date", "Patient Name", "Payment Method", "Base Amount (INR)", "GST (18%)", "Total Amount (INR)", "Status"];
+    const rows = payments.map(payment => {
+      const invId = `INV-${payment.id.substring(0, 8).toUpperCase()}`;
+      const date = new Date(payment.created_at).toLocaleDateString();
+      const patientName = payment.patient_name || "Patient";
+      const method = payment.payment_method;
+      const baseAmt = (payment.amount - payment.amount * 0.18).toFixed(2);
+      const gst = (payment.amount * 0.18).toFixed(2);
+      const total = payment.amount.toFixed(2);
+      const status = "Paid";
+      return [invId, date, patientName, method, baseAmt, gst, total, status];
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CA_Ledger_Dr_${(user?.name || "Doctor").replace(/\s+/g, "_")}_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="doctor-dashboard">
       <div className="doctor-dashboard-shell">
@@ -1619,6 +1652,138 @@ export default function DoctorDashboardNew() {
                     />
                   )}
                 </section>
+              </>
+            )}
+
+            {activeView === "ca_billing" && (
+              <>
+                {/* CA Summary Cards */}
+                <section className="doctor-metrics-grid">
+                  <MetricCard
+                    icon={Wallet}
+                    label="Gross Taxable Revenue"
+                    value={formatMoney(revenueDetails.total_earnings)}
+                    detail="Aggregated paid consultations"
+                    accent="amber"
+                  />
+                  <MetricCard
+                    icon={ShieldPlus}
+                    label="Estimated GST/Tax (18%)"
+                    value={formatMoney(revenueDetails.total_earnings * 0.18)}
+                    detail="Simulated standard service levy"
+                    accent="blue"
+                  />
+                  <MetricCard
+                    icon={Landmark}
+                    label="Net Doctor Earnings"
+                    value={formatMoney(revenueDetails.total_earnings - revenueDetails.total_earnings * 0.18)}
+                    detail="Revenue minus tax estimate"
+                    accent="teal"
+                  />
+                  <MetricCard
+                    icon={FileText}
+                    label="Total Invoices"
+                    value={revenueDetails.recent_payments?.length || 0}
+                    detail="Generated printable ledgers"
+                    accent="rose"
+                  />
+                </section>
+
+                <article className="doctor-panel">
+                  <div className="doctor-panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <span>Tax & Accounting Ledger</span>
+                      <h2>Chartered Accountant Payouts & Invoices</h2>
+                    </div>
+                    <button
+                      className="doctor-btn primary"
+                      style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+                      onClick={() => handleExportCSV(revenueDetails.recent_payments || [])}
+                      disabled={!revenueDetails.recent_payments?.length}
+                    >
+                      Export CA Ledger (CSV)
+                    </button>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="invoice-filters" style={{ display: "flex", gap: "16px", margin: "16px 0", alignItems: "center" }}>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", backgroundColor: "var(--color-bg-dark)", border: "1px solid var(--color-border)", borderRadius: "8px", padding: "4px 12px" }}>
+                      <Search size={16} style={{ color: "var(--color-text-muted)", marginRight: "8px" }} />
+                      <input
+                        type="text"
+                        placeholder="Search patient name..."
+                        value={invoiceSearchQuery}
+                        onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                        style={{ border: "none", background: "transparent", color: "var(--color-text)", outline: "none", width: "100%", padding: "8px 0" }}
+                      />
+                    </div>
+                    <select
+                      value={invoiceFilterMethod}
+                      onChange={(e) => setInvoiceFilterMethod(e.target.value)}
+                      style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid var(--color-border)", backgroundColor: "var(--color-bg-dark)", color: "var(--color-text)", outline: "none" }}
+                    >
+                      <option value="all">All Methods</option>
+                      <option value="online">Online Payments</option>
+                      <option value="cash">Cash Payments</option>
+                      <option value="wallet">Wallet Payments</option>
+                    </select>
+                  </div>
+
+                  {/* Ledger Table */}
+                  {(() => {
+                    const filtered = (revenueDetails.recent_payments || []).filter(item => {
+                      const matchesSearch = (item.patient_name || "").toLowerCase().includes(invoiceSearchQuery.toLowerCase());
+                      const matchesMethod = invoiceFilterMethod === "all" || String(item.payment_method).toLowerCase() === invoiceFilterMethod.toLowerCase();
+                      return matchesSearch && matchesMethod;
+                    });
+
+                    return filtered.length ? (
+                      <div className="doctor-table-wrap">
+                        <table className="doctor-table">
+                          <thead>
+                            <tr>
+                              <th>Invoice ID</th>
+                              <th>Date</th>
+                              <th>Patient</th>
+                              <th>Base Amount</th>
+                              <th>GST (18%)</th>
+                              <th>Total Paid</th>
+                              <th>Method</th>
+                              <th style={{ textAlign: "right" }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map((payment) => (
+                              <tr key={payment.id}>
+                                <td style={{ fontWeight: "700" }}>INV-{payment.id.substring(0, 8).toUpperCase()}</td>
+                                <td>{new Date(payment.created_at).toLocaleDateString()}</td>
+                                <td>{payment.patient_name || "Unknown patient"}</td>
+                                <td>{formatMoney(payment.amount - payment.amount * 0.18)}</td>
+                                <td>{formatMoney(payment.amount * 0.18)}</td>
+                                <td style={{ fontWeight: "700", color: "var(--color-primary)" }}>{formatMoney(payment.amount)}</td>
+                                <td><span style={{ textTransform: "capitalize" }}>{payment.payment_method}</span></td>
+                                <td style={{ textAlign: "right" }}>
+                                  <button
+                                    className="doctor-btn secondary compact"
+                                    style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+                                    onClick={() => setSelectedInvoice(payment)}
+                                  >
+                                    View Invoice
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="No invoices matched"
+                        text="Try adjusting your filter or search query."
+                      />
+                    );
+                  })()}
+                </article>
               </>
             )}
 
@@ -2753,6 +2918,121 @@ export default function DoctorDashboardNew() {
                 : `Pay ₹${Number(subPayModal.price).toLocaleString("en-IN")} via Cashfree`}
             </button>
             <p className="hosp-pay-secure">🔒 Secured by Cashfree. No card data stored.</p>
+          </div>
+        </div>
+      )}
+
+      {selectedInvoice && (
+        <div className="invoice-modal-overlay" style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+        }} onClick={() => setSelectedInvoice(null)}>
+          <div className="invoice-modal-content" style={{
+            backgroundColor: "#1e293b",
+            border: "1px solid var(--color-border)",
+            borderRadius: "12px",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "600px",
+            color: "var(--color-text)",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.3)",
+          }} onClick={(e) => e.stopPropagation()}>
+            <div className="invoice-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: "800" }}>Digital Tax Invoice</h2>
+              <button style={{ background: "transparent", border: "none", color: "var(--color-text-muted)", fontSize: "1.5rem", cursor: "pointer" }} onClick={() => setSelectedInvoice(null)}>&times;</button>
+            </div>
+            
+            <div id="printable-invoice" style={{
+              backgroundColor: "#ffffff",
+              color: "#1e293b",
+              padding: "24px",
+              borderRadius: "8px",
+              fontFamily: "Inter, sans-serif",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+                <div>
+                  <h3 style={{ margin: "0 0 6px 0", color: "#4f72f0", fontSize: "1.2rem", fontWeight: "800" }}>TechMedix Clinical Sanctuary</h3>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}>124, Healthcare Boulevard, Medical District</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}><strong>Doctor Reg No:</strong> {user?.reg_no || "TM-DOC-2024-001"}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <h3 style={{ margin: "0 0 6px 0", fontSize: "1.2rem", fontWeight: "800" }}>INVOICE</h3>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}><strong>Invoice ID:</strong> INV-{selectedInvoice.id.substring(0, 8).toUpperCase()}</p>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}><strong>Date:</strong> {new Date(selectedInvoice.created_at).toLocaleDateString()}</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#16a34a", fontWeight: "700" }}>STATUS: PAID</p>
+                </div>
+              </div>
+
+              <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "16px 0" }} />
+
+              <div style={{ marginBottom: "20px", fontSize: "0.9rem" }}>
+                <strong style={{ color: "#475569" }}>Billed To:</strong>
+                <p style={{ margin: "4px 0 0 0", fontWeight: "600" }}>{selectedInvoice.patient_name || "Patient"}</p>
+              </div>
+
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", marginTop: "10px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>
+                    <th style={{ padding: "8px 0", color: "#475569" }}>Description</th>
+                    <th style={{ padding: "8px 0", textAlign: "right", color: "#475569" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "12px 0" }}>Medical Consultation (Dr. {user?.name})</td>
+                    <td style={{ padding: "12px 0", textAlign: "right" }}>{formatMoney(selectedInvoice.amount - selectedInvoice.amount * 0.18)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "12px 0" }}>GST Charges (18%)</td>
+                    <td style={{ padding: "12px 0", textAlign: "right" }}>{formatMoney(selectedInvoice.amount * 0.18)}</td>
+                  </tr>
+                  <tr style={{ fontSize: "1rem" }}>
+                    <td style={{ padding: "16px 0 8px 0", fontWeight: "800" }}>Total Paid (INR)</td>
+                    <td style={{ padding: "16px 0 8px 0", textAlign: "right", fontWeight: "800", color: "#4f72f0" }}>{formatMoney(selectedInvoice.amount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{ marginTop: "30px", fontSize: "0.78rem", color: "#64748b", textAlign: "center", borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
+                <p style={{ margin: 0 }}>Thank you for choosing TechMedix. This is a computer-generated tax invoice and requires no signature.</p>
+              </div>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px" }}>
+              <button
+                className="doctor-btn secondary"
+                onClick={() => setSelectedInvoice(null)}
+                style={{ padding: "10px 20px" }}
+              >
+                Close
+              </button>
+              <button
+                className="doctor-btn primary"
+                onClick={() => {
+                  const printContent = document.getElementById("printable-invoice").innerHTML;
+                  const originalContent = document.body.innerHTML;
+                  document.body.innerHTML = `
+                    <div style="padding: 40px; background: white; color: black; min-height: 100vh;">
+                      ${printContent}
+                    </div>
+                  `;
+                  window.print();
+                  document.body.innerHTML = originalContent;
+                  window.location.reload();
+                }}
+                style={{ padding: "10px 20px" }}
+              >
+                Print Invoice
+              </button>
+            </div>
           </div>
         </div>
       )}

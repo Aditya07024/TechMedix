@@ -49,6 +49,9 @@ import {
 } from "../../native/reminderScheduler";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
 
+const clinicName = "TechMedix Clinical Sanctuary";
+const clinicAddress = "124, Healthcare Boulevard, Medical District";
+
 function formatCurrency(value) {
   const amount = Number(value || 0);
   return `₹${amount.toFixed(2)}`;
@@ -2215,6 +2218,23 @@ export function AnalyzePrescriptionScreen({ navigation }) {
         />
         <InlineError message={error} />
 
+        <View style={{
+          flexDirection: "row",
+          backgroundColor: colors.warningSoft || "#fee2e2",
+          padding: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.tertiary || "#fca5a5",
+          alignItems: "center",
+          marginBottom: 8,
+          gap: 10,
+        }}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.tertiary || "#b91c1c"} />
+          <Text style={{ flex: 1, fontSize: 12, color: colors.onSurface || "#1e293b", fontWeight: "600", lineHeight: 16 }}>
+            If possible, please mainly fill the medicine details manually for now. We are currently working on optimizing the prescription upload and extraction system.
+          </Text>
+        </View>
+
         <SurfaceCard>
           <Text style={styles.blockTitle}>Selected File</Text>
           <Text style={styles.sectionMuted}>
@@ -2406,8 +2426,8 @@ export function AnalyzePrescriptionScreen({ navigation }) {
                   <Text style={styles.rxDocReg}>Reg No: {selectedPad?.doctor.reg_no || "TM-DOC-2024-001"}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.rxHospitalName}>TechMedix</Text>
-                  <Text style={styles.rxHospitalSub}>CLINICAL SANCTUARY</Text>
+                  <Text style={styles.rxHospitalName}>{clinicName}</Text>
+                  <Text style={styles.rxHospitalSub}>{clinicAddress}</Text>
                   {selectedPad?.doctor.email ? <Text style={styles.rxHospitalContact}>{selectedPad.doctor.email}</Text> : null}
                   {selectedPad?.doctor.phone ? <Text style={styles.rxHospitalContact}>{selectedPad.doctor.phone}</Text> : null}
                 </View>
@@ -2603,26 +2623,68 @@ export function PrescriptionResultsScreen({ navigation, route }) {
   const [comparison, setComparison] = useState(null);
   const [priceInsight, setPriceInsight] = useState(null);
 
-  async function loadDetails() {
+  async function loadDetails(showLoading = true) {
     if (!prescriptionId) {
       setLoading(false);
-      return;
+      return null;
     }
 
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const response = await api.prescriptions.getDetails(prescriptionId);
       setDetails(response);
       setError("");
+      return response;
     } catch (loadError) {
       setError(loadError.message);
+      return null;
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadDetails();
+    let cancelled = false;
+    let attempts = 0;
+    let intervalId = null;
+
+    const runPoll = async () => {
+      const data = await loadDetails(attempts === 0);
+      if (cancelled) return;
+
+      const medicinesList = data?.medicines || [];
+      const status = data?.prescription?.status || "processing";
+      const manualReview = data?.manual_review_required;
+
+      if (medicinesList.length > 0 || manualReview || status === "failed" || status === "visited") {
+        if (intervalId) clearInterval(intervalId);
+      }
+    };
+
+    runPoll();
+
+    intervalId = setInterval(async () => {
+      attempts += 1;
+      if (cancelled || attempts > 30) {
+        if (intervalId) clearInterval(intervalId);
+        return;
+      }
+      const data = await loadDetails(false);
+      if (cancelled) return;
+
+      const medicinesList = data?.medicines || [];
+      const status = data?.prescription?.status || "processing";
+      const manualReview = data?.manual_review_required;
+
+      if (medicinesList.length > 0 || manualReview || status === "failed" || status === "visited") {
+        if (intervalId) clearInterval(intervalId);
+      }
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [prescriptionId]);
 
   async function compareMedicine() {

@@ -40,6 +40,15 @@ const HospitalDashboard = () => {
   const [linkRequests, setLinkRequests] = useState([]);
   const [performance, setPerformance] = useState(null);
 
+  // CA Invoices & Tab Switcher states
+  const [activeTab, setActiveTab] = useState("practitioners"); // "practitioners" | "ca_billing"
+  const [invoices, setInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [selectedHospInvoice, setSelectedHospInvoice] = useState(null);
+  const [hospInvoiceSearchQuery, setHospInvoiceSearchQuery] = useState("");
+  const [hospInvoiceSearchDoctor, setHospInvoiceSearchDoctor] = useState("");
+  const [hospInvoiceFilterMethod, setHospInvoiceFilterMethod] = useState("all");
+
   // ── Payment modal state ──────────────────────────────
   const [paymentModal, setPaymentModal] = useState(null); // { plan } | null
   const [payPhone, setPayPhone] = useState("");
@@ -51,13 +60,14 @@ const HospitalDashboard = () => {
       setLoading(true);
       setErrorMessage("");
 
-      const [profileRes, subRes, doctorsRes, plansRes, reqsRes, perfRes] = await Promise.allSettled([
+      const [profileRes, subRes, doctorsRes, plansRes, reqsRes, perfRes, invoicesRes] = await Promise.allSettled([
         hospitalApi.getProfile(),
         import("../../api").then((module) => module.default.get("/api/v2/hospitals/subscription")),
         hospitalApi.getLinkedDoctors(),
         hospitalApi.getHospitalPlans(),
         hospitalApi.getSentLinkRequests(),
-        hospitalApi.getDoctorsPerformance()
+        hospitalApi.getDoctorsPerformance(),
+        import("../../api").then((module) => module.default.get("/api/v2/hospitals/invoices"))
       ]);
 
       if (profileRes.status === "fulfilled") {
@@ -78,12 +88,43 @@ const HospitalDashboard = () => {
       if (perfRes.status === "fulfilled") {
         setPerformance(perfRes.value.data?.data || null);
       }
+      if (invoicesRes.status === "fulfilled") {
+        setInvoices(invoicesRes.value.data?.data || []);
+      }
     } catch (err) {
       console.error("Dashboard load failed:", err);
       setErrorMessage("Failed to load dashboard data. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExportHospCSV = (ledger) => {
+    const headers = ["Invoice ID", "Date", "Doctor", "Patient", "Gross Amount (INR)", "Hospital Cut (20% INR)", "Corporate GST (18% INR)", "Net Hospital Earnings (INR)", "Payment Method", "Status"];
+    const rows = ledger.map(item => {
+      const invId = `INV-${item.id.substring(0, 8).toUpperCase()}`;
+      const date = new Date(item.created_at).toLocaleDateString();
+      const docName = item.doctor_name || "Doctor";
+      const patientName = item.patient_name || "Patient";
+      const gross = Number(item.amount);
+      const commission = Number((gross * 0.20).toFixed(2));
+      const gst = Number((commission * 0.18).toFixed(2));
+      const netEarnings = Number((commission - gst).toFixed(2));
+      const method = item.payment_method;
+      const status = "Paid";
+      return [invId, date, docName, patientName, gross, commission, gst, netEarnings, method, status];
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Hospital_CA_Ledger_${(profile?.name || "Hospital").replace(/\s+/g, "_")}_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {
@@ -257,6 +298,44 @@ const HospitalDashboard = () => {
           </div>
         )}
 
+        {/* Tab Switcher */}
+        <div style={{ display: "flex", borderBottom: "1px solid var(--hospital-border, rgba(255,255,255,0.15))", marginBottom: "24px", gap: "24px" }}>
+          <button
+            onClick={() => setActiveTab("practitioners")}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: activeTab === "practitioners" ? "2px solid #4f72f0" : "2px solid transparent",
+              color: activeTab === "practitioners" ? "#4f72f0" : "var(--hospital-muted, #94a3b8)",
+              padding: "12px 16px",
+              fontWeight: "700",
+              fontSize: "1.05rem",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            Practitioners & Slots
+          </button>
+          <button
+            onClick={() => setActiveTab("ca_billing")}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: activeTab === "ca_billing" ? "2px solid #4f72f0" : "2px solid transparent",
+              color: activeTab === "ca_billing" ? "#4f72f0" : "var(--hospital-muted, #94a3b8)",
+              padding: "12px 16px",
+              fontWeight: "700",
+              fontSize: "1.05rem",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            CA Tax & Invoices
+          </button>
+        </div>
+
+        {activeTab === "practitioners" && (
+          <>
         {/* OVERVIEW STATS CARDS */}
         <section className="stats-row">
           <div className="stat-card">
@@ -573,6 +652,205 @@ const HospitalDashboard = () => {
             </div>
           </aside>
         </div>
+          </>
+        )}
+
+        {activeTab === "ca_billing" && (
+          <>
+            {/* Corporate Billing Metrics */}
+            <section className="stats-row">
+              <div className="stat-card">
+                <div className="stat-icon blue-icon">
+                  <Building size={20} />
+                </div>
+                <div className="stat-data">
+                  <span>Gross Corporate Revenue</span>
+                  <h3>₹{Number(invoices.reduce((sum, item) => sum + Number(item.amount), 0)).toLocaleString("en-IN")}</h3>
+                  <p>Consultations billing across all doctors</p>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon green-icon">
+                  <CreditCard size={20} />
+                </div>
+                <div className="stat-data">
+                  <span>Hospital Cut (20% Split)</span>
+                  <h3>₹{Number(invoices.reduce((sum, item) => sum + Number(item.amount), 0) * 0.20).toLocaleString("en-IN")}</h3>
+                  <p>Institution service fee share</p>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon red-icon">
+                  <Shield size={20} />
+                </div>
+                <div className="stat-data">
+                  <span>Corporate GST (18%)</span>
+                  <h3>₹{Number((invoices.reduce((sum, item) => sum + Number(item.amount), 0) * 0.20) * 0.18).toLocaleString("en-IN")}</h3>
+                  <p>Estimated tax on service split</p>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon yellow-icon">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div className="stat-data">
+                  <span>Net Institutional Earnings</span>
+                  <h3>₹{Number((invoices.reduce((sum, item) => sum + Number(item.amount), 0) * 0.20) * 0.82).toLocaleString("en-IN")}</h3>
+                  <p>Earnings after simulated tax levy</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Corporate Invoice Grid */}
+            <div className="dashboard-grid">
+              <main className="dashboard-main-panel">
+                <div className="hospital-panel">
+                  <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Users size={20} />
+                      <h2>Corporate Transaction Ledger</h2>
+                    </div>
+                    <button
+                      className="link-btn"
+                      style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "0.85rem", cursor: "pointer" }}
+                      onClick={() => handleExportHospCSV(invoices)}
+                      disabled={invoices.length === 0}
+                    >
+                      Export Corporate Ledger (CSV)
+                    </button>
+                  </div>
+                  <p className="panel-hint">
+                    Patient consultations, billing details, payment methods, and GST tax invoice summaries across linked practitioners.
+                  </p>
+
+                  {/* Filters bar */}
+                  <div style={{ display: "flex", gap: "12px", margin: "16px 0" }}>
+                    <input
+                      type="text"
+                      placeholder="Search patient..."
+                      value={hospInvoiceSearchQuery}
+                      onChange={(e) => setHospInvoiceSearchQuery(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--hospital-border, rgba(255,255,255,0.15))", backgroundColor: "rgba(0,0,0,0.2)", color: "var(--hospital-text, #f8fafc)", outline: "none" }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Filter by Doctor..."
+                      value={hospInvoiceSearchDoctor}
+                      onChange={(e) => setHospInvoiceSearchDoctor(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--hospital-border, rgba(255,255,255,0.15))", backgroundColor: "rgba(0,0,0,0.2)", color: "var(--hospital-text, #f8fafc)", outline: "none" }}
+                    />
+                    <select
+                      value={hospInvoiceFilterMethod}
+                      onChange={(e) => setHospInvoiceFilterMethod(e.target.value)}
+                      style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--hospital-border, rgba(255,255,255,0.15))", backgroundColor: "rgba(0,0,0,0.2)", color: "var(--hospital-text, #f8fafc)", outline: "none" }}
+                    >
+                      <option value="all">All Methods</option>
+                      <option value="online">Online</option>
+                      <option value="cash">Cash</option>
+                      <option value="wallet">Wallet</option>
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const filtered = invoices.filter(item => {
+                      const matchesSearch = (item.patient_name || "").toLowerCase().includes(hospInvoiceSearchQuery.toLowerCase());
+                      const matchesDoctor = (item.doctor_name || "").toLowerCase().includes(hospInvoiceSearchDoctor.toLowerCase());
+                      const matchesMethod = hospInvoiceFilterMethod === "all" || String(item.payment_method).toLowerCase() === hospInvoiceFilterMethod.toLowerCase();
+                      return matchesSearch && matchesDoctor && matchesMethod;
+                    });
+
+                    return filtered.length > 0 ? (
+                      <div className="doctors-table-container">
+                        <table className="doctors-table">
+                          <thead>
+                            <tr>
+                              <th>Invoice ID</th>
+                              <th>Date</th>
+                              <th>Doctor</th>
+                              <th>Patient</th>
+                              <th style={{ textAlign: "right" }}>Gross Fee</th>
+                              <th style={{ textAlign: "right" }}>GST (18%)</th>
+                              <th style={{ textAlign: "right" }}>Net Total</th>
+                              <th>Method</th>
+                              <th style={{ textAlign: "center" }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map((item) => (
+                              <tr key={item.id}>
+                                <td><strong>INV-{item.id.substring(0, 8).toUpperCase()}</strong></td>
+                                <td>{new Date(item.created_at).toLocaleDateString()}</td>
+                                <td>Dr. {item.doctor_name}</td>
+                                <td>{item.patient_name || "Patient"}</td>
+                                <td style={{ textAlign: "right" }}>₹{Number(item.amount).toLocaleString("en-IN")}</td>
+                                <td style={{ textAlign: "right" }}>₹{Number((item.amount * 0.20 * 0.18).toFixed(2)).toLocaleString("en-IN")}</td>
+                                <td style={{ textAlign: "right", fontWeight: "600", color: "var(--hospital-success)" }}>
+                                  ₹{Number(item.amount).toLocaleString("en-IN")}
+                                </td>
+                                <td><span className="specialty-badge" style={{ textTransform: "capitalize" }}>{item.payment_method}</span></td>
+                                <td style={{ textAlign: "center" }}>
+                                  <button
+                                    onClick={() => setSelectedHospInvoice(item)}
+                                    className="unlink-btn-icon"
+                                    style={{ color: "#4f72f0", cursor: "pointer", display: "inline-flex", alignItems: "center", border: "none", background: "transparent", fontWeight: "bold" }}
+                                  >
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="empty-doctors-state" style={{ padding: "40px 0" }}>
+                        <p>No invoices match your search criteria.</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </main>
+
+              <aside className="dashboard-sidebar-panel">
+                {/* Doctor Split Ledger */}
+                <div className="hospital-panel">
+                  <div className="panel-title">
+                    <Users size={20} />
+                    <h2>Practitioner Splits</h2>
+                  </div>
+                  <p className="panel-hint">
+                    Summary of doctor consultations billing, payout shares (80%), and hospital cuts (20%).
+                  </p>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
+                    {doctors.map(doc => {
+                      const docPayments = invoices.filter(inv => inv.doctor_name === doc.name);
+                      const grossBilled = docPayments.reduce((sum, item) => sum + Number(item.amount), 0);
+                      const splitPaid = grossBilled * 0.80;
+                      const splitHosp = grossBilled * 0.20;
+
+                      return (
+                        <div key={doc.id} style={{ borderBottom: "1px solid var(--hospital-border, rgba(255,255,255,0.15))", paddingBottom: "12px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                            <strong>Dr. {doc.name}</strong>
+                            <span style={{ color: "var(--hospital-success)", fontWeight: "700" }}>₹{grossBilled.toLocaleString("en-IN")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", color: "var(--hospital-muted)" }}>
+                            <span>Consultations: {docPayments.length}</span>
+                            <span>Hospital Share: ₹{splitHosp.toLocaleString("en-IN")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", color: "var(--hospital-muted)", marginTop: "2px" }}>
+                            <span>Payout (80%): ₹{splitPaid.toLocaleString("en-IN")}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── PAYMENT MODAL ────────────────────────────── */}
@@ -665,6 +943,111 @@ const HospitalDashboard = () => {
             </button>
 
             <p className="hosp-pay-secure">🔒 Secured & encrypted payment by Cashfree. No card data stored on TechMedix servers.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Hospital Printable Invoice Modal */}
+      {selectedHospInvoice && (
+        <div className="hosp-pay-overlay" style={{ display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setSelectedHospInvoice(null)}>
+          <div className="hosp-pay-modal" style={{ width: "100%", maxWidth: "600px", background: "#1e293b", color: "#f8fafc" }} onClick={(e) => e.stopPropagation()}>
+            <button
+              className="hosp-pay-close"
+              onClick={() => setSelectedHospInvoice(null)}
+              style={{ color: "#94a3b8" }}
+            >
+              <X size={20} />
+            </button>
+
+            <div className="hosp-pay-header">
+              <h2>Digital Consultation Invoice</h2>
+              <p>Institutional record of practitioner consultation</p>
+            </div>
+
+            <div id="hosp-printable-invoice" style={{
+              backgroundColor: "#ffffff",
+              color: "#1e293b",
+              padding: "24px",
+              borderRadius: "8px",
+              fontFamily: "Inter, sans-serif",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+                <div>
+                  <h3 style={{ margin: "0 0 6px 0", color: "#4f72f0", fontSize: "1.2rem", fontWeight: "800" }}>TechMedix Clinical Sanctuary</h3>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}>124, Healthcare Boulevard, Medical District</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}><strong>Doctor Name:</strong> Dr. {selectedHospInvoice.doctor_name}</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}><strong>Doctor Reg No:</strong> {selectedHospInvoice.doctor_reg_no || "TM-DOC-2024-001"}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <h3 style={{ margin: "0 0 6px 0", fontSize: "1.2rem", fontWeight: "800" }}>INVOICE</h3>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}><strong>Invoice ID:</strong> INV-{selectedHospInvoice.id.substring(0, 8).toUpperCase()}</p>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "0.85rem", color: "#64748b" }}><strong>Date:</strong> {new Date(selectedHospInvoice.created_at).toLocaleDateString()}</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#16a34a", fontWeight: "700" }}>STATUS: PAID</p>
+                </div>
+              </div>
+
+              <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "16px 0" }} />
+
+              <div style={{ marginBottom: "20px", fontSize: "0.9rem" }}>
+                <strong style={{ color: "#475569" }}>Billed To:</strong>
+                <p style={{ margin: "4px 0 0 0", fontWeight: "600" }}>{selectedHospInvoice.patient_name || "Patient"}</p>
+              </div>
+
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", marginTop: "10px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #cbd5e1", textAlign: "left" }}>
+                    <th style={{ padding: "8px 0", color: "#475569" }}>Description</th>
+                    <th style={{ padding: "8px 0", textAlign: "right", color: "#475569" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "12px 0" }}>Medical Consultation (Dr. {selectedHospInvoice.doctor_name})</td>
+                    <td style={{ padding: "12px 0", textAlign: "right" }}>₹{Number(selectedHospInvoice.amount).toLocaleString("en-IN")}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "12px 0" }}>GST Charges (18% on Hospital 20% Split)</td>
+                    <td style={{ padding: "12px 0", textAlign: "right" }}>₹{Number((selectedHospInvoice.amount * 0.20 * 0.18).toFixed(2)).toLocaleString("en-IN")}</td>
+                  </tr>
+                  <tr style={{ fontSize: "1rem" }}>
+                    <td style={{ padding: "16px 0 8px 0", fontWeight: "800" }}>Total Paid (INR)</td>
+                    <td style={{ padding: "16px 0 8px 0", textAlign: "right", fontWeight: "800", color: "#4f72f0" }}>₹{Number(selectedHospInvoice.amount).toLocaleString("en-IN")}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{ marginTop: "30px", fontSize: "0.78rem", color: "#64748b", textAlign: "center", borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
+                <p style={{ margin: 0 }}>Thank you for choosing TechMedix. This is a computer-generated tax invoice and requires no signature.</p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px" }}>
+              <button
+                className="unlink-btn-icon"
+                onClick={() => setSelectedHospInvoice(null)}
+                style={{ padding: "8px 16px", border: "1px solid #475569", borderRadius: "6px", cursor: "pointer", background: "transparent", color: "white" }}
+              >
+                Close
+              </button>
+              <button
+                className="link-btn"
+                onClick={() => {
+                  const printContent = document.getElementById("hosp-printable-invoice").innerHTML;
+                  const originalContent = document.body.innerHTML;
+                  document.body.innerHTML = `
+                    <div style="padding: 40px; background: white; color: black; min-height: 100vh;">
+                      ${printContent}
+                    </div>
+                  `;
+                  window.print();
+                  document.body.innerHTML = originalContent;
+                  window.location.reload();
+                }}
+                style={{ padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}
+              >
+                Print Invoice
+              </button>
+            </div>
           </div>
         </div>
       )}

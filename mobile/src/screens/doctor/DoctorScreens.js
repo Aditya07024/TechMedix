@@ -1167,6 +1167,14 @@ export function DoctorProfileScreen() {
   const [subStatus, setSubStatus] = useState(null);
   const [detailedSub, setDetailedSub] = useState(null);
   const [subLoading, setSubLoading] = useState(false);
+  const [hospitalInvites, setHospitalInvites] = useState([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [checkoutPhone, setCheckoutPhone] = useState(user?.phone || "");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [checkoutPlanId, setCheckoutPlanId] = useState(null);
+  const [phonePromptVisible, setPhonePromptVisible] = useState(false);
 
   // Reviews tab state
   const [myReviews, setMyReviews] = useState([]);
@@ -1233,6 +1241,100 @@ export function DoctorProfileScreen() {
     }
   }
 
+  async function loadHospitalInvites() {
+    if (!user?.id) return;
+    setInvitesLoading(true);
+    try {
+      const res = await api.hospitals.getPendingLinkRequests();
+      setHospitalInvites(normalizeArray(res));
+    } catch (err) {
+      console.warn("Hospital invites load failed:", err.message);
+    } finally {
+      setInvitesLoading(false);
+    }
+  }
+
+  async function loadPlans() {
+    setPlansLoading(true);
+    try {
+      const res = await api.subscriptions.getPlans();
+      const allPlans = normalizeArray(res);
+      const doctorPlans = allPlans.filter(p => p.plan_type === "individual" || p.plan_type === "doctor" || !p.plan_type);
+      setPlans(doctorPlans);
+    } catch (err) {
+      console.warn("Plans load failed:", err.message);
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  async function handleRespondToInvite(requestId, responseVal, hospitalName) {
+    try {
+      setInvitesLoading(true);
+      await api.hospitals.respondToLinkRequest(requestId, responseVal);
+      Alert.alert(
+        "Invite Response",
+        `You have ${responseVal} the invitation to join ${hospitalName}.`
+      );
+      await loadSubscription();
+    } catch (err) {
+      Alert.alert("Response Error", err.message || "Failed to respond to invite.");
+    } finally {
+      setInvitesLoading(false);
+    }
+  }
+
+  async function handleDoctorSubscribePay(plan) {
+    if (!checkoutPhone || checkoutPhone.trim().length !== 10) {
+      Alert.alert("Invalid Phone", "Please enter a valid 10-digit mobile number for Cashfree payment.");
+      return;
+    }
+    
+    setPaymentLoading(true);
+    try {
+      const initRes = await api.subscriptions.initiatePayment(plan.id, checkoutPhone);
+      const { payment_session_id, cashfree_order_id, cashfree_mode } = initRes?.data || initRes;
+      if (!payment_session_id) throw new Error("Failed to create payment session.");
+      
+      const isProd = cashfree_mode === "production";
+      const checkoutUrl = isProd
+        ? `https://payments.cashfree.com/order/#${payment_session_id}`
+        : `https://payments-test.cashfree.com/order/#${payment_session_id}`;
+      
+      await Linking.openURL(checkoutUrl);
+      
+      Alert.alert(
+        "Payment Opened",
+        "We have opened the Cashfree payment gateway in your browser. Once completed, click Verify to activate your subscription.",
+        [
+          {
+            text: "Verify Payment",
+            onPress: async () => {
+              try {
+                setSubLoading(true);
+                await api.subscriptions.verifyPayment(cashfree_order_id, plan.id);
+                Alert.alert("Success", "Your subscription is now active!");
+                await loadSubscription();
+              } catch (verifyErr) {
+                Alert.alert("Verification Failed", verifyErr.message || "Payment not verified. If you have paid, please try again or contact support.");
+              } finally {
+                setSubLoading(false);
+              }
+            }
+          },
+          {
+            text: "Cancel",
+            style: "cancel"
+          }
+        ]
+      );
+    } catch (err) {
+      Alert.alert("Checkout Error", err.message || "Payment initiation failed.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
   async function loadSubscription() {
     if (!user?.id) return;
     setSubLoading(true);
@@ -1247,6 +1349,10 @@ export function DoctorProfileScreen() {
       setDetailedSub(
         detailedRes.status === "fulfilled" ? (detailedRes.value?.data || detailedRes.value) : null
       );
+      await Promise.allSettled([
+        loadHospitalInvites(),
+        loadPlans(),
+      ]);
     } catch (err) {
       console.warn("Detailed subscription load failed:", err.message);
     } finally {
@@ -1484,6 +1590,7 @@ export function DoctorProfileScreen() {
     { key: "profile", label: "Profile", icon: "account-cog-outline" },
     { key: "staff", label: "Staff", icon: "account-group-outline" },
     { key: "promotions", label: "Promotions", icon: "bullhorn-outline" },
+    { key: "subscription", label: "Subscription", icon: "credit-card-outline" },
     // { key: "reviews", label: "Reviews", icon: "star-outline" },
   ];
 
@@ -1541,117 +1648,7 @@ export function DoctorProfileScreen() {
             </View>
           </SurfaceCard>
 
-          {/* Practice Coverage & Subscription Details */}
-          {subLoading ? (
-            <LoadingCard label="Loading subscription details..." />
-          ) : subStatus ? (
-            <>
-              {/* Plan Coverage Card */}
-              <SurfaceCard>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.blockTitle}>Practice Coverage</Text>
-                  <Pill
-                    label={
-                      subStatus?.status === "trial" ? "Trial" :
-                      subStatus?.status === "active" ? "Active" :
-                      subStatus?.status === "hospital_covered" ? "Covered" : "Expired"
-                    }
-                    tone={
-                      subStatus?.status === "active" || subStatus?.status === "hospital_covered"
-                        ? "success"
-                        : subStatus?.status === "trial"
-                        ? "warning"
-                        : "error"
-                    }
-                  />
-                </View>
-
-                {subStatus?.status === "hospital_covered" && (
-                  <View style={[styles.listRow, { backgroundColor: colors.surfaceLow, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: "row", alignItems: "center" }]}>
-                    <MaterialCommunityIcons name="office-building" size={24} color={colors.primary} style={{ marginRight: 12 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.listTitle, { fontWeight: "bold" }]}>Hospital Covered</Text>
-                      <Text style={styles.listMeta}>
-                        Your access is covered under {subStatus.hospital_name || "your hospital"}'s central package.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <View style={{ marginTop: 8 }}>
-                  <DetailRow
-                    icon="shield-check-outline"
-                    label="Current Status"
-                    value={
-                      subStatus?.status === "trial" ? "Free Trial" :
-                      subStatus?.status === "active" ? "Active Paid" :
-                      subStatus?.status === "hospital_covered" ? "Hospital Covered" : "Expired"
-                    }
-                  />
-
-                  {subStatus?.status === "trial" && (
-                    <>
-                      <DetailRow
-                        icon="calendar-clock"
-                        label="Trial Ends On"
-                        value={subStatus?.trial_end_date ? formatDate(subStatus.trial_end_date) : "N/A"}
-                      />
-                      <DetailRow
-                        icon="timer-sand"
-                        label="Remaining Time"
-                        value={`${subStatus?.days_left || 0} Days`}
-                      />
-                    </>
-                  )}
-
-                  {(subStatus?.status === "active" || subStatus?.status === "hospital_covered") && subStatus?.paid_end_date && (
-                    <DetailRow
-                      icon="calendar-check"
-                      label="Coverage Until"
-                      value={formatDate(subStatus.paid_end_date)}
-                    />
-                  )}
-
-                  {detailedSub?.plan_name && (
-                    <DetailRow
-                      icon="package-variant-closed"
-                      label="Assigned Plan"
-                      value={detailedSub.plan_name}
-                    />
-                  )}
-                </View>
-              </SurfaceCard>
-
-              {/* Billing Info Card */}
-              {subStatus?.status === "active" && detailedSub && (
-                <SurfaceCard>
-                  <View style={styles.cardHeaderRow}>
-                    <Text style={styles.blockTitle}>Billing & Payment</Text>
-                  </View>
-
-                  <View style={{ marginTop: 8 }}>
-                    <DetailRow
-                      icon="cash"
-                      label="Amount Paid"
-                      value={formatCurrency(detailedSub.amount_paid || 0)}
-                    />
-                    {detailedSub.payment_notes && (
-                      <DetailRow
-                        icon="receipt"
-                        label="Reference"
-                        value={detailedSub.payment_notes}
-                      />
-                    )}
-                    <DetailRow
-                      icon="calendar-sync"
-                      label="Last Renewed"
-                      value={detailedSub.updated_at ? formatDate(detailedSub.updated_at) : "N/A"}
-                    />
-                  </View>
-                </SurfaceCard>
-              )}
-            </>
-          ) : null}
+          {/* Removed old static subscription boxes from profile tab */}
 
           <SurfaceCard>
             <Text style={styles.blockTitle}>Profile Settings</Text>
@@ -1896,6 +1893,339 @@ export function DoctorProfileScreen() {
               </Text>
             )}
           </SurfaceCard>
+        </>
+      )}
+
+      {/* ═══════════ SUBSCRIPTION TAB ═══════════ */}
+      {activeTab === "subscription" && (
+        <>
+          {/* Practice Coverage Card */}
+          <SurfaceCard>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.blockTitle}>Practice Coverage</Text>
+              <Pill
+                label={
+                  subStatus?.status === "trial" ? "Trial" :
+                  subStatus?.status === "active" ? "Active" :
+                  subStatus?.status === "hospital_covered" ? "Covered" : "Expired"
+                }
+                tone={
+                  subStatus?.status === "active" || subStatus?.status === "hospital_covered"
+                    ? "success"
+                    : subStatus?.status === "trial"
+                    ? "warning"
+                    : "error"
+                }
+              />
+            </View>
+
+            {subStatus?.status === "hospital_covered" && (
+              <View style={[styles.listRow, { backgroundColor: colors.surfaceLow, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: "row", alignItems: "center" }]}>
+                <MaterialCommunityIcons name="office-building" size={24} color={colors.primary} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.listTitle, { fontWeight: "bold" }]}>Hospital Covered</Text>
+                  <Text style={styles.listMeta}>
+                    Your access is covered under {subStatus.hospital_name || "your hospital"}'s central package.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={{ marginTop: 8 }}>
+              <DetailRow
+                icon="shield-check-outline"
+                label="Current Status"
+                value={
+                  subStatus?.status === "trial" ? "Free Trial" :
+                  subStatus?.status === "active" ? "Active Paid" :
+                  subStatus?.status === "hospital_covered" ? "Hospital Covered" : "Expired"
+                }
+              />
+
+              {subStatus?.status === "trial" && (
+                <>
+                  <DetailRow
+                    icon="calendar-clock"
+                    label="Trial Ends On"
+                    value={subStatus?.trial_end_date ? formatDate(subStatus.trial_end_date) : "N/A"}
+                  />
+                  <DetailRow
+                    icon="timer-sand"
+                    label="Remaining Time"
+                    value={`${subStatus?.days_left || 0} Days`}
+                  />
+                </>
+              )}
+
+              {(subStatus?.status === "active" || subStatus?.status === "hospital_covered") && subStatus?.paid_end_date && (
+                <DetailRow
+                  icon="calendar-check"
+                  label="Coverage Until"
+                  value={formatDate(subStatus.paid_end_date)}
+                />
+              )}
+
+              {detailedSub?.plan_name && (
+                <DetailRow
+                  icon="package-variant-closed"
+                  label="Assigned Plan"
+                  value={detailedSub.plan_name}
+                />
+              )}
+            </View>
+          </SurfaceCard>
+
+          {/* Billing Info Card */}
+          {subStatus?.status === "active" && detailedSub && (
+            <SurfaceCard>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.blockTitle}>Billing & Payment</Text>
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                <DetailRow
+                  icon="cash"
+                  label="Amount Paid"
+                  value={formatCurrency(detailedSub.amount_paid || 0)}
+                />
+                {detailedSub.payment_notes && (
+                  <DetailRow
+                    icon="receipt"
+                    label="Reference"
+                    value={detailedSub.payment_notes}
+                  />
+                )}
+                <DetailRow
+                  icon="calendar-sync"
+                  label="Last Renewed"
+                  value={detailedSub.updated_at ? formatDate(detailedSub.updated_at) : "N/A"}
+                />
+              </View>
+            </SurfaceCard>
+          )}
+
+          {/* Hospital Link Requests Card */}
+          <SurfaceCard>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.blockTitle}>Hospital Link Requests</Text>
+              <Pill label={`${hospitalInvites.length} Pending`} tone={hospitalInvites.length > 0 ? "warning" : "default"} />
+            </View>
+            <Text style={[styles.sectionMuted, { marginBottom: 12 }]}>
+              Hospitals can invite you to link your profile under their central subscription package.
+            </Text>
+
+            {invitesLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />
+            ) : hospitalInvites.length > 0 ? (
+              hospitalInvites.map((invite) => (
+                <View
+                  key={invite.id}
+                  style={{
+                    backgroundColor: colors.surfaceLow,
+                    borderWidth: 1,
+                    borderColor: colors.outline + "20",
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                    <MaterialCommunityIcons name="office-building" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: "700", color: colors.onSurface }}>
+                        {invite.hospital_name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.outline }}>
+                        {invite.hospital_email}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => handleRespondToInvite(invite.id, "accepted", invite.hospital_name)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: colors.successSoft || "#dcfce7",
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.success || "#15803d", fontWeight: "700", fontSize: 12 }}>
+                        Accept Link
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleRespondToInvite(invite.id, "rejected", invite.hospital_name)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#fee2e2",
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ color: "#b91c1c", fontWeight: "700", fontSize: 12 }}>
+                        Reject
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={{ fontStyle: "italic", fontSize: 12, color: colors.outline, textAlign: "center", marginVertical: 8 }}>
+                No pending hospital link invites.
+              </Text>
+            )}
+          </SurfaceCard>
+
+          {/* Individual Subscription Plans Card */}
+          {subStatus?.status !== "hospital_covered" && (
+            <SurfaceCard>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.blockTitle}>Individual Subscription Plans</Text>
+              </View>
+              <Text style={[styles.sectionMuted, { marginBottom: 16 }]}>
+                Select an individual doctor subscription package below to renew your access.
+              </Text>
+
+              {plansLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />
+              ) : plans.length > 0 ? (
+                <View style={{ gap: 12 }}>
+                  {plans.map((plan) => (
+                    <View
+                      key={plan.id}
+                      style={{
+                        backgroundColor: colors.surfaceLow,
+                        borderWidth: 1,
+                        borderColor: colors.outline + "30",
+                        borderRadius: 16,
+                        padding: 16,
+                        position: "relative",
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <Text style={{ fontSize: 16, fontWeight: "800", color: colors.onSurface }}>
+                          {plan.name}
+                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: "800", color: colors.primary }}>
+                          ₹{Number(plan.price).toLocaleString("en-IN")}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.outline, marginBottom: 12, fontWeight: "600" }}>
+                        Valid for {plan.duration_days} days
+                      </Text>
+                      {Array.isArray(plan.features) && plan.features.length > 0 && (
+                        <View style={{ gap: 4, marginBottom: 16 }}>
+                          {plan.features.map((feat, i) => (
+                            <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <MaterialCommunityIcons name="check" size={14} color={colors.primary} />
+                              <Text style={{ fontSize: 12, color: colors.onSurfaceVariant }}>{feat}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      
+                      <TouchableOpacity
+                        onPress={() => {
+                          setCheckoutPlanId(plan);
+                          setPhonePromptVisible(true);
+                        }}
+                        style={{
+                          backgroundColor: colors.primary,
+                          borderRadius: 8,
+                          paddingVertical: 10,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={{ color: colors.onPrimary, fontWeight: "800", fontSize: 13 }}>
+                          Select Package
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ fontStyle: "italic", fontSize: 12, color: colors.outline, textAlign: "center", marginVertical: 8 }}>
+                  No packages available at this time.
+                </Text>
+              )}
+            </SurfaceCard>
+          )}
+
+          {/* Phone Number Modal for Checkout */}
+          <Modal
+            visible={phonePromptVisible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setPhonePromptVisible(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
+              <View style={{ backgroundColor: colors.surfaceLowest, borderRadius: 16, padding: 20, gap: 16 }}>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: colors.onSurface }}>
+                  Confirm Phone Number
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.outline }}>
+                  Enter your mobile number to proceed with the Cashfree payment gateway for {checkoutPlanId?.name}.
+                </Text>
+                <View style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: colors.surfaceLow,
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  borderWidth: 1,
+                  borderColor: colors.outline + "30",
+                }}>
+                  <MaterialCommunityIcons name="phone" size={18} color={colors.outline} style={{ marginRight: 8 }} />
+                  <TextInput
+                    value={checkoutPhone}
+                    onChangeText={setCheckoutPhone}
+                    placeholder="10-digit mobile number"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    style={{ flex: 1, height: 44, color: colors.onSurface, fontSize: 14 }}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setPhonePromptVisible(false)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 12,
+                      borderRadius: 8,
+                      alignItems: "center",
+                      backgroundColor: colors.surfaceLow,
+                      borderWidth: 1,
+                      borderColor: colors.outline + "30",
+                    }}
+                  >
+                    <Text style={{ color: colors.onSurface, fontWeight: "600" }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    disabled={paymentLoading}
+                    onPress={async () => {
+                      setPhonePromptVisible(false);
+                      await handleDoctorSubscribePay(checkoutPlanId);
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 12,
+                      borderRadius: 8,
+                      alignItems: "center",
+                      backgroundColor: colors.primary,
+                    }}
+                  >
+                    <Text style={{ color: colors.onPrimary, fontWeight: "800" }}>
+                      {paymentLoading ? "Processing..." : "Proceed to Pay"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
 

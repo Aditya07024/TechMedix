@@ -582,6 +582,25 @@ export const api = {
       apiRequest(`/api/v2/subscriptions/doctor/${doctorId}`),
     getPlans: () =>
       apiRequest("/api/v2/subscriptions/plans", { auth: false }),
+    initiatePayment: (planId, phone) =>
+      apiRequest("/api/v2/subscriptions/doctor/subscribe/initiate", {
+        method: "POST",
+        body: { plan_id: planId, customer_phone: phone },
+      }),
+    verifyPayment: (orderId, planId) =>
+      apiRequest("/api/v2/subscriptions/doctor/subscribe/verify", {
+        method: "POST",
+        body: { cashfree_order_id: orderId, plan_id: planId },
+      }),
+  },
+  hospitals: {
+    getPendingLinkRequests: () =>
+      apiRequest("/api/v2/hospitals/doctor/link-requests"),
+    respondToLinkRequest: (requestId, response) =>
+      apiRequest(`/api/v2/hospitals/doctor/link-requests/${requestId}/respond`, {
+        method: "POST",
+        body: { response },
+      }),
   },
   reviews: {
     submit: (payload) =>
