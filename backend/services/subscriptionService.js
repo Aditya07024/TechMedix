@@ -66,6 +66,11 @@ export async function ensureSubscriptionTables() {
       )
     `;
 
+    await sql`
+      ALTER TABLE hospitals
+      ADD COLUMN IF NOT EXISTS commission_rate NUMERIC DEFAULT 20.00
+    `;
+
     // 4. Link doctors to hospitals (add hospital_id UUID column to doctors table)
     await sql`
       ALTER TABLE doctors

@@ -29,6 +29,13 @@ const HospitalDashboard = () => {
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState(null);
+  const [tempCommission, setTempCommission] = useState("20");
+  const [savingCommission, setSavingCommission] = useState(false);
+
+  const commissionRate = Number(profile?.commission_rate ?? 20);
+  const commissionFactor = commissionRate / 100;
+  const doctorShareRate = 100 - commissionRate;
+  const doctorShareFactor = doctorShareRate / 100;
   const [subscription, setSubscription] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -71,7 +78,11 @@ const HospitalDashboard = () => {
       ]);
 
       if (profileRes.status === "fulfilled") {
-        setProfile(profileRes.value.data?.data || null);
+        const prof = profileRes.value.data?.data || null;
+        setProfile(prof);
+        if (prof?.commission_rate !== undefined) {
+          setTempCommission(String(prof.commission_rate));
+        }
       }
       if (subRes.status === "fulfilled") {
         setSubscription(subRes.value.data?.data || null);
@@ -99,8 +110,34 @@ const HospitalDashboard = () => {
     }
   };
 
+  const handleSaveCommission = async () => {
+    if (tempCommission === "" || isNaN(tempCommission)) {
+      alert("Please enter a valid number");
+      return;
+    }
+    const val = Number(tempCommission);
+    if (val < 0 || val > 100) {
+      alert("Commission percentage must be between 0% and 100%");
+      return;
+    }
+    setSavingCommission(true);
+    try {
+      const res = await hospitalApi.updateProfile({ commission_rate: val });
+      if (res.data?.success) {
+        setProfile(res.data.data);
+        alert("Hospital commission rate updated successfully!");
+      } else {
+        alert(res.data?.message || "Failed to update commission rate.");
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || err.message || "Failed to update commission rate.");
+    } finally {
+      setSavingCommission(false);
+    }
+  };
+
   const handleExportHospCSV = (ledger) => {
-    const headers = ["Invoice ID", "Date", "Doctor", "Patient", "Gross Amount (INR)", "Hospital Cut (20% INR)", "Corporate GST (18% INR)", "Net Hospital Earnings (INR)", "Payment Method", "Status"];
+    const headers = ["Invoice ID", "Date", "Doctor", "Patient", "Gross Amount (INR)", `Hospital Cut (${commissionRate}% INR)`, "Corporate GST (18% INR)", "Net Hospital Earnings (INR)", "Payment Method", "Status"];
     const rows = ledger.map(item => {
       const invId = `INV-${item.id.substring(0, 8).toUpperCase()}`;
       const date = new Date(item.created_at).toLocaleDateString();

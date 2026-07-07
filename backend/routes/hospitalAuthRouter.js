@@ -122,7 +122,7 @@ router.get("/profile", authenticate, async (req, res) => {
     }
 
     const hospitalRes = await sql`
-      SELECT id, name, email, phone, address, created_at
+      SELECT id, name, email, phone, address, commission_rate, created_at
       FROM hospitals
       WHERE id = ${req.user.id} AND is_deleted = FALSE
       LIMIT 1
@@ -148,7 +148,7 @@ router.patch("/profile", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Unauthorized access" });
     }
 
-    const { name, phone, address } = req.body;
+    const { name, phone, address, commission_rate } = req.body;
 
     const result = await sql`
       UPDATE hospitals
@@ -156,9 +156,10 @@ router.patch("/profile", authenticate, async (req, res) => {
         name = COALESCE(${name || null}, name),
         phone = COALESCE(${phone || null}, phone),
         address = COALESCE(${address || null}, address),
+        commission_rate = COALESCE(${commission_rate !== undefined ? Number(commission_rate) : null}, commission_rate),
         updated_at = NOW()
       WHERE id = ${req.user.id} AND is_deleted = FALSE
-      RETURNING id, name, email, phone, address, created_at
+      RETURNING id, name, email, phone, address, commission_rate, created_at
     `;
 
     if (!result.length) {

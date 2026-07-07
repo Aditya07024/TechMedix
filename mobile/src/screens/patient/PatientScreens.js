@@ -1104,6 +1104,9 @@ export function BookAppointmentScreen({ navigation }) {
   const [shareRecordings, setShareRecordings] = useState(false);
   const [shareReports, setShareReports] = useState(false);
   const [recordingConsent, setRecordingConsent] = useState(false);
+  const [patientDocs, setPatientDocs] = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState({});
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("my"); // "my" or "book"
   const [myAppointments, setMyAppointments] = useState([]);
@@ -1273,12 +1276,14 @@ export function BookAppointmentScreen({ navigation }) {
     setDatesLoading(true);
     setReviewsLoading(true);
     setSelectedDocReviews([]);
+    setDocsLoading(true);
 
-    // Fetch dates and reviews in parallel
+    // Fetch dates, reviews, and wallet documents in parallel
     Promise.allSettled([
       api.schedule.getAvailableDates(doctor.id, 14),
       api.reviews.getByDoctor(doctor.id),
-    ]).then(([datesRes, reviewsRes]) => {
+      api.wallet.listDocuments(),
+    ]).then(([datesRes, reviewsRes, docsRes]) => {
       if (datesRes.status === "fulfilled") {
         const val = datesRes.value;
         setDates(val?.available_dates || val?.data || []);
@@ -1295,6 +1300,18 @@ export function BookAppointmentScreen({ navigation }) {
       }
       setDatesLoading(false);
       setReviewsLoading(false);
+
+      if (docsRes.status === "fulfilled") {
+        const docs = normalizeArray(docsRes.value);
+        setPatientDocs(docs);
+        // By default, check all files so they are shared
+        const initialSelection = {};
+        docs.forEach((d) => {
+          initialSelection[d.id] = true;
+        });
+        setSelectedDocIds(initialSelection);
+      }
+      setDocsLoading(false);
     });
   }
 
@@ -1333,6 +1350,8 @@ export function BookAppointmentScreen({ navigation }) {
     setBooking(true);
     setError("");
     try {
+      const shared_file_ids = Object.keys(selectedDocIds).filter(id => selectedDocIds[id]);
+
       const response = await api.appointments.book({
         patient_id: user.id,
         doctor_id: selectedDoctor.id,
@@ -1340,6 +1359,8 @@ export function BookAppointmentScreen({ navigation }) {
         slot_time: selectedSlot,
         share_history: shareHistory,
         recording_consent_patient: recordingConsent,
+        share_all_files: shared_file_ids.length === patientDocs.length,
+        shared_file_ids: shared_file_ids,
       });
 
       navigation.navigate("AppointmentPayment", {
@@ -1798,6 +1819,77 @@ export function BookAppointmentScreen({ navigation }) {
                     value={recordingConsent}
                     onValueChange={setRecordingConsent}
                   />
+                </View>
+
+                {/* 📁 Saved Wallet Files to Share */}
+                <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: colors.outline + "30", paddingTop: 15, marginBottom: 15 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: colors.primary, marginBottom: 4 }}>
+                    📁 Share Saved Files from Wallet
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colors.outline, marginBottom: 10 }}>
+                    Select which previously uploaded files/medical reports you want Dr. {selectedDoctor?.name} to be able to view:
+                  </Text>
+
+                  {docsLoading ? (
+                    <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 10 }} />
+                  ) : patientDocs.length > 0 ? (
+                    <View style={{ gap: 8 }}>
+                      {patientDocs.map(doc => {
+                        const isSelected = !!selectedDocIds[doc.id];
+                        return (
+                          <TouchableOpacity
+                            key={doc.id}
+                            onPress={() => {
+                              setSelectedDocIds(prev => ({
+                                ...prev,
+                                [doc.id]: !prev[doc.id]
+                              }));
+                            }}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              backgroundColor: isSelected ? colors.primary + "15" : colors.surfaceLow,
+                              padding: 10,
+                              borderRadius: 8,
+                              borderWidth: 1,
+                              borderColor: isSelected ? colors.primary : colors.outline + "30",
+                              gap: 10
+                            }}
+                          >
+                            <MaterialCommunityIcons 
+                              name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"} 
+                              size={20}
+                              color={isSelected ? colors.primary : colors.outline} 
+                            />
+                            <MaterialCommunityIcons 
+                              name={doc.file_type === "pdf" ? "file-pdf-box" : "file-image-outline"} 
+                              size={22} 
+                              color={doc.file_type === "pdf" ? "#ef4444" : "#3b82f6"} 
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text 
+                                style={{ fontSize: 12, fontWeight: "700", color: colors.onSurface }}
+                                numberOfLines={1}
+                              >
+                                {doc.file_name || "Medical Report"}
+                              </Text>
+                              {doc.file_size && (
+                                <Text style={{ fontSize: 10, color: colors.outline }}>
+                                  {Math.round(doc.file_size / 1024)} KB • {new Date(doc.created_at).toLocaleDateString()}
+                                </Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={{ padding: 12, backgroundColor: colors.surfaceLow, borderRadius: 8, alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, color: colors.outline, fontStyle: "italic", textAlign: "center" }}>
+                        No files saved in Health Wallet yet. You can upload documents in the Wallet tab anytime.
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 <GradientButton

@@ -452,32 +452,6 @@ export default function ProfileManager({
                   <option value="center">Centered Branding</option>
                 </select>
               </label>
-
-              {/* Logo Visibility */}
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Show Clinic Branding Logo</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newVal = !padLogoVisible;
-                    setPadLogoVisible(newVal);
-                    localStorage.setItem("padLogoVisible", String(newVal));
-                  }}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: "8px",
-                    backgroundColor: padLogoVisible ? "#0f6b57" : "#64748b",
-                    color: "white",
-                    border: "none",
-                    fontWeight: "700",
-                    fontSize: "0.9rem",
-                    cursor: "pointer",
-                    transition: "background-color 0.2s"
-                  }}
-                >
-                  {padLogoVisible ? "✓ Branding Logo Visible" : "Branding Logo Hidden"}
-                </button>
-              </label>
             </div>
             
             {/* Custom Texts Section */}
