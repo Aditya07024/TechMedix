@@ -337,7 +337,7 @@ export default function MobileLandingScreen({ navigation }) {
               {/* Staff Card */}
               <TouchableOpacity
                 activeOpacity={0.9}
-                style={[styles.portalSecondaryCard, { backgroundColor: "#1e293b" }]}
+                style={[styles.portalSecondaryCard, { backgroundColor: "#0f766e" }]}
                 onPress={() => handlePortalLogin("staff")}
               >
                 <View style={styles.secondaryCardIconCircle}>
@@ -639,7 +639,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   portalHeroCard: {
-    backgroundColor: "#00535b",
+    backgroundColor: "rgba(76, 184, 212, 1)",
     borderRadius: 24,
     padding: 18,
     borderWidth: 2,

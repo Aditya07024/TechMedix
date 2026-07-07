@@ -104,7 +104,7 @@ const DigitalPrescription = ({
         <div className="paper-header">
           <div className="clinic-branding">
             <div className="clinic-logo-box">
-              <span>TM</span>
+              <img src="../../../public/image.png" alt="Logo" style={{height:"50px",width:"50px"}}/>
             </div>
             <div className="clinic-info">
               <h2>{clinicName}</h2>

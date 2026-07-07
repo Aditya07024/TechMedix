@@ -445,6 +445,7 @@ const HospitalDashboard = () => {
               <p className="panel-hint" style={{ marginTop: "6px" }}>
                 Pending doctor approvals. Doctors must log into their TechMedix dashboards to accept or reject hospital coverage invites.
               </p>
+              <p><b>Doctor Will find the request will be find in Subscription & Hospital Link</b></p>
               {linkRequests.length === 0 ? (
                 <div className="empty-doctors-state" style={{ padding: "20px" }}>
                   <p>No sent requests found.</p>

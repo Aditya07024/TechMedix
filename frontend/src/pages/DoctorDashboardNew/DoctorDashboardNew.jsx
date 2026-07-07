@@ -39,7 +39,7 @@ const NAV_ITEMS = [
   { id: "staff", label: "Staff Hub", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "promotions", label: "Promotions", icon: Megaphone },
-  { id: "subscription", label: "Subscription", icon: CreditCard },
+  { id: "subscription", label: "Subscription & Hospital Link", icon: CreditCard },
   { id: "profile", label: "Profile", icon: Wallet },
 ];
 
@@ -2112,13 +2112,7 @@ export default function DoctorDashboardNew() {
                               <div key={report.id} className="doctor-recording-card">
                                 <div className="doctor-recording-meta">
                                   <strong>{report.file_name}</strong>
-                                  <span>
-                                    {report.source === "health_wallet"
-                                      ? "Health Wallet"
-                                      : "Report"}
-                                  </span>
-                                </div>
-                                <a
+                                   <a
                                   href={report.file_url}
                                   target="_blank"
                                   rel="noreferrer"
@@ -2126,6 +2120,8 @@ export default function DoctorDashboardNew() {
                                 >
                                   Open file
                                 </a>
+                                </div>
+                               
                               </div>
                             ))}
                           </div>
