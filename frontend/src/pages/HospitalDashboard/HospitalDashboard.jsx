@@ -1032,16 +1032,33 @@ const HospitalDashboard = () => {
               <button
                 className="link-btn"
                 onClick={() => {
-                  const printContent = document.getElementById("hosp-printable-invoice").innerHTML;
-                  const originalContent = document.body.innerHTML;
-                  document.body.innerHTML = `
-                    <div style="padding: 40px; background: white; color: black; min-height: 100vh;">
-                      ${printContent}
-                    </div>
-                  `;
-                  window.print();
-                  document.body.innerHTML = originalContent;
-                  window.location.reload();
+                  const printEl = document.getElementById("hosp-printable-invoice");
+                  if (!printEl) return;
+                  const printWindow = window.open("", "_blank");
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Print Invoice</title>
+                        <style>
+                          body { font-family: sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #fff; }
+                          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                          th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 8px; text-align: left; }
+                        </style>
+                      </head>
+                      <body>
+                        <div style="border: 1px solid #e2e8f0; padding: 24px; border-radius: 8px;">
+                          ${printEl.innerHTML}
+                        </div>
+                        <script>
+                          window.onload = function() {
+                            window.print();
+                            window.close();
+                          };
+                        </script>
+                      </body>
+                    </html>
+                  `);
+                  printWindow.document.close();
                 }}
                 style={{ padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}
               >

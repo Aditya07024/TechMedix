@@ -36,12 +36,13 @@ const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Activity },
   { id: "queue", label: "Queue", icon: Stethoscope },
   { id: "revenue", label: "Revenue", icon: Landmark },
-  { id: "ca_billing", label: "CA Tax & Invoices", icon: FileText },
+  
   { id: "patients", label: "Patient Workspace", icon: UserRound },
   { id: "staff", label: "Staff Hub", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "promotions", label: "Promotions", icon: Megaphone },
   { id: "subscription", label: "Subscription & Hospital Link", icon: CreditCard },
+  { id: "ca_billing", label: "CA Tax & Invoices", icon: FileText },
   { id: "profile", label: "Profile", icon: Wallet },
 ];
 
@@ -116,6 +117,12 @@ export default function DoctorDashboardNew() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
   const [invoiceFilterMethod, setInvoiceFilterMethod] = useState("all");
+
+  // Prescription pad customization states
+  const [padThemeColor, setPadThemeColor] = useState(() => localStorage.getItem("padThemeColor") || "#0f6b57");
+  const [padFontFamily, setPadFontFamily] = useState(() => localStorage.getItem("padFontFamily") || "Inter");
+  const [padLayout, setPadLayout] = useState(() => localStorage.getItem("padLayout") || "split");
+  const [padLogoVisible, setPadLogoVisible] = useState(() => localStorage.getItem("padLogoVisible") === "false" ? false : true);
   const [subPayError, setSubPayError] = useState("");
 
   const [hospitalRequests, setHospitalRequests] = useState([]);
@@ -2310,6 +2317,10 @@ export default function DoctorDashboardNew() {
                            diagnosis={diagnosis}
                            notes={additionalNotes}
                            rxNumber={prescriptionNumber}
+                           themeColor={padThemeColor}
+                           fontFamily={padFontFamily}
+                           layout={padLayout}
+                           showLogo={padLogoVisible}
                         />
                     </div>
                   </div>
@@ -3017,16 +3028,33 @@ export default function DoctorDashboardNew() {
               <button
                 className="doctor-btn primary"
                 onClick={() => {
-                  const printContent = document.getElementById("printable-invoice").innerHTML;
-                  const originalContent = document.body.innerHTML;
-                  document.body.innerHTML = `
-                    <div style="padding: 40px; background: white; color: black; min-height: 100vh;">
-                      ${printContent}
-                    </div>
-                  `;
-                  window.print();
-                  document.body.innerHTML = originalContent;
-                  window.location.reload();
+                  const printEl = document.getElementById("printable-invoice");
+                  if (!printEl) return;
+                  const printWindow = window.open("", "_blank");
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Print Invoice</title>
+                        <style>
+                          body { font-family: sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #fff; }
+                          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                          th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 8px; text-align: left; }
+                        </style>
+                      </head>
+                      <body>
+                        <div style="border: 1px solid #e2e8f0; padding: 24px; border-radius: 8px;">
+                          ${printEl.innerHTML}
+                        </div>
+                        <script>
+                          window.onload = function() {
+                            window.print();
+                            window.close();
+                          };
+                        </script>
+                      </body>
+                    </html>
+                  `);
+                  printWindow.document.close();
                 }}
                 style={{ padding: "10px 20px" }}
               >

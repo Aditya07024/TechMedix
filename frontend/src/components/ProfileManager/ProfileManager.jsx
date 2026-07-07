@@ -44,6 +44,20 @@ export default function ProfileManager({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // Prescription customization states
+  const [padThemeColor, setPadThemeColor] = useState(() => localStorage.getItem("padThemeColor") || "#0f6b57");
+  const [padFontFamily, setPadFontFamily] = useState(() => localStorage.getItem("padFontFamily") || "Inter");
+  const [padLayout, setPadLayout] = useState(() => localStorage.getItem("padLayout") || "split");
+  const [padLogoVisible, setPadLogoVisible] = useState(() => localStorage.getItem("padLogoVisible") === "false" ? false : true);
+
+  // Prescription pad text customizer states
+  const [padClinicName, setPadClinicName] = useState(() => localStorage.getItem("padClinicName") || "TechMedix Clinical Sanctuary");
+  const [padClinicAddress, setPadClinicAddress] = useState(() => localStorage.getItem("padClinicAddress") || "124, Healthcare Boulevard, Medical District");
+  const [padClinicContact, setPadClinicContact] = useState(() => localStorage.getItem("padClinicContact") || "");
+  const [padDoctorSpecialty, setPadDoctorSpecialty] = useState(() => localStorage.getItem("padDoctorSpecialty") || "");
+  const [padDoctorRegNo, setPadDoctorRegNo] = useState(() => localStorage.getItem("padDoctorRegNo") || "");
+  const [padFooterText, setPadFooterText] = useState(() => localStorage.getItem("padFooterText") || "This is a digitally generated prescription. It does not require a physical stamp for validation.");
+
   useEffect(() => {
     loadProfile();
   }, []);
@@ -341,6 +355,222 @@ export default function ProfileManager({
           </>
         ) : null}
 
+        {isDoctor ? (
+          <div className="profile-manager-full" style={{ marginTop: "24px", borderTop: "1px solid rgba(15, 23, 42, 0.08)", paddingTop: "24px" }}>
+            <span className="profile-manager-kicker" style={{ display: "block", marginBottom: "4px", fontSize: "0.85rem", fontWeight: "700", color: "#4f72f0" }}>
+              DESIGN CUSTOMIZATION
+            </span>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: "1.1rem", fontWeight: "800", color: "var(--color-text, #0f172a)" }}>
+              Prescription Pad Layout & Branding Styling
+            </h4>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "16px" }}>
+              {/* Color Selector */}
+              <div>
+                <span style={{ display: "block", fontSize: "0.88rem", fontWeight: "600", color: "#475569", marginBottom: "8px" }}>
+                  Theme Primary Color
+                </span>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[
+                    { hex: "#0f6b57", label: "Emerald" },
+                    { hex: "#4f72f0", label: "Tech Blue" },
+                    { hex: "#e11d48", label: "Rose" },
+                    { hex: "#7c3aed", label: "Violet" },
+                    { hex: "#0891b2", label: "Cyan" },
+                    { hex: "#475569", label: "Slate" }
+                  ].map(color => (
+                    <button
+                      key={color.hex}
+                      type="button"
+                      onClick={() => {
+                        setPadThemeColor(color.hex);
+                        localStorage.setItem("padThemeColor", color.hex);
+                      }}
+                      title={color.label}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        backgroundColor: color.hex,
+                        border: padThemeColor === color.hex ? "3px solid #0f172a" : "1px solid rgba(0,0,0,0.15)",
+                        cursor: "pointer",
+                        boxShadow: padThemeColor === color.hex ? "0 0 0 2px #fff" : "none",
+                        padding: 0,
+                        transition: "transform 0.15s ease"
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Font Selector */}
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Typography Font Style</span>
+                <select
+                  value={padFontFamily}
+                  onChange={(e) => {
+                    setPadFontFamily(e.target.value);
+                    localStorage.setItem("padFontFamily", e.target.value);
+                  }}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(15, 23, 42, 0.15)",
+                    backgroundColor: "#fff",
+                    color: "#0f172a",
+                    fontSize: "0.9rem",
+                    outline: "none",
+                  }}
+                >
+                  <option value="Inter">Modern Sans (Inter)</option>
+                  <option value="serif">Classic Serif (Georgia)</option>
+                  <option value="mono">Developer Mono (Courier)</option>
+                </select>
+              </label>
+
+              {/* Layout Selector */}
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Header Layout Alignment</span>
+                <select
+                  value={padLayout}
+                  onChange={(e) => {
+                    setPadLayout(e.target.value);
+                    localStorage.setItem("padLayout", e.target.value);
+                  }}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(15, 23, 42, 0.15)",
+                    backgroundColor: "#fff",
+                    color: "#0f172a",
+                    fontSize: "0.9rem",
+                    outline: "none",
+                  }}
+                >
+                  <option value="split">Split Ends</option>
+                  <option value="left">Left Aligned</option>
+                  <option value="center">Centered Branding</option>
+                </select>
+              </label>
+
+              {/* Logo Visibility */}
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Show Clinic Branding Logo</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newVal = !padLogoVisible;
+                    setPadLogoVisible(newVal);
+                    localStorage.setItem("padLogoVisible", String(newVal));
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    backgroundColor: padLogoVisible ? "#0f6b57" : "#64748b",
+                    color: "white",
+                    border: "none",
+                    fontWeight: "700",
+                    fontSize: "0.9rem",
+                    cursor: "pointer",
+                    transition: "background-color 0.2s"
+                  }}
+                >
+                  {padLogoVisible ? "✓ Branding Logo Visible" : "Branding Logo Hidden"}
+                </button>
+              </label>
+            </div>
+            
+            {/* Custom Texts Section */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "24px", borderTop: "1px solid rgba(15, 23, 42, 0.08)", paddingTop: "20px" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Clinic Name Display</span>
+                <input
+                  type="text"
+                  value={padClinicName}
+                  onChange={(e) => {
+                    setPadClinicName(e.target.value);
+                    localStorage.setItem("padClinicName", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontSize: "0.9rem" }}
+                />
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Clinic Contact Info</span>
+                <input
+                  type="text"
+                  value={padClinicContact}
+                  placeholder={form.phone ? `${form.phone} | ${form.email}` : "e.g. +91 9999999999 | doc@clinic.com"}
+                  onChange={(e) => {
+                    setPadClinicContact(e.target.value);
+                    localStorage.setItem("padClinicContact", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontSize: "0.9rem" }}
+                />
+              </label>
+
+              <label className="profile-manager-full" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Clinic Address Display</span>
+                <textarea
+                  rows="2"
+                  value={padClinicAddress}
+                  onChange={(e) => {
+                    setPadClinicAddress(e.target.value);
+                    localStorage.setItem("padClinicAddress", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontFamily: "inherit", fontSize: "0.9rem" }}
+                />
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Designation / Specialty Override</span>
+                <input
+                  type="text"
+                  value={padDoctorSpecialty}
+                  placeholder={form.specialty || "Specialist Consultant"}
+                  onChange={(e) => {
+                    setPadDoctorSpecialty(e.target.value);
+                    localStorage.setItem("padDoctorSpecialty", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontSize: "0.9rem" }}
+                />
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Medical Registration No. Override</span>
+                <input
+                  type="text"
+                  value={padDoctorRegNo}
+                  placeholder="e.g. Reg No: MC-12345"
+                  onChange={(e) => {
+                    setPadDoctorRegNo(e.target.value);
+                    localStorage.setItem("padDoctorRegNo", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontSize: "0.9rem" }}
+                />
+              </label>
+
+              <label className="profile-manager-full" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: "600", color: "#475569" }}>Legal Disclaimer (Footer)</span>
+                <textarea
+                  rows="2"
+                  value={padFooterText}
+                  onChange={(e) => {
+                    setPadFooterText(e.target.value);
+                    localStorage.setItem("padFooterText", e.target.value);
+                  }}
+                  style={{ padding: "10px", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.15)", fontFamily: "inherit", fontSize: "0.9rem" }}
+                />
+              </label>
+            </div>
+            
+            {/* Minimal style description */}
+            <p style={{ margin: "16px 0 0 0", fontSize: "0.78rem", color: "#64748b", fontStyle: "italic" }}>
+              These configurations are dynamically applied to your prescription pads during patient consult workspace and live printing.
+            </p>
+          </div>
+        ) : null}
+
         {isStaff ? (
           <label>
             <span>Department</span>
@@ -351,47 +581,8 @@ export default function ProfileManager({
           </label>
         ) : null}
 
-        {/* App Theme Preference Toggle */}
-        <div className="profile-manager-full" style={{ marginTop: "18px", borderTop: "1px solid rgba(15, 23, 42, 0.08)", paddingTop: "18px" }}>
-          <span className="profile-manager-kicker" style={{ display: "block", marginBottom: "8px" }}>
-            App Theme Preference
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "0.95rem", color: "#415164", fontWeight: "600" }}>
-              Theme Mode:
-            </span>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "8px 16px",
-                borderRadius: "999px",
-                border: "1px solid rgba(15, 23, 42, 0.12)",
-                background: isDarkMode ? "#1e293b" : "#f1f5f9",
-                color: isDarkMode ? "#f8fafc" : "#0f172a",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "0.85rem",
-                transition: "all 0.2s ease"
-              }}
-            >
-              {isDarkMode ? (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-                  <span>Switch to Light Mode</span>
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-                  <span>Switch to Dark Mode</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        
+        
 
         <div className="profile-manager-actions profile-manager-full">
           <button type="submit" className="profile-primary-btn" disabled={saving}>

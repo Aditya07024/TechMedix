@@ -13,16 +13,34 @@ const DigitalPrescription = ({
   onSaveToWallet = null,
   isSaving = false,
   onDownload = null,
-  isDownloading = false
+  isDownloading = false,
+  // Customization Props
+  themeColor = "#0f6b57",
+  fontFamily = "Inter",
+  layout = "split",
+  showLogo = true,
+  // Override Texts Props
+  clinicNameOverride = "",
+  clinicAddressOverride = "",
+  clinicContactOverride = "",
+  doctorSpecialtyOverride = "",
+  doctorRegNoOverride = "",
+  footerTextOverride = ""
 }) => {
   const doctorName = doctor?.name || "Specialist Consultant";
-  const doctorSpecialty = doctor?.specialty || "Medical Consultant";
   const isDoc = doctorName && !doctorName.toLowerCase().includes("upload");
-  const clinicName = "TechMedix Clinical Sanctuary";
-  const clinicAddress = "124, Healthcare Boulevard, Medical District";
-  const clinicContact = isDoc && (doctor?.phone || doctor?.email)
-    ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
-    : "techmedixcare@gmail.com";
+  
+  const clinicName = clinicNameOverride || localStorage.getItem("padClinicName") || "TechMedix Clinical Sanctuary";
+  const clinicAddress = clinicAddressOverride || localStorage.getItem("padClinicAddress") || "124, Healthcare Boulevard, Medical District";
+  const clinicContact = clinicContactOverride || localStorage.getItem("padClinicContact") || (
+    isDoc && (doctor?.phone || doctor?.email)
+      ? [doctor.phone, doctor.email].filter(Boolean).join(" | ")
+      : "techmedixcare@gmail.com"
+  );
+  
+  const doctorSpecialty = doctorSpecialtyOverride || localStorage.getItem("padDoctorSpecialty") || doctor?.specialty || "Medical Consultant";
+  const doctorRegNo = doctorRegNoOverride || localStorage.getItem("padDoctorRegNo") || doctor?.reg_no || "TM-DOC-2024-001";
+  const footerText = footerTextOverride || localStorage.getItem("padFooterText") || "This is a digitally generated prescription. It does not require a physical stamp for validation.";
   
   const handlePrint = () => {
     window.print();
@@ -64,12 +82,21 @@ const DigitalPrescription = ({
   const sortedDateKeys = Object.keys(groupsByDate).sort((a, b) => b.localeCompare(a));
   let globalIdx = 0;
 
+  const containerStyle = {
+    "--rx-green": themeColor,
+    "--rx-green-soft": themeColor + "15",
+    fontFamily: fontFamily === "serif" ? "Georgia, serif" : fontFamily === "mono" ? "Courier New, monospace" : fontFamily === "Outfit" ? "'Outfit', sans-serif" : "'Inter', sans-serif",
+  };
+
   return (
-    <div className={`digital-prescription-container ${isPatientView ? 'patient-mode' : 'doctor-mode'}`}>
+    <div 
+      className={`digital-prescription-container ${isPatientView ? 'patient-mode' : 'doctor-mode'}`}
+      style={containerStyle}
+    >
       <div className="preview-header no-print">
         <div className="header-left">
-          <CheckCircle2 size={16} className="status-icon" />
-          <span>{isPatientView ? "Your Clinical Prescription" : "Live Prescription Preview"}</span>
+          <CheckCircle2 size={16} className="status-icon" style={{ color: themeColor }} />
+          <span style={{ color: themeColor }}>{isPatientView ? "Your Clinical Prescription" : "Live Prescription Preview"}</span>
         </div>
         <div className="header-actions">
           {isPatientView && (
@@ -77,6 +104,7 @@ const DigitalPrescription = ({
               className="wallet-btn" 
               onClick={onSaveToWallet}
               disabled={isSaving}
+              style={{ backgroundColor: themeColor }}
             >
               <Wallet size={14} />
               {isSaving ? "Saving..." : "Save to Wallet"}
@@ -87,38 +115,61 @@ const DigitalPrescription = ({
               className="download-btn-rx" 
               onClick={onDownload}
               disabled={isDownloading}
+              style={{ backgroundColor: themeColor + "15", color: themeColor }}
             >
               <Download size={14} />
               {isDownloading ? "Downloading..." : "Download"}
             </button>
           )}
-          {/* <button className="print-btn" onClick={handlePrint}>
-            <Printer size={14} />
-            Print / PDF
-          </button> */}
         </div>
       </div>
 
       <div className="prescription-paper" id="digital-rx-pad">
         {/* Paper Header */}
-        <div className="paper-header">
-          <div className="clinic-branding">
-            <div className="clinic-logo-box">
-              <img src="../../../public/image.png" alt="Logo" style={{height:"50px",width:"50px"}}/>
+        <div className="paper-header" style={{
+          display: "flex",
+          flexDirection: layout === "center" ? "column" : "row",
+          alignItems: layout === "center" ? "center" : "flex-start",
+          textAlign: layout === "center" ? "center" : "left",
+          justifyContent: layout === "split" ? "space-between" : "flex-start",
+          gap: "20px",
+          borderBottom: `3px solid ${themeColor}`,
+          paddingBottom: "25px",
+          marginBottom: "30px",
+        }}>
+          {showLogo ? (
+            <div className="clinic-branding" style={{
+              flexDirection: layout === "center" ? "column" : "row",
+              alignItems: "center",
+              textAlign: layout === "center" ? "center" : "left",
+              gap: "15px",
+            }}>
+              <div className="clinic-logo-box" style={{ backgroundColor: themeColor, display: "grid", placeItems: "center", borderRadius: "10px", width: "50px", height: "50px" }}>
+                <img src="/image.png" alt="Logo" style={{height:"40px",width:"40px"}}/>
+              </div>
+              <div className="clinic-info">
+                <h2 style={{ color: themeColor, margin: 0, fontSize: "1.4rem", lineHeight: 1.2 }}>{clinicName}</h2>
+                <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--rx-muted)" }}>{clinicAddress}</p>
+              </div>
             </div>
+          ) : (
             <div className="clinic-info">
-              <h2>{clinicName}</h2>
-              <p>{clinicAddress}</p>
+              <h2 style={{ color: themeColor, margin: 0, fontSize: "1.4rem", lineHeight: 1.2 }}>{clinicName}</h2>
+              <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--rx-muted)" }}>{clinicAddress}</p>
             </div>
-          </div>
-          <div className="doctor-info-strip">
+          )}
+          
+          <div className="doctor-info-strip" style={{
+            textAlign: layout === "center" ? "center" : layout === "split" ? "right" : "left",
+            marginLeft: layout === "left" && !showLogo ? "auto" : "0",
+          }}>
             <div className="doc-main">
               <strong>{isDoc ? (doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`) : doctorName}</strong>
-              <span>{doctorSpecialty}</span>
+              <span style={{ color: themeColor, display: "block", fontSize: "0.85rem", fontWeight: 700, marginTop: "2px" }}>{doctorSpecialty}</span>
             </div>
-            <div className="doc-meta">
+            <div className="doc-meta" style={{ marginTop: "10px", fontSize: "0.75rem", color: "var(--rx-muted)", lineHeight: 1.4 }}>
               <p>{clinicContact}</p>
-              {isDoc && <p>Reg No: {doctor?.reg_no || "TM-DOC-2024-001"}</p>}
+              {isDoc && <p>{doctorRegNo}</p>}
             </div>
           </div>
         </div>
@@ -255,7 +306,7 @@ const DigitalPrescription = ({
             )}
           </div>
           <div className="footer-bottom">
-            <p>This is a digitally generated prescription. It does not require a physical stamp for validation.</p>
+            <p>{footerText}</p>
             <p className="tm-tagline">TechMedix - Precision in Every Care</p>
           </div>
         </div>

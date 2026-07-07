@@ -24,6 +24,7 @@ const LoginPop = ({ setShowLogin }) => {
     if (role === "doctor") return "/doctor/dashboard";
     if (role === "staff") return "/staff/dashboard";
     if (role === "admin") return "/admin/dashboard";
+    if (role === "hospital") return "/hospital/dashboard";
     return "/dashboard";
   };
 
@@ -32,6 +33,7 @@ const LoginPop = ({ setShowLogin }) => {
     if (path.startsWith("/doctor")) return role === "doctor";
     if (path.startsWith("/staff")) return role === "staff";
     if (path.startsWith("/admin")) return role === "admin";
+    if (path.startsWith("/hospital")) return role === "hospital";
     if (
       path === "/dashboard" ||
       path === "/health-wallet" ||
