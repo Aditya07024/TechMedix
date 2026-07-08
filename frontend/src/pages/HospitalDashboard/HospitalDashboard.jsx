@@ -20,7 +20,8 @@ import {
   X,
   Loader2,
   Shield,
-  Zap
+  Zap,
+  Percent
 } from "lucide-react";
 import "./HospitalDashboard.css";
 
@@ -31,6 +32,7 @@ const HospitalDashboard = () => {
   const [profile, setProfile] = useState(null);
   const [tempCommission, setTempCommission] = useState("20");
   const [savingCommission, setSavingCommission] = useState(false);
+  const [editingCommission, setEditingCommission] = useState(false);
 
   const commissionRate = Number(profile?.commission_rate ?? 20);
   const commissionFactor = commissionRate / 100;
@@ -126,6 +128,7 @@ const HospitalDashboard = () => {
       if (res.data?.success) {
         setProfile(res.data.data);
         alert("Hospital commission rate updated successfully!");
+        setEditingCommission(false);
       } else {
         alert(res.data?.message || "Failed to update commission rate.");
       }
@@ -685,6 +688,85 @@ const HospitalDashboard = () => {
                     </div>
                   </div>
                 )}
+                <div className="detail-item">
+                  <Percent size={16} />
+                  <div>
+                    <span>Hospital Commission Rate</span>
+                    {editingCommission ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={tempCommission}
+                          onChange={(e) => setTempCommission(e.target.value)}
+                          style={{
+                            width: "60px",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            border: "1px solid var(--hospital-border, rgba(255,255,255,0.15))",
+                            backgroundColor: "rgba(0,0,0,0.3)",
+                            color: "white",
+                            fontSize: "0.85rem",
+                            fontWeight: "700"
+                          }}
+                        />
+                        <span style={{ color: "white" }}>%</span>
+                        <button
+                          onClick={handleSaveCommission}
+                          disabled={savingCommission}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            backgroundColor: "#4f72f0",
+                            color: "white",
+                            border: "none",
+                            fontSize: "0.75rem",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCommission(false);
+                            setTempCommission(String(commissionRate));
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            backgroundColor: "rgba(255,255,255,0.1)",
+                            color: "white",
+                            border: "none",
+                            fontSize: "0.75rem",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <strong>{commissionRate}%</strong>
+                        <button
+                          onClick={() => setEditingCommission(true)}
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            backgroundColor: "transparent",
+                            color: "#4f72f0",
+                            border: "1px solid #4f72f0",
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            fontWeight: "bold"
+                          }}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </aside>
