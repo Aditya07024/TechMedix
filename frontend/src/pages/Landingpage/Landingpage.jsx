@@ -334,7 +334,7 @@ const Landingpage = ({ setShowLogin }) => {
               </Link>
               <a
                 className="landing-button landing-button--ghost"
-                href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ"
+    href={import.meta.env.VITE_APP_DOWNLOAD_URL}
               >
                 Download the app
               </a>
@@ -599,15 +599,15 @@ const Landingpage = ({ setShowLogin }) => {
                 oad"
                 />
               </div>
-              <div className="landing-download__buttons">
-                <a
-                  className="landing-button landing-button--primary"
-                  href="https://drive.google.com/uc?export=download&id=1lrCdWHnf_6N5ZcSrMPA7uUrT4lnrCfEQ"
-                >
-                  <Download size={18} />
-                  Download APP
-                </a>
-              </div>
+             <div className="landing-download__buttons">
+  <a
+    className="landing-button landing-button--primary"
+    href={import.meta.env.VITE_APP_DOWNLOAD_URL}
+  >
+    <Download size={18} />
+    Download APP
+  </a>
+</div>
             </div>
           </div>
         </section>
