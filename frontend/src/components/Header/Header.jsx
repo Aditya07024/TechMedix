@@ -75,7 +75,7 @@ const Header = () => {
                   className="header-cta-btn" 
                   onClick={() => navigate('/search')}
                 >
-                  Search Medicines
+                  Show all Medicines
                 </button>
               </div>
             ) : (
