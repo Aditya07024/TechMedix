@@ -639,6 +639,7 @@ export async function initializeCompletSchema() {
       await sql`CREATE INDEX IF NOT EXISTS idx_recordings_patient_id ON recordings(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_patient_data_patient_id ON patient_data(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_medicines_name ON medicines(name)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_medicine_name ON medicines(name)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_reports_patient_id ON reports(patient_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_reports_appointment_id ON reports(appointment_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_doctor_schedule_doctor_id ON doctor_schedule(doctor_id)`;

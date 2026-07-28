@@ -405,13 +405,20 @@ export async function searchMedicinesInCsv(query) {
     }))
     .filter(({ score }) => score.nameScore > 0 || score.saltScoreFromNameSearch > 0)
     .sort(compareMedicinesByRelevance)
-    .slice(0, 10)
+    .slice(0, 20)
     .map(({ medicine }) => ({
       id: medicine.id,
       name: medicine.name,
       salt: medicine.salt,
       price: medicine.price,
       image: medicine.image,
+      short_composition1: medicine.short_composition1,
+      short_composition2: medicine.short_composition2,
+      manufacturer_name: medicine.manufacturer_name,
+      type: medicine.type,
+      pack_size_label: medicine.pack_size_label,
+      category: medicine.category,
+      therapeutic_class: medicine.therapeutic_class,
     }));
 }
 

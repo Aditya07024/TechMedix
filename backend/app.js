@@ -1569,20 +1569,17 @@ app.get("/api/medicines/search", async (req, res) => {
       _id: r.id,
       id: r.id,
       name: r.name,
+      medicine_name: r.name,
+      strength: r.short_composition1 || r.salt || "",
+      manufacturer: r.manufacturer_name || "",
+      type: r.type || "",
       salt: r.salt,
       price: r.price,
-      info: r.info,
-      benefits: r.benefits,
-      sideeffects: r.sideeffects,
-      usage: r.usage,
-      working: r.working,
-      safetyadvice: r.safetyadvice,
       image: r.image,
-      link: r.link,
     }));
     const medicineData = medicines[0] || null;
-    const similarMedicines = medicines.slice(1);
-    res.json({ medicineData, similarMedicines: medicines });
+    const similarMedicines = medicines;
+    res.json({ medicineData, similarMedicines });
   } catch (err) {
     console.error("Medicines search failed:", err);
     res.status(500).json({ error: "Search failed" });

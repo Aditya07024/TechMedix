@@ -166,8 +166,8 @@ const WishList = ({ setShowLogin }) => {
                     <button
                       className="wl-view-btn"
                       onClick={() =>
-                        navigate("/search", {
-                          state: { medicine: item.name },
+                        navigate(`/medicines/${item.medicine_id}`, {
+                          state: { product: item },
                         })
                       }
                     >

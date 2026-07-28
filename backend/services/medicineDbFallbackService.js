@@ -656,14 +656,16 @@ export async function searchMedicinesInDb(query) {
         type,
         pack_size_label,
         price,
-        image
+        image,
+        category,
+        therapeutic_class
       FROM ${tableName}
       WHERE ${clauses.join(" AND ")}
       ORDER BY
         CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
         name ASC,
         id ASC
-      LIMIT 10
+      LIMIT 20
     `,
     [pattern],
   );

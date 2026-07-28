@@ -248,7 +248,7 @@ export const searchMedicines = async (searchTerm) => {
 
   return sql.query(
     `
-      SELECT *
+      SELECT id, name, salt, manufacturer_name, type, pack_size_label, price, image, category, therapeutic_class, short_composition1, short_composition2
       FROM medicines
       WHERE ${clauses.join(" AND ")}
       ORDER BY
@@ -259,6 +259,7 @@ export const searchMedicines = async (searchTerm) => {
           ELSE 4
         END,
         created_at DESC
+      LIMIT 20
     `,
     [pattern, searchTerm],
   );

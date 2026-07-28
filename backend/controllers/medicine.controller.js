@@ -219,6 +219,8 @@ export async function getMedicineById(req, res) {
   }
 }
 
+
+
 export async function searchMedicines(req, res) {
   try {
     const query = req.query.q?.trim() ?? "";
@@ -237,9 +239,24 @@ export async function searchMedicines(req, res) {
       contextLabel: "searchMedicines",
     });
 
+    const mapped = medicines.map((r) => ({
+      id: r.id,
+      medicine_name: r.name,
+      name: r.name,
+      strength: r.short_composition1 || r.salt || "",
+      manufacturer: r.manufacturer_name || "",
+      manufacturer_name: r.manufacturer_name || "",
+      type: r.type || "",
+      price: r.price,
+      image: r.image,
+      pack_size_label: r.pack_size_label,
+      category: r.category,
+      therapeutic_class: r.therapeutic_class,
+    }));
+
     return res.json({
       success: true,
-      data: medicines,
+      data: mapped,
     });
   } catch (error) {
     return sendServerError(res, error, "Failed to search medicines");
