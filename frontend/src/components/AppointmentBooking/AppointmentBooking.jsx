@@ -381,7 +381,7 @@ export default function AppointmentBooking({
                   <Clock3 size={16} strokeWidth={2} />
                   <span>
                     {selectedDateLabel
-                      ? `Available Slots (${selectedDateLabel})`
+                      ? `Available Slots`
                       : "Available Slots"}
                   </span>
                 </h3>
@@ -537,7 +537,9 @@ export default function AppointmentBooking({
               ) : null}
             </div>
 
-            <div className="booking-footer-actions">
+            
+          </div>
+          <div className="booking-footer-actions">
               <p>Booking for Initial Consultation ({selectedSlot?.duration_minutes || 45} mins)</p>
               <button
                 className="book-button"
@@ -547,7 +549,6 @@ export default function AppointmentBooking({
                 {loading ? "Processing..." : "Proceed to Payment"}
               </button>
             </div>
-          </div>
         </>
       )}
     </div>

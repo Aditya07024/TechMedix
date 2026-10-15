@@ -1357,11 +1357,11 @@
 .appointment-select-shell {
   position: relative;
   width: min(100%, 360px);
-  padding: 8px;
+  padding: 3px;
   border-radius: 20px;
   background: linear-gradient(180deg, #edf3ff 0%, #e2ebff 100%);
-  border: 1px solid #d8e3f1;
-  box-shadow: 0 14px 30px rgba(31, 55, 95, 0.06);
+  border: 2px solid #d8e3f1;
+  /* box-shadow: 0 14px 30px rgba(31, 55, 95, 0.06); */
 }
 
 .appointment-select-shell::before {

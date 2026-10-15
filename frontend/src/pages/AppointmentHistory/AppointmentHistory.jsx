@@ -118,9 +118,6 @@ export default function AppointmentHistory() {
                   <div className={`appointment-history-status ${appointment.status || "pending"}`}>
                     {appointment.status || "pending"}
                   </div>
-                  <span className="appointment-history-id">
-                    {String(appointment.id).slice(0, 8)}
-                  </span>
                 </div>
 
                 <h3>{appointment.doctor_name || "Doctor Assigned"}</h3>
@@ -156,10 +153,6 @@ export default function AppointmentHistory() {
                 )}
 
                 <div className="appointment-history-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Doctor ID</span>
-                    <strong>{appointment.doctor_id || "Unavailable"}</strong>
-                  </div>
                   {(appointment.status === "completed" || appointment.status === "visited") && (
                     <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
                       {patientReviews.some(r => r.appointment_id === appointment.id) ? (

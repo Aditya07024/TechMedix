@@ -283,6 +283,7 @@
 }
 
 .booking-footer-actions {
+  margin-top: 20px;
   display: flex;
   align-items: center;
   gap: 24px;
@@ -337,6 +338,7 @@
   color: #3a5070;
   font-size: 0.88rem;
   font-weight: 600;
+  margin-bottom: 50px;
 }
 
 .booking-file-share-modes {

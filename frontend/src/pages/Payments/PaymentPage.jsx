@@ -440,9 +440,9 @@ export default function PaymentPage() {
                 disabled={loading}
               >
                 <div>
-                  <strong>Pay Online (Cashfree)</strong>
+                  <strong>Pay Online</strong>
                   <span>
-                    UPI, cards, net banking, and wallets with your saved contact prefilled.
+                    Pay with UPI, cards, and wallets.
                   </span>
                   <span style={{ display: "block", fontSize: "0.8rem", color: "#38bdf8", marginTop: "4px" }}>
                     * 2.5% charges are included in it of GST, platform fees, and other charges.

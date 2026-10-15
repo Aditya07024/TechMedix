@@ -325,7 +325,7 @@ const renderPrescriptionToBlob = async (doctor, patient, medicines, diagnosis, n
 
   ctx.fillStyle = "#0f6b57";
   ctx.font = "bold 16px sans-serif";
-  const docDisplayName = isDoc ? (doctorName.startsWith("Dr.") ? doctorName : `Dr. ${doctorName}`) : doctorName;
+  const docDisplayName = isDoc ? (doctorName.startsWith("Dr.") ? doctorName : `${doctorName}`) : doctorName;
   ctx.fillText(docDisplayName, 40, 145);
   
   ctx.fillStyle = "#475569";
@@ -2617,7 +2617,7 @@ export default function PatientDashboard() {
                         <option value="">-- Select a Doctor --</option>
                         {doctors.map((doctor) => (
                           <option key={doctor.id} value={doctor.id}>
-                            Dr. {doctor.name || `ID: ${doctor.id}`}{" "}
+                            {doctor.name || `ID: ${doctor.id}`}{" "}
                             {doctor.specialty ? `(${doctor.specialty})` : ""}
                           </option>
                         ))}
@@ -2692,6 +2692,24 @@ export default function PatientDashboard() {
               </div>
 
               <div className="appointments-reference-sidebar">
+                <div className="appointment-pulse-card">
+                  <span className="section-kicker">Health pulse</span>
+                  <div className="appointment-pulse-value">
+                    <strong>{latestMetrics?.heartRate || 'NA'}</strong>
+                    <span>BPM</span>
+                  </div>
+                  <div className="appointment-pulse-chart">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span className="active" />
+                    <span />
+                  </div>
+                  <p>Resting heart rate is stable. Great progress.</p>
+                </div>
+
                 <div className="section appointment-rail-card">
                   <h3>Clinic Appointments</h3>
                   <div className="appointment-rail-list">
@@ -2727,7 +2745,7 @@ export default function PatientDashboard() {
                                 className="appointment-rail-avatar"
                               />
                               <div className="appointment-rail-copy">
-                                <strong>{apt.doctor_name || `Dr. ${apt.doctor_id}`}</strong>
+                                <strong>{apt.doctor_name || `${apt.doctor_id}`}</strong>
                                 <span>
                                   {new Date(apt.appointment_date).toLocaleDateString("en-GB", {
                                     month: "short",
@@ -2778,23 +2796,7 @@ export default function PatientDashboard() {
                   </button>
                 </div>
 
-                <div className="appointment-pulse-card">
-                  <span className="section-kicker">Health pulse</span>
-                  <div className="appointment-pulse-value">
-                    <strong>{latestMetrics?.heartRate || 72}</strong>
-                    <span>BPM</span>
-                  </div>
-                  <div className="appointment-pulse-chart">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span className="active" />
-                    <span />
-                  </div>
-                  <p>Resting heart rate is stable. Great progress.</p>
-                </div>
+                
               </div>
             </div>
           </div>
@@ -3866,7 +3868,7 @@ export default function PatientDashboard() {
                       <span>{initials}</span>
                     </div>
                     <div className="rx-pad-option-info" style={{ flexGrow: 1 }}>
-                      <strong>{doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`}</strong>
+                      <strong>{doc.name.startsWith("Dr.") ? doc.name : `${doc.name}`}</strong>
                       <span className="rx-pad-specialty">{doc.specialty}</span>
                       <p className="rx-pad-meta-info">Latest prescription: {formattedDate} • {pad.medicines.length} medicines</p>
                     </div>
@@ -3915,7 +3917,7 @@ export default function PatientDashboard() {
                   {selectedPad.doctor.name.replace(/^Dr\.\s+/i, "").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "DR"}
                 </div>
                 <div className="premium-doc-details">
-                  <h4>{selectedPad.doctor.name.startsWith("Dr.") ? selectedPad.doctor.name : `Dr. ${selectedPad.doctor.name}`}</h4>
+                  <h4>{selectedPad.doctor.name.startsWith("Dr.") ? selectedPad.doctor.name : `${selectedPad.doctor.name}`}</h4>
                   <span className="doc-specialty-badge">{selectedPad.doctor.specialty}</span>
                   <div className="doc-meta-list">
                     <p><strong>Reg No:</strong> {selectedPad.doctor.reg_no || "TM-DOC-2024-001"}</p>
